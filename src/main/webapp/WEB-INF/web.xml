@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<web-app id="Qrystal Manager"
+        version="3.0"
+        xmlns="http://java.sun.com/xml/ns/javaee"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
+
+  <display-name>versiontracker</display-name>
+
+  <!-- Wicket servlet filter -->
+
+<!-- 
+  <filter>
+    <filter-name>wicket</filter-name>
+    <filter-class>org.apache.wicket.protocol.http.WicketFilter</filter-class>
+    <init-param>
+      <param-name>applicationClassName</param-name>
+      <param-value>com.vodecc.voipmng.boundary.wicket.WicketApplication</param-value>
+    </init-param>
+  </filter>
+
+  <filter-mapping>
+    <filter-name>/wicket</filter-name>
+    <url-pattern>/wicket/*</url-pattern>
+  </filter-mapping>
+-->
+
+  <!-- Servlets -->
+  <servlet>
+    <servlet-name>api-servlet</servlet-name>
+    <servlet-class>de.codesourcery.versiontracker.APIServlet</servlet-class>
+  </servlet>
+
+  <!-- Servlet to URL mappings -->
+  <servlet-mapping>
+    <servlet-name>api-servlet</servlet-name>
+    <url-pattern>/*</url-pattern>
+  </servlet-mapping>
+
+  <context-param>
+    <param-name>contextConfigLocation</param-name>
+    <param-value>/WEB-INF/classes/spring.cfg.xml</param-value>
+  </context-param>
+
+  <!--  Timeout in MINUTES -->
+  <session-config>
+    <!-- Get rid of annoying 'jsessionid' URL parameter -->
+    <tracking-mode>COOKIE</tracking-mode>
+    <session-timeout>30</session-timeout>
+  </session-config>
+
+</web-app>
