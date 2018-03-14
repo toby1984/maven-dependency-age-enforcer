@@ -1,0 +1,112 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>de.codesourcery.versiontracker</groupId>
+    <artifactId>versiontracker-parent</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+  </parent>
+  <artifactId>versiontracker-enforcerrule</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>versiontracker-enforcerrule</name>
+  <dependencies>
+    <dependency>
+      <groupId>de.codesourcery.versiontracker</groupId>
+      <artifactId>versiontracker-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>de.codesourcery.versiontracker</groupId>
+      <artifactId>versiontracker-client</artifactId>
+    </dependency>
+
+    <!-- Maven dependencies -->
+
+    <dependency>
+      <groupId>org.apache.maven.enforcer</groupId>
+      <artifactId>enforcer-api</artifactId>
+      <version>${enforcer.api.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-project</artifactId>
+      <version>${enforcerrule.maven.project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>${enforcerrule.maven.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-artifact</artifactId>
+      <version>${enforcerrule.maven.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-plugin-api</artifactId>
+      <version>${enforcerrule.maven.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.plexus</groupId>
+      <artifactId>plexus-container-default</artifactId>
+      <version>1.0-alpha-9</version>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+
+  <plugins>
+
+      <plugin>
+        <groupId>com.mycila.maven-license-plugin</groupId>
+        <artifactId>maven-license-plugin</artifactId>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Automatic-Module-Name>de_codesourcery_versiontracker_enforcerrule</Automatic-Module-Name>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+
+
+    <!-- JAXB plugin -->
+
+      <plugin>
+        <groupId>org.jvnet.jaxb2.maven2</groupId>
+        <artifactId>maven-jaxb2-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <generatePackage>de.codesourcery.versiontracker.xsd</generatePackage>
+          <extension>true</extension>
+          <episode>false</episode>
+          <schemaDirectory>${basedir}/src/main/resources/xsd</schemaDirectory>
+          <bindingDirectory>${basedir}/src/main/resources/xsd</bindingDirectory>
+<!--
+          <bindingIncludes>
+            <include>bindings.xjc</include>
+          </bindingIncludes>
+-->
+        </configuration>
+      </plugin>
+
+    </plugins>
+  </build>
+
+</project>

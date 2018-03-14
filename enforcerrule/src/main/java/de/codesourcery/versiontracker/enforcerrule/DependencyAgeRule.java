@@ -1,0 +1,553 @@
+/**
+ * Copyright 2015 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package de.codesourcery.versiontracker.enforcerrule;
+
+import java.io.File;
+import java.io.IOException;
+import java.text.MessageFormat;
+import java.text.ParseException;
+import java.time.Duration;
+import java.time.Period;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Unmarshaller;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.apache.maven.enforcer.rule.api.EnforcerRule;
+import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
+import org.apache.maven.enforcer.rule.api.EnforcerRuleHelper;
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
+
+import de.codesourcery.versiontracker.client.IAPIClient;
+import de.codesourcery.versiontracker.client.JSONApiClient;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.ArtifactResponse;
+import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
+import de.codesourcery.versiontracker.common.Blacklist;
+import de.codesourcery.versiontracker.common.Blacklist.VersionMatcher;
+import de.codesourcery.versiontracker.xsd.IgnoreVersion;
+import de.codesourcery.versiontracker.xsd.Rule;
+import de.codesourcery.versiontracker.xsd.Ruleset;
+
+/**
+ * A custom rule for the {@link https://maven.apache.org/enforcer/maven-enforcer-plugin/ maven-enforcer-plugin) that
+ * supports warning and failing the build when project dependencies are outdated by a configurable amount of time.
+ * 
+ * @author tobias.gierke@code-sourcery.de
+ */
+public class DependencyAgeRule implements EnforcerRule
+{
+    private static final String MAX_AGE_PATTERN_STRING = "(\\d+)\\s*([dwmy]|(day|days|week|weeks|month|months|year|years))";
+
+    public static final Pattern MAX_AGE_PATTERN = Pattern.compile(MAX_AGE_PATTERN_STRING,Pattern.CASE_INSENSITIVE);
+
+    private Log log;
+    private MavenProject project;
+
+    private Age parsedMaxAge;
+    private Age parsedWarnAge;
+
+    // rule configuration properties
+    
+    /**
+     * Dependency age at which to start printing warnings.
+     * 
+     * Executing this rule will print warnings for all project dependencies
+     * whose version is older than <code>warnAge</code>.
+     * 
+     * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
+     */
+    private String warnAge;
+    
+    /**
+     * Dependency age at which to fail the build.
+     * 
+     * Executing this rule will fail the build when at least one project dependency
+     * is older than <code>maxAge</code>.
+     * 
+     * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
+     */    
+    private String maxAge;
+    
+    /**
+     * API endpoint to contact for fetching artifact version metadata.  
+     */
+    private String apiEndpoint;
+    
+    /**
+     * Enable verbose output.
+     */
+    private boolean verbose;
+    
+    /**
+     * Enable debug (very verbose) output.
+     */
+    private boolean debug;
+    
+    /**
+     * Optional path to XML file that describes what artifact versions to ignore. 
+     */
+    private File rulesFile;
+    
+    /**
+     * Whether to fail when an artifact could not be found in the repository.
+     */
+    private boolean failOnMissingArtifacts=true;
+
+    private static enum AgeUnit 
+    {
+        DAYS,WEEKS,MONTHS,YEARS;
+
+        public static AgeUnit parse(String unit) {
+            if ( StringUtils.isBlank( unit ) ) {
+                throw new IllegalArgumentException("age unit must not be NULL/blank");
+            }
+            final String s = unit.trim().toLowerCase();
+            if ( "d".equals(s) || "day".equals(s) || "days".equals(s) ) {
+                return DAYS;
+            }
+            if ( "w".equals(s) || "week".equals(s) || "weeks".equals(s) ) {
+                return WEEKS;
+            }
+            if ( "m".equals(s) || "month".equals(s) || "months".equals(s) ) {
+                return MONTHS;
+            }   
+            if ( "y".equals(s) || "year".equals(s) || "years".equals(s) ) {
+                return YEARS;
+            }               
+            throw new IllegalArgumentException("Unknown age unit '"+unit+"'");
+        }
+    }
+
+    private static final class Age {
+
+        public final int value;
+        public final AgeUnit unit;
+
+        public Age(int value, AgeUnit unit)
+        {
+            this.value = value;
+            this.unit = unit;
+        }
+        
+        public Period toPeriod() 
+        {
+        	switch(unit) {
+			case DAYS:
+				return Period.ofDays( value );
+			case MONTHS:
+				return Period.ofMonths( value );
+			case WEEKS:
+				return Period.ofWeeks( value );
+			case YEARS:
+				return Period.ofYears( value );
+        	}
+        	throw new RuntimeException("Unreachable code reached");
+        }
+
+        @Override
+        public String toString()
+        {
+            final boolean plural = value > 1;
+            switch( unit ) {
+                case DAYS:
+                    return value+" "+(plural?"days":"day");
+                case MONTHS:
+                    return value+" "+(plural?"months":"month");
+                case WEEKS:
+                    return value+" "+(plural?"weeks":"week");
+                case YEARS:
+                    return value+" "+(plural?"years":"year");                    
+                default:
+                    throw new RuntimeException("Internal error, unhandled switch/case: "+unit);                    
+            }
+        }
+
+        public boolean isOlderThan(ZonedDateTime pointInTime,ZonedDateTime now) 
+        {
+            if ( pointInTime.isAfter( now ) || pointInTime.isEqual( now ) ) {
+                return false;
+            }
+            
+            final Duration elapsed = Duration.between(pointInTime,now);
+            switch( unit ) 
+            {
+                case DAYS:
+                    return elapsed.compareTo( Duration.ofDays( value ) ) > 0;
+                case MONTHS:
+                    ZonedDateTime current = now;
+                    int ageInMonths = 0;
+                    while ( current.getYear() != pointInTime.getYear() && current.getMonth() != pointInTime.getMonth() ) {
+                        current = current.minusMonths( 1 );
+                        ageInMonths++;
+                    }
+                    return ageInMonths > value;
+                case WEEKS:
+                    return elapsed.compareTo( Duration.ofDays( 7*value ) ) > 0;
+                case YEARS:
+                    // slightly inaccurate because of leap years 
+                    return elapsed.compareTo( Duration.ofDays( 365 * value ) ) > 0;
+                default:
+                    throw new RuntimeException("Internal error, unhandled switch/case: "+unit);
+            }
+        }
+    }
+    private static <T> T eval(String expression,EnforcerRuleHelper helper,Log log) throws EnforcerRuleException {
+
+        try {
+            return (T) helper.evaluate(expression);
+        }
+        catch (ExpressionEvaluationException e) 
+        {
+            final String msg = "Failed to evaluate expression '"+expression+"' : "+e.getMessage();
+            log.error(msg,e);
+            throw new EnforcerRuleException( msg ,e );
+        }        
+    }
+
+    private boolean isTooOld(ArtifactResponse response,Age threshold)
+    {
+        if ( response.hasCurrentVersion() &&
+                response.hasLatestVersion() )
+        {
+            if ( response.currentVersion.hasReleaseDate() &&
+                 response.latestVersion.hasReleaseDate() )
+            {
+                if ( threshold.isOlderThan( response.currentVersion.releaseDate , response.latestVersion.releaseDate ) ) 
+                {
+                    final Duration age = Duration.between(response.currentVersion.releaseDate , response.latestVersion.releaseDate);
+                    log.debug("Age threshold exceeded for "+response.artifact+", age is "+age+" but threshold is "+threshold);
+                    return true;
+                }
+            } 
+            else 
+            {
+                if( ! response.currentVersion.hasReleaseDate() ) {
+                    log.warn("Unable to determine current release date for version '"+response.currentVersion.versionString+"' of "+response.artifact);
+                }
+                if( ! response.latestVersion.hasReleaseDate() ) {
+                    log.warn("Unable to determine latest release date for version '"+response.latestVersion.versionString+"' of "+response.artifact);
+                }                
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    {
+        log = helper.getLog();
+
+        if ( StringUtils.isBlank( apiEndpoint ) ) {
+            fail("Configuration error - 'apiEndpoint' configuration property needs to be set");
+        }
+
+        project = eval("${project}",helper,log);
+
+        if ( StringUtils.isNotBlank( maxAge ) ) {
+        	parsedMaxAge = parseAge( "maxAge", maxAge );
+        }
+        if ( StringUtils.isNotBlank( warnAge ) ) {
+        	parsedWarnAge = parseAge( "warnAge", warnAge );
+        }
+        
+        if ( parsedWarnAge == null && parsedMaxAge == null ) {
+        	fail("Configuration error - either 'maxAge' or 'warnAge' need to be set");
+        }
+        
+        if ( parsedWarnAge != null && parsedMaxAge != null ) {
+        	 final ZonedDateTime now = ZonedDateTime.now();
+        	 if ( now.plus( parsedWarnAge.toPeriod() ).isAfter( now.plus( parsedMaxAge.toPeriod() ) ) ) {
+        		 fail("Configuration error - 'warnAge' needs to be less than 'maxAge'");
+        	 }
+        }
+        log.debug("==== Rule executing with API endpoint = "+apiEndpoint);
+        if ( parsedWarnAge != null )  {
+        	log.debug("==== Rule executing with warnAge = "+parsedWarnAge);
+        }
+        if ( parsedMaxAge != null ) {
+        	log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
+        }
+
+        final IAPIClient client = new JSONApiClient(apiEndpoint);
+        client.setDebugMode( debug );
+
+        final Set<org.apache.maven.artifact.Artifact> mavenArtifacts = project.getDependencyArtifacts();
+        log.debug("Project has "+mavenArtifacts.size()+" dependencies");
+
+        if ( ! mavenArtifacts.isEmpty() ) 
+        {
+            final Blacklist bl;
+            try {
+                bl = loadBlacklist();
+            } catch (JAXBException | ParseException e1) {
+                fail("Failed to parse rules.xml ("+e1.getMessage()+")",e1);
+                throw new RuntimeException("Unreachable code reached"); // fail() never returns
+            }
+            
+            final List<Artifact> artifacts = new ArrayList<>();
+            for ( org.apache.maven.artifact.Artifact ma : mavenArtifacts ) {
+                Artifact a = new Artifact();
+                a.groupId = ma.getGroupId();
+                a.artifactId = ma.getArtifactId();
+                a.version = ma.getVersion();
+                a.type = ma.getType();
+                a.setClassifier(ma.getClassifier());
+                if ( verbose ) {
+                    log.info("Project depends on "+a);
+                } else {
+                    log.debug("Project depends on "+a);
+                }
+                if ( bl == null || ! bl.isAllVersionsBlacklisted( a.groupId, a.artifactId) ) {
+                	artifacts.add( a );
+                } else {
+                	if ( verbose ) {
+                		log.warn("All artifact versions ignored by blacklist: "+a);
+                	}
+                }
+            }
+
+            final List<ArtifactResponse> result;
+            try {
+                result = client.query(artifacts,bl);
+            } 
+            catch (IOException e) 
+            {
+                fail("Failed to query version information from '"+apiEndpoint+"': "+e.getMessage(),e);
+                throw new RuntimeException("Unreachable code reached");
+            }
+            boolean failBecauseAgeExceeded = false;
+            boolean artifactsNotFound = false;
+            ZonedDateTime oldestOffendingRelease = null;
+            for ( ArtifactResponse resp : result ) 
+            {
+                if ( resp.updateAvailable == UpdateAvailable.NOT_FOUND ) {
+                    artifactsNotFound = true;
+                    log.warn( "Failed to find metadata for artifact "+resp.artifact);
+                    continue;
+                }
+            	final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( resp, parsedMaxAge );
+            	final boolean warnAgeExceeded = parsedWarnAge != null && isTooOld( resp, parsedWarnAge );
+            	failBecauseAgeExceeded |= maxAgeExceeded;
+				if ( warnAgeExceeded && ! maxAgeExceeded ) {
+					printMessage(resp,false); // log warning
+					if ( oldestOffendingRelease == null || resp.latestVersion.releaseDate.isBefore( oldestOffendingRelease ) ) {
+						oldestOffendingRelease = resp.latestVersion.releaseDate;
+					}
+				}
+                if ( maxAgeExceeded) 
+                {
+                    printMessage(resp,true); // log error
+                }
+            }
+            if ( failBecauseAgeExceeded ) {
+                fail("One or more dependencies of this project are older than the allowed maximum age ("+parsedMaxAge+")");
+            }
+            if ( artifactsNotFound && failOnMissingArtifacts ) {
+                fail("Failed to find metadata for one or more dependencies of this project");
+            }
+            if ( oldestOffendingRelease != null && parsedMaxAge != null ) 
+            {
+            	final ZonedDateTime now = ZonedDateTime.now();
+            	final Duration age = Duration.between(oldestOffendingRelease, now );
+            	final Duration timeRemaining = Duration.between( now , now.plus( parsedMaxAge.toPeriod() ) ).minus(age);
+            	final ZonedDateTime failureTime = now.plus( timeRemaining );
+            	final Duration remainingTime = Duration.between(now,failureTime);
+            	final long millis = remainingTime.toMillis();
+            	final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
+            	log.warn("===========================================");
+            	log.warn("= Your build will start FAILING on "+formatter.format( failureTime )+" which is in "+
+            			DurationFormatUtils.formatDurationWords(millis,true,true));
+            	log.warn("===========================================");
+            }
+        }
+    }
+
+	private void printMessage(ArtifactResponse resp,boolean printAsError) {
+		final String fmt = "Artifact {0} is too old, current version {1} was released on {2} but latest version "+
+		        " is {3} which was released on {4}";
+		final String msg = MessageFormat.format(fmt,
+		        resp.artifact.toString(),
+		        resp.currentVersion.versionString,
+		        prettyPrint( resp.currentVersion.releaseDate ),
+		        resp.latestVersion.versionString,
+		        prettyPrint( resp.latestVersion.releaseDate )
+		        );
+
+		if ( printAsError ) {
+			log.error( msg );
+		} else {
+			log.warn( msg );
+		}
+	}
+	
+	private void fail(String msg,Throwable t) throws EnforcerRuleException {
+		log.error(msg,t);
+		throw new EnforcerRuleException(msg,t);		
+	}
+	
+	private void fail(String msg) throws EnforcerRuleException {
+    	log.error(msg);
+    	throw new EnforcerRuleException(msg);		
+	}
+ 
+    private static String prettyPrint(ZonedDateTime dt) 
+    {
+        if ( dt == null ) {
+            return "n/a";
+        }
+        ZonedDateTime converted = dt.withZoneSameInstant( ZoneId.systemDefault() ); 
+        return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.LONG,FormatStyle.LONG).format( converted );
+    }
+
+    private Age parseAge(String configKey, String configValue) throws EnforcerRuleException 
+    {
+        try 
+        {
+            final String trimmed= configValue != null ? configValue.trim() : configValue;
+            final Matcher m = MAX_AGE_PATTERN.matcher( trimmed );
+            if ( m.matches() ) 
+            {
+                final int value = Integer.parseInt( m.group(1) );
+                if ( value < 0 ) {
+                    final String message = "'"+configKey+"' must be >= 0 but was "+value;
+                    log.error( message );
+                    throw new EnforcerRuleException(message);                      
+                }
+                final AgeUnit unit = AgeUnit.parse( m.group(2) );
+                return new Age(value,unit);
+            } 
+            else 
+            {
+                final String message = "Configuration error - not a valid '"+configKey+"' pattern: '"+configValue+"', must match regex '"+MAX_AGE_PATTERN_STRING+"'";
+                log.error( message );
+                throw new EnforcerRuleException(message);                
+            }
+        } 
+        catch(EnforcerRuleException e) {
+            throw e;
+        }
+        catch(Exception e) 
+        {
+            final String message = "Configuration error - not a valid '"+configKey+"' pattern: '"+configValue+"', must match regex '"+MAX_AGE_PATTERN_STRING+"'";
+            e.printStackTrace();
+            log.error( message );
+            throw new EnforcerRuleException(message,e);
+        }
+    }
+
+    @Override
+    public boolean isCacheable()
+    {
+        return true;
+    }
+
+    @Override
+    public boolean isResultValid(EnforcerRule cachedRule)
+    {
+        return true;
+    }
+
+    @Override
+    public String getCacheId()
+    {
+    	return warnAge+apiEndpoint+verbose+debug+rulesFile+maxAge;
+    }
+
+    private Blacklist loadBlacklist() throws JAXBException,ParseException {
+
+        if ( rulesFile == null ) {
+            return null;
+        }
+
+        final Blacklist blacklist = new Blacklist();
+
+        final JAXBContext jaxbContext = JAXBContext.newInstance(Ruleset.class);
+        final Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
+        final Ruleset result = (Ruleset) jaxbUnmarshaller.unmarshal(rulesFile);
+        assertSupportedComparisonMethod(result.getComparisonMethod());
+        List<Rule> rules = null;
+        rules = result.getRules() != null ? result.getRules().getRule() : null;
+        if ( rules != null ) {
+            for ( Rule r : rules ) 
+            {
+                assertSupportedComparisonMethod(r.getComparisonMethod());
+                final boolean hasIgnoredVersions = r.getIgnoreVersions() != null && r.getIgnoreVersions().getIgnoreVersion() != null;
+                if ( hasIgnoredVersions ) {
+                    assertMatcherTypeSupported(r.getIgnoreVersions().getIgnoreVersion());
+                }
+                if ( hasIgnoredVersions && StringUtils.isBlank( r.getArtifactId() ) ) 
+                {
+                    for ( IgnoreVersion v : r.getIgnoreVersions().getIgnoreVersion() ) {
+                        blacklist.addIgnoredVersion(r.getGroupId(),v.getValue(),VersionMatcher.fromString( v.getType() ) );
+                    }
+                } else if ( hasIgnoredVersions ) 
+                {
+                    for ( IgnoreVersion v : r.getIgnoreVersions().getIgnoreVersion() ) {
+                        blacklist.addIgnoredVersion(r.getGroupId(),r.getArtifactId(),v.getValue(),VersionMatcher.fromString( v.getType() ) );
+                    }
+                }                    
+            }
+        }
+        if ( result.getIgnoreVersions() != null ) {
+            assertMatcherTypeSupported( result.getIgnoreVersions().getIgnoreVersion() );
+        }
+
+        // register global blacklist
+        if ( result.getIgnoreVersions() != null && result.getIgnoreVersions().getIgnoreVersion() != null ) {
+            for ( IgnoreVersion v : result.getIgnoreVersions().getIgnoreVersion() ) 
+            {
+                blacklist.addIgnoredVersion(v.getValue(),VersionMatcher.fromString( v.getType() ) );
+            }
+        }
+        return blacklist;
+    }
+
+    private void assertMatcherTypeSupported(List<IgnoreVersion> list) throws ParseException 
+    {
+        if ( list != null ) 
+        {
+            for ( IgnoreVersion v : list ) 
+            {
+                final String matcher = v.getType();
+                if (matcher != null && ! (matcher.equals("regex") | matcher.equals("exact") ) ) {
+                    throw new ParseException("Sorry, rules file "+rulesFile.getAbsolutePath()+" "
+                            + "contains unsupported value '"+matcher+"'for 'type' attribute of <ignoreVersion/> tag",-1);
+                }
+            }
+        }
+    }    
+
+    private void assertSupportedComparisonMethod(String method) throws ParseException 
+    {
+        if (method != null && ! method.equals("maven") ) {
+            throw new ParseException("Sorry, rules file "+rulesFile.getAbsolutePath()+" contains custom comparison method '"+method+"' but custom comparison methods are not supported by this plugin.",-1);
+        }
+    }
+}

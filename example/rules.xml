@@ -1,0 +1,18 @@
+<?xml version="1.0" ?>
+<ruleset comparisonMethod="maven">
+  <ignoreVersions>
+    <ignoreVersion type="regex">20.*</ignoreVersion>
+    </ignoreVersions>
+  <rules>
+    <rule groupId="de.codesourcery" comparisonMethod="maven" >
+      <ignoreVersions>
+        <ignoreVersion type="regex">.*</ignoreVersion>
+      </ignoreVersions>
+    </rule>
+    <rule groupId="commons-lang" artifactId="commons-lang" comparisonMethod="maven" >
+      <ignoreVersions>
+        <ignoreVersion type="regex">2003.*</ignoreVersion>
+      </ignoreVersions>
+    </rule>
+  </rules>
+</ruleset>
