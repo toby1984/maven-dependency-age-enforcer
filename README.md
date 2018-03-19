@@ -79,7 +79,7 @@ Currently there's nothing to be done except running 'mvn package' and then tossi
 | verbose                        |     X     |    false      | true                         | Enable printing more verbose information about what's going on |
 | debug                          |     X     |    false      | false                        | Enable printing more verbose information about what's going on |
 | rulesFile                      |     X     |               | ${project.basedir}/rules.xml | XML file describing which version numbers/artifacts to ignore when checking for updates |
-| failOnMissingArtifacts         |     X     |    false      | true                         | Whether to fail the build if no release information could be obtained for an artifact |
+| failOnMissingArtifacts         |     X     |    *true*      | true                         | Whether to fail the build if no release information could be obtained for an artifact |
 | searchRulesInParentDirectories |     X     |    false      | true                         | When set to 'true' and the rules file could not be found in the given location, recursively traverse parent directories looking for the file there |
 
 
