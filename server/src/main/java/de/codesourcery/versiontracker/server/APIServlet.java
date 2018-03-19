@@ -59,6 +59,12 @@ public class APIServlet extends HttpServlet
 {
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
     
+    /**
+     * Environment variable that points to the location where
+     * artifact metadata should be stored when using the simple flat-file storage implementation.
+     */
+    private static final String SYSTEM_PROPERTY_ARTIFACT_FILE = "versiontracker.artifact.file";
+    
     private VersionTracker versionTracker;
     
     public interface IUpdateCallback 
@@ -97,19 +103,32 @@ public class APIServlet extends HttpServlet
     {
         System.getProperties().stringPropertyNames().forEach( key -> System.out.println( key+"="+System.getProperty(key) ) );
     }
+
+    private File getArtifactFileLocation() 
+    {
+        String location = System.getProperty( SYSTEM_PROPERTY_ARTIFACT_FILE );
+        if ( StringUtils.isNotBlank( location ) ) 
+        {
+            LOG.info("getArtifactFileLocation(): Using artifacts file location from '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM property");
+            return new File( location );
+        }
+        location = System.getProperty("user.home");
+        if ( StringUtils.isNotBlank( location) ) 
+        {
+            LOG.info("getArtifactFileLocation(): Storing artifacts file relative to 'user.home' JVM property");
+            return new File( location , "artifacts.json");            
+        }
+        final String msg = "Neither 'user.home' nor '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM properties are set, don't know where to store artifact metadata";
+        LOG.error("getArtifactFileLocation(): "+msg);
+        throw new RuntimeException(msg);
+    }
     
     @Override
     public void init(ServletConfig config) throws ServletException
     {
         super.init(config);
         
-        String fileLocation = System.getProperty("user.home");
-        if ( StringUtils.isBlank( fileLocation ) ) {
-            fileLocation = "/tmp/artifact-metadata.json";
-            LOG.warn("service(): 'user.home' is not set, will store artifacts at "+fileLocation);
-        } 
-        
-        final File versionFile = new File( fileLocation );
+        final File versionFile = getArtifactFileLocation();
         final String mavenRepository = "http://repo1.maven.org/maven2/";
         
         final IVersionStorage versionStorage = new FlatFileStorage( versionFile );
