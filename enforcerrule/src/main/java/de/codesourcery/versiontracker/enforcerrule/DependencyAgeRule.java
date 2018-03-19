@@ -56,8 +56,9 @@ import de.codesourcery.versiontracker.xsd.Rule;
 import de.codesourcery.versiontracker.xsd.Ruleset;
 
 /**
- * A custom rule for the {@link https://maven.apache.org/enforcer/maven-enforcer-plugin/ maven-enforcer-plugin) that
- * supports warning and failing the build when project dependencies are outdated by a configurable amount of time.
+ * A custom rule for the 
+ * <a href="https://maven.apache.org/enforcer/maven-enforcer-plugin/ maven-enforcer-plugin">Maven Enforcer Plugin</a> 
+ * that supports warning and failing the build when project dependencies are outdated by a configurable amount of time.
  * 
  * @author tobias.gierke@code-sourcery.de
  */
@@ -74,7 +75,7 @@ public class DependencyAgeRule implements EnforcerRule
     private Age parsedWarnAge;
 
     // rule configuration properties
-    
+
     /**
      * Dependency age at which to start printing warnings.
      * 
@@ -84,7 +85,7 @@ public class DependencyAgeRule implements EnforcerRule
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */
     private String warnAge;
-    
+
     /**
      * Dependency age at which to fail the build.
      * 
@@ -94,31 +95,37 @@ public class DependencyAgeRule implements EnforcerRule
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */    
     private String maxAge;
-    
+
     /**
      * API endpoint to contact for fetching artifact version metadata.  
      */
     private String apiEndpoint;
-    
+
     /**
      * Enable verbose output.
      */
     private boolean verbose;
-    
+
     /**
      * Enable debug (very verbose) output.
      */
     private boolean debug;
-    
+
     /**
      * Optional path to XML file that describes what artifact versions to ignore. 
      */
     private File rulesFile;
-    
+
     /**
      * Whether to fail when an artifact could not be found in the repository.
      */
     private boolean failOnMissingArtifacts=true;
+
+    /**
+     * Whether to look for the rules XML file in parent directories
+     * if the file is not found in the specified location.
+     */
+    private boolean searchRulesInParentDirectories;
 
     private static enum AgeUnit 
     {
@@ -155,20 +162,20 @@ public class DependencyAgeRule implements EnforcerRule
             this.value = value;
             this.unit = unit;
         }
-        
+
         public Period toPeriod() 
         {
-        	switch(unit) {
-			case DAYS:
-				return Period.ofDays( value );
-			case MONTHS:
-				return Period.ofMonths( value );
-			case WEEKS:
-				return Period.ofWeeks( value );
-			case YEARS:
-				return Period.ofYears( value );
-        	}
-        	throw new RuntimeException("Unreachable code reached");
+            switch(unit) {
+                case DAYS:
+                    return Period.ofDays( value );
+                case MONTHS:
+                    return Period.ofMonths( value );
+                case WEEKS:
+                    return Period.ofWeeks( value );
+                case YEARS:
+                    return Period.ofYears( value );
+            }
+            throw new RuntimeException("Unreachable code reached");
         }
 
         @Override
@@ -188,36 +195,14 @@ public class DependencyAgeRule implements EnforcerRule
                     throw new RuntimeException("Internal error, unhandled switch/case: "+unit);                    
             }
         }
-
-        public boolean isOlderThan(ZonedDateTime pointInTime,ZonedDateTime now) 
-        {
-            if ( pointInTime.isAfter( now ) || pointInTime.isEqual( now ) ) {
-                return false;
-            }
+        
+        public int compareTo(Duration duration,ZonedDateTime referencePoint) {
             
-            final Duration elapsed = Duration.between(pointInTime,now);
-            switch( unit ) 
-            {
-                case DAYS:
-                    return elapsed.compareTo( Duration.ofDays( value ) ) > 0;
-                case MONTHS:
-                    ZonedDateTime current = now;
-                    int ageInMonths = 0;
-                    while ( current.getYear() != pointInTime.getYear() && current.getMonth() != pointInTime.getMonth() ) {
-                        current = current.minusMonths( 1 );
-                        ageInMonths++;
-                    }
-                    return ageInMonths > value;
-                case WEEKS:
-                    return elapsed.compareTo( Duration.ofDays( 7*value ) ) > 0;
-                case YEARS:
-                    // slightly inaccurate because of leap years 
-                    return elapsed.compareTo( Duration.ofDays( 365 * value ) ) > 0;
-                default:
-                    throw new RuntimeException("Internal error, unhandled switch/case: "+unit);
-            }
+            Duration thisDuration = Duration.between( referencePoint , referencePoint.plus( toPeriod() ) );
+            return thisDuration.compareTo( duration );
         }
     }
+    
     private static <T> T eval(String expression,EnforcerRuleHelper helper,Log log) throws EnforcerRuleException {
 
         try {
@@ -237,9 +222,11 @@ public class DependencyAgeRule implements EnforcerRule
                 response.hasLatestVersion() )
         {
             if ( response.currentVersion.hasReleaseDate() &&
-                 response.latestVersion.hasReleaseDate() )
+                 response.latestVersion.hasReleaseDate() &&
+                 response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
             {
-                if ( threshold.isOlderThan( response.currentVersion.releaseDate , response.latestVersion.releaseDate ) ) 
+                final Duration elapsedTime = Duration.between( response.currentVersion.releaseDate , response.latestVersion.releaseDate );
+                if ( threshold.compareTo( elapsedTime, ZonedDateTime.now() ) < 0 ) 
                 {
                     final Duration age = Duration.between(response.currentVersion.releaseDate , response.latestVersion.releaseDate);
                     log.debug("Age threshold exceeded for "+response.artifact+", age is "+age+" but threshold is "+threshold);
@@ -271,35 +258,34 @@ public class DependencyAgeRule implements EnforcerRule
         project = eval("${project}",helper,log);
 
         if ( StringUtils.isNotBlank( maxAge ) ) {
-        	parsedMaxAge = parseAge( "maxAge", maxAge );
+            parsedMaxAge = parseAge( "maxAge", maxAge );
         }
         if ( StringUtils.isNotBlank( warnAge ) ) {
-        	parsedWarnAge = parseAge( "warnAge", warnAge );
+            parsedWarnAge = parseAge( "warnAge", warnAge );
         }
-        
+
         if ( parsedWarnAge == null && parsedMaxAge == null ) {
-        	fail("Configuration error - either 'maxAge' or 'warnAge' need to be set");
+            fail("Configuration error - either 'maxAge' or 'warnAge' need to be set");
         }
-        
+
         if ( parsedWarnAge != null && parsedMaxAge != null ) {
-        	 final ZonedDateTime now = ZonedDateTime.now();
-        	 if ( now.plus( parsedWarnAge.toPeriod() ).isAfter( now.plus( parsedMaxAge.toPeriod() ) ) ) {
-        		 fail("Configuration error - 'warnAge' needs to be less than 'maxAge'");
-        	 }
+            final ZonedDateTime now = ZonedDateTime.now();
+            if ( now.plus( parsedWarnAge.toPeriod() ).isAfter( now.plus( parsedMaxAge.toPeriod() ) ) ) {
+                fail("Configuration error - 'warnAge' needs to be less than 'maxAge'");
+            }
         }
         log.debug("==== Rule executing with API endpoint = "+apiEndpoint);
         if ( parsedWarnAge != null )  {
-        	log.debug("==== Rule executing with warnAge = "+parsedWarnAge);
+            log.debug("==== Rule executing with warnAge = "+parsedWarnAge);
         }
         if ( parsedMaxAge != null ) {
-        	log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
+            log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
         }
 
         final IAPIClient client = new JSONApiClient(apiEndpoint);
         client.setDebugMode( debug );
 
         final Set<org.apache.maven.artifact.Artifact> mavenArtifacts = project.getDependencyArtifacts();
-        log.debug("Project has "+mavenArtifacts.size()+" dependencies");
 
         if ( ! mavenArtifacts.isEmpty() ) 
         {
@@ -310,7 +296,7 @@ public class DependencyAgeRule implements EnforcerRule
                 fail("Failed to parse rules.xml ("+e1.getMessage()+")",e1);
                 throw new RuntimeException("Unreachable code reached"); // fail() never returns
             }
-            
+
             final List<Artifact> artifacts = new ArrayList<>();
             for ( org.apache.maven.artifact.Artifact ma : mavenArtifacts ) {
                 Artifact a = new Artifact();
@@ -325,16 +311,17 @@ public class DependencyAgeRule implements EnforcerRule
                     log.debug("Project depends on "+a);
                 }
                 if ( bl == null || ! bl.isAllVersionsBlacklisted( a.groupId, a.artifactId) ) {
-                	artifacts.add( a );
+                    artifacts.add( a );
                 } else {
-                	if ( verbose ) {
-                		log.warn("All artifact versions ignored by blacklist: "+a);
-                	}
+                    if ( verbose ) {
+                        log.warn("All artifact versions ignored by blacklist: "+a);
+                    }
                 }
             }
 
             final List<ArtifactResponse> result;
             try {
+                log.info("Querying metadata for "+artifacts.size()+" artifacts from "+apiEndpoint);
                 result = client.query(artifacts,bl);
             } 
             catch (IOException e) 
@@ -352,15 +339,15 @@ public class DependencyAgeRule implements EnforcerRule
                     log.warn( "Failed to find metadata for artifact "+resp.artifact);
                     continue;
                 }
-            	final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( resp, parsedMaxAge );
-            	final boolean warnAgeExceeded = parsedWarnAge != null && isTooOld( resp, parsedWarnAge );
-            	failBecauseAgeExceeded |= maxAgeExceeded;
-				if ( warnAgeExceeded && ! maxAgeExceeded ) {
-					printMessage(resp,false); // log warning
-					if ( oldestOffendingRelease == null || resp.latestVersion.releaseDate.isBefore( oldestOffendingRelease ) ) {
-						oldestOffendingRelease = resp.latestVersion.releaseDate;
-					}
-				}
+                final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( resp, parsedMaxAge );
+                final boolean warnAgeExceeded = parsedWarnAge != null && isTooOld( resp, parsedWarnAge );
+                failBecauseAgeExceeded |= maxAgeExceeded;
+                if ( warnAgeExceeded && ! maxAgeExceeded ) {
+                    printMessage(resp,false); // log warning
+                    if ( oldestOffendingRelease == null || resp.latestVersion.releaseDate.isBefore( oldestOffendingRelease ) ) {
+                        oldestOffendingRelease = resp.latestVersion.releaseDate;
+                    }
+                }
                 if ( maxAgeExceeded) 
                 {
                     printMessage(resp,true); // log error
@@ -374,49 +361,49 @@ public class DependencyAgeRule implements EnforcerRule
             }
             if ( oldestOffendingRelease != null && parsedMaxAge != null ) 
             {
-            	final ZonedDateTime now = ZonedDateTime.now();
-            	final Duration age = Duration.between(oldestOffendingRelease, now );
-            	final Duration timeRemaining = Duration.between( now , now.plus( parsedMaxAge.toPeriod() ) ).minus(age);
-            	final ZonedDateTime failureTime = now.plus( timeRemaining );
-            	final Duration remainingTime = Duration.between(now,failureTime);
-            	final long millis = remainingTime.toMillis();
-            	final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
-            	log.warn("===========================================");
-            	log.warn("= Your build will start FAILING on "+formatter.format( failureTime )+" which is in "+
-            			DurationFormatUtils.formatDurationWords(millis,true,true));
-            	log.warn("===========================================");
+                final ZonedDateTime now = ZonedDateTime.now();
+                final Duration age = Duration.between(oldestOffendingRelease, now );
+                final Duration timeRemaining = Duration.between( now , now.plus( parsedMaxAge.toPeriod() ) ).minus(age);
+                final ZonedDateTime failureTime = now.plus( timeRemaining );
+                final Duration remainingTime = Duration.between(now,failureTime);
+                final long millis = remainingTime.toMillis();
+                final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
+                log.warn("===========================================");
+                log.warn("= Your build will start FAILING on "+formatter.format( failureTime )+" which is in "+
+                        DurationFormatUtils.formatDurationWords(millis,true,true));
+                log.warn("===========================================");
             }
         }
     }
 
-	private void printMessage(ArtifactResponse resp,boolean printAsError) {
-		final String fmt = "Artifact {0} is too old, current version {1} was released on {2} but latest version "+
-		        " is {3} which was released on {4}";
-		final String msg = MessageFormat.format(fmt,
-		        resp.artifact.toString(),
-		        resp.currentVersion.versionString,
-		        prettyPrint( resp.currentVersion.releaseDate ),
-		        resp.latestVersion.versionString,
-		        prettyPrint( resp.latestVersion.releaseDate )
-		        );
+    private void printMessage(ArtifactResponse resp,boolean printAsError) {
+        final String fmt = "Artifact {0} is too old, current version {1} was released on {2} but latest version "+
+                " is {3} which was released on {4}";
+        final String msg = MessageFormat.format(fmt,
+                resp.artifact.toString(),
+                resp.currentVersion.versionString,
+                prettyPrint( resp.currentVersion.releaseDate ),
+                resp.latestVersion.versionString,
+                prettyPrint( resp.latestVersion.releaseDate )
+                );
 
-		if ( printAsError ) {
-			log.error( msg );
-		} else {
-			log.warn( msg );
-		}
-	}
-	
-	private void fail(String msg,Throwable t) throws EnforcerRuleException {
-		log.error(msg,t);
-		throw new EnforcerRuleException(msg,t);		
-	}
-	
-	private void fail(String msg) throws EnforcerRuleException {
-    	log.error(msg);
-    	throw new EnforcerRuleException(msg);		
-	}
- 
+        if ( printAsError ) {
+            log.error( msg );
+        } else {
+            log.warn( msg );
+        }
+    }
+
+    private void fail(String msg,Throwable t) throws EnforcerRuleException {
+        log.error(msg,t);
+        throw new EnforcerRuleException(msg,t);		
+    }
+
+    private void fail(String msg) throws EnforcerRuleException {
+        log.error(msg);
+        throw new EnforcerRuleException(msg);		
+    }
+
     private static String prettyPrint(ZonedDateTime dt) 
     {
         if ( dt == null ) {
@@ -477,14 +464,47 @@ public class DependencyAgeRule implements EnforcerRule
     @Override
     public String getCacheId()
     {
-    	return warnAge+apiEndpoint+verbose+debug+rulesFile+maxAge;
+        return warnAge+apiEndpoint+verbose+debug+rulesFile+maxAge;
     }
 
-    private Blacklist loadBlacklist() throws JAXBException,ParseException {
+    private static File getParent(File file) 
+    {
+        return file.getParentFile();
+    }
+
+    private Blacklist loadBlacklist() throws JAXBException,ParseException, EnforcerRuleException {
 
         if ( rulesFile == null ) {
             return null;
         }
+
+        if ( ! rulesFile.exists() && searchRulesInParentDirectories ) 
+        {
+            if ( verbose ) {
+                log.info("Rules file "+rulesFile.getAbsolutePath()+" does not exist, searching parent folders");
+            }
+            String fileName = rulesFile.getName();
+            File folder = getParent( rulesFile.getParentFile() );
+            do 
+            {
+                folder = getParent( rulesFile.getParentFile() );                    
+                rulesFile = new File(folder,fileName);
+                if ( debug ) {
+                    log.info("Trying "+rulesFile.getAbsolutePath());
+                }                 
+                if ( rulesFile.exists() && rulesFile.isFile() ) 
+                {
+                    break;
+                }
+            } while ( folder != null && folder.toPath().getNameCount() != 0 );
+        }
+        if ( ! rulesFile.exists() || ! rulesFile.isFile() ) {
+            fail(rulesFile.getAbsolutePath()+" does not exist or is no regular file");
+        }     
+
+        if ( verbose ) {
+            log.info("Using XML rules file "+rulesFile.getAbsolutePath());
+        }        
 
         final Blacklist blacklist = new Blacklist();
 

@@ -4,10 +4,10 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
   <parent>
     <groupId>de.codesourcery.versiontracker</groupId>
     <artifactId>versiontracker-parent</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.1</version>
   </parent>
   <artifactId>versiontracker-server</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.1</version>
   <name>versiontracker-server</name>
   <packaging>war</packaging>
   <dependencies>
@@ -18,6 +18,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
     <dependency>
       <groupId>de.codesourcery.versiontracker</groupId>
       <artifactId>versiontracker-common</artifactId>
+      <classifier>${myclassifier}</classifier>
     </dependency>
     <dependency>
       <groupId>javax.servlet</groupId>
@@ -42,7 +43,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-war-plugin</artifactId>
         <configuration>
-          <warName>versiontracker</warName>
+          <warName>versiontracker-${myclassifier}</warName>
           <archive>
             <manifestEntries>
               <Automatic-Module-Name>de_codesourcery_versiontracker_server</Automatic-Module-Name>

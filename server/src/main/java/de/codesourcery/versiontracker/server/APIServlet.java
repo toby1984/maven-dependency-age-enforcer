@@ -32,6 +32,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -92,12 +93,23 @@ public class APIServlet extends HttpServlet
         }
     }
     
+    public static void main(String[] args)
+    {
+        System.getProperties().stringPropertyNames().forEach( key -> System.out.println( key+"="+System.getProperty(key) ) );
+    }
+    
     @Override
     public void init(ServletConfig config) throws ServletException
     {
         super.init(config);
         
-        final File versionFile = new File("/tmp/artifacts.json" );
+        String fileLocation = System.getProperty("user.home");
+        if ( StringUtils.isBlank( fileLocation ) ) {
+            fileLocation = "/tmp/artifact-metadata.json";
+            LOG.warn("service(): 'user.home' is not set, will store artifacts at "+fileLocation);
+        } 
+        
+        final File versionFile = new File( fileLocation );
         final String mavenRepository = "http://repo1.maven.org/maven2/";
         
         final IVersionStorage versionStorage = new FlatFileStorage( versionFile );
@@ -107,6 +119,8 @@ public class APIServlet extends HttpServlet
         final int threadCount = Runtime.getRuntime().availableProcessors()*2;
         versionTracker.setMaxConcurrentThreads( threadCount );
         
+        versionTracker.start();        
+        
         LOG.info("service(): ====================");
         LOG.info("service(): = Servlet initialized.");
         LOG.info("service():");
@@ -114,8 +128,6 @@ public class APIServlet extends HttpServlet
         LOG.info("service(): Maven repository enpoint: "+mavenRepository);
         LOG.info("service(): Thread count: "+versionTracker.getMaxConcurrentThreads());
         LOG.info("service(): ====================");
-        
-        versionTracker.start();
     }
 
     @Override

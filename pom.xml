@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.codesourcery.versiontracker</groupId>
   <artifactId>versiontracker-parent</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.1</version>
   <packaging>pom</packaging>
   <name>versiontracker-parent</name>
   <url>https://github.com/toby1984/maven-dependency-version-enforcer</url>
@@ -11,8 +11,6 @@
     <wicket.version>7.10.0</wicket.version>
     <apache.tomcat.version>9.0.5</apache.tomcat.version>
     <log4.version>2.10.0</log4.version>
-    <javac.source>1.8</javac.source>
-    <javac.target>1.8</javac.target>
     <!-- properties specific to building the enforcer rule -->
     <enforcer.api.version>3.0.0-M1</enforcer.api.version>
     <enforcerrule.maven.version>3.5.2</enforcerrule.maven.version>
@@ -27,11 +25,14 @@
         <jdk>9</jdk>
       </activation>
       <properties>
+        <javac.source>1.8</javac.source>
+        <javac.target>1.8</javac.target>
         <javac.release>9</javac.release>
+        <myclassifier>jdk9</myclassifier>
       </properties>
       <build>
         <pluginManagement>
-          <plugins>
+           <plugins>
             <plugin>
               <artifactId>maven-compiler-plugin</artifactId>
               <version>3.7.0</version>
@@ -56,6 +57,11 @@
         <activeByDefault>false</activeByDefault>
         <jdk>1.8</jdk>
       </activation>
+      <properties>
+        <javac.source>1.8</javac.source>
+        <javac.target>1.8</javac.target>
+        <myclassifier>jdk8</myclassifier>
+      </properties>
       <build>
         <pluginManagement>
           <plugins>
@@ -95,24 +101,52 @@
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-common</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.1</version>
+        <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-client</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.1</version>
+        <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-server</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.1</version>
+        <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-enforcerrule</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.1</version>
+        <classifier>${myclassifier}</classifier>
       </dependency>
       <!-- used by all sub-modules-->
+    <dependency>
+      <groupId>javax.activation</groupId>
+      <artifactId>activation</artifactId>
+      <version>1.1.1</version>
+    </dependency>
+
+    <dependency>
+      <groupId>javax.xml.bind</groupId>
+      <artifactId>jaxb-api</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.sun.xml.bind</groupId>
+      <artifactId>jaxb-core</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.sun.xml.bind</groupId>
+      <artifactId>jaxb-impl</artifactId>
+      <version>2.3.0</version>
+    </dependency>
+
       <dependency>
         <groupId>commons-collections</groupId>
         <artifactId>commons-collections</artifactId>
@@ -190,6 +224,9 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
           <version>2.4</version>
+          <configuration>
+            <classifier>${myclassifier}</classifier>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -246,6 +283,7 @@
             <basedir>${basedir}/src</basedir>
             <excludes>
               <exclude>**/*.xml</exclude>
+              <exclude>**/module-info.java/</exclude>
               <exclude>**/.xsd</exclude>
               <exclude>**/.properties</exclude>
             </excludes>
