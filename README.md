@@ -68,6 +68,22 @@ Currently there's nothing to be done except running 'mvn package' and then tossi
         </plugin>
       </plugins>
     </build>
+    
+# Rule configuration options
+
+| Configuration                  | optional? | Default value |Examples                      | Description |
+|--------------------------------|-----------|:-------------:|------------------------------|-------------|
+| warnAge                        |     X     |               | 3 days                       | Print a warning for each dependency that was released more than X (days|weeks|months|years) ago. |
+| maxAge                         |           |               | 1 month                      | Fail the build for each dependency that was released more than X (days|weeks|months|years) ago. |
+| apiEndpoint                    |           |               | http://my.server/proxy       | 
+| verbose                        |     X     |    false      | true                         | Enable printing more verbose information about what's going on |
+| debug                          |     X     |    false      | false                        | Enable printing more verbose information about what's going on |
+| rulesFile                      |     X     |               | ${project.basedir}/rules.xml | XML file describing which version numbers/artifacts to ignore when checking for updates |
+| failOnMissingArtifacts         |     X     |    false      | true                         | Whether to fail the build if no release information could be obtained for an artifact |
+| searchRulesInParentDirectories |     X     |    false      | true                         | When set to 'true' and the rules file could not be found in the given location, recursively traverse parent directories looking for the file there |
+
+
+NOTE: The 'searchRulesInParentDirectories' option is a hack to share a single XML rules file in a top-level folder across child modules somewhere below  this folder.
 
 ## [optional] Create a XML file describing which versions to blacklist
 
