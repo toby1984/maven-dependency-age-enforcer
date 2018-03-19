@@ -95,7 +95,7 @@ The rules XML file as described here: https://www.mojohaus.org/versions-maven-pl
 
 # Known bugs
 
-* Adding XML namespace attributes to the <ruleset> tag inside the rules XML currently breaks JAXB unmarshalling,just leave them out for now
+* Adding XML namespace attributes to the &lt;ruleset&gt; tag inside the rules XML currently breaks JAXB unmarshalling,just leave them out for now
  
 # Known issues / TODO
 
