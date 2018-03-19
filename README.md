@@ -39,8 +39,6 @@ Currently there's nothing to be done except running 'mvn package' and then tossi
 
 ## Add the custom rule to your enforcer plugin configuration
 
-CAREFUL: When running on JDK9+ you currently need to add "--add-modules java.xml.bind" to your MAVEN_OPTS variable, otherwise the custom enforcer rule will fail to load. This will be fixed once this has a proper module-info.java descriptor
-
     <build>
       <plugins>
         <plugin>
@@ -63,7 +61,8 @@ CAREFUL: When running on JDK9+ you currently need to add "--add-modules java.xml
               <dependency>
                 <groupId>de.codesourcery.versiontracker</groupId>
                 <artifactId>versiontracker-enforcerrule</artifactId>
-                <version>0.0.1-SNAPSHOT</version>
+                <version>0.0.1</version>
+                <classifier>jdk8</classifier> <!-- classifier needs to match the JDK version you're using -->
               </dependency>
             </dependencies>
         </plugin>
