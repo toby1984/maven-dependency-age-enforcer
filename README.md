@@ -93,10 +93,14 @@ The rules XML file as described here: https://www.mojohaus.org/versions-maven-pl
       </rules>
     </ruleset>
 
+# Known bugs
+
+* Adding XML namespace attributes to the <ruleset> tag inside the rules XML currently breaks JAXB unmarshalling,just leave them out for now
+ 
 # Known issues / TODO
 
-* Add module descriptors to all sub-modules (I would've done it already but currently the Java ecosystem seems to suffer from a chicken-and-egg problem, everybody's waiting on everybody else to modularize their project first and I got some issues with Eclipse Phonton M6 and missing 'automatic-module-name' entries in various manifests) 
-* Add support for querying multiple maven repositories instead of just Maven central
-* Add simple web UI to configure the servlet/query artifacts/show status
-* Add SQL database support for metadata storage
-* Refactor code to not hold all the metadata in memory (fast and easy but obviously doesn't scale)
+* (high prio) Add support for querying multiple maven repositories instead of just Maven central
+* (high prio) Refactor code to not hold all the metadata in memory (fast and easy but obviously doesn't scale)
+* (low prio) Add module descriptors to all sub-modules (I would've done it already but currently the Java ecosystem seems to suffer from a chicken-and-egg problem, everybody's waiting on everybody else to modularize their project first and I got some issues with Eclipse Phonton M6 and missing 'automatic-module-name' entries in various manifests) 
+* (medium prio) Add simple web UI to configure the servlet/query artifacts/show status
+* (medium prio) Add SQL database support for metadata storage
