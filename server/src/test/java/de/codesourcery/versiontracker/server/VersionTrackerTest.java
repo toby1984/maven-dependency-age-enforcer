@@ -49,7 +49,7 @@ public class VersionTrackerTest
         }
 
         @Override
-        public synchronized void storeVersionInfo(VersionInfo info) throws IOException
+        public synchronized void saveOrUpdate(VersionInfo info) throws IOException
         {
             if ( ! stored.contains( info ) ) {
                 stored.add( info.copy() );
@@ -57,13 +57,13 @@ public class VersionTrackerTest
         }
 
         @Override
-        public synchronized Optional<VersionInfo> loadVersionInfo(Artifact artifact) throws IOException
+        public synchronized Optional<VersionInfo> getVersionInfo(Artifact artifact) throws IOException
         {
             return stored.stream().filter( x -> x.artifact.matchesExcludingVersion( artifact ) ).findFirst();
         }
 
         @Override
-        public synchronized void saveAll(List<VersionInfo> data) throws IOException
+        public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException
         {
             this.stored.clear();
             this.stored.addAll( data.stream().map(x->x.copy()).collect(Collectors.toList() ) );
@@ -100,8 +100,8 @@ public class VersionTrackerTest
             }
         };
         
-        tracker = new VersionTracker(storage,provider);
-        tracker.start();
+        final SharedLockCache locks = new SharedLockCache();
+        tracker = new VersionTracker(storage,provider,locks);
         
         final Artifact artifact = new Artifact();
         artifact.groupId="de.codesourcery";

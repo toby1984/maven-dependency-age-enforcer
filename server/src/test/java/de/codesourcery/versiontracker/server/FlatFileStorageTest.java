@@ -61,7 +61,7 @@ public class FlatFileStorageTest
     {
         FlatFileStorage storage = new FlatFileStorage(file);
         List<VersionInfo> data = new ArrayList<>();
-        storage.saveAll( data );
+        storage.saveOrUpdate( data );
         
         storage = new FlatFileStorage(file);
         List<VersionInfo> loaded = storage.getAllVersions();
@@ -99,7 +99,7 @@ public class FlatFileStorageTest
         final VersionInfo copy = info.copy();
         
         FlatFileStorage storage = new FlatFileStorage(file);
-        storage.storeVersionInfo(info);
+        storage.saveOrUpdate(info);
         
         storage = new FlatFileStorage(file);
         final List<VersionInfo> loaded = storage.getAllVersions();
@@ -114,7 +114,7 @@ public class FlatFileStorageTest
         final VersionInfo copy = info.copy();
         
         FlatFileStorage storage = new FlatFileStorage(file);
-        storage.saveAll( Collections.singletonList( info ));
+        storage.saveOrUpdate( Collections.singletonList( info ));
         
         storage = new FlatFileStorage(file);
         final List<VersionInfo> loaded = storage.getAllVersions();

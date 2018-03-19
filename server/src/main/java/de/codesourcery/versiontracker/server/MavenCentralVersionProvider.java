@@ -19,7 +19,6 @@ import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.net.URL;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -46,11 +45,6 @@ import java.util.stream.Collectors;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
@@ -79,11 +73,16 @@ import org.xml.sax.SAXException;
 
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.IVersionProvider.UpdateResult;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.server.MavenCentralVersionProvider.MyStreamHandler;
 
+/**
+ * Version provider that retrieves artifact metadata from Maven central.
+ * 
+ * This class is thread-safe.
+ *
+ * @author tobias.gierke@code-sourcery.de
+ */
 public class MavenCentralVersionProvider implements IVersionProvider
 {
     private static final Logger LOG = LogManager.getLogger(MavenCentralVersionProvider.class);
@@ -485,22 +484,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 return latest == null ? Optional.empty() : Optional.of( new Version(versionString,latest) );
             }
         });
-    }
-
-    private static String xmlToString(Document doc) 
-    {
-        try {
-            TransformerFactory tf = TransformerFactory.newInstance();
-            Transformer transformer = tf.newTransformer();
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
-            StringWriter writer = new StringWriter();
-            transformer.transform(new DOMSource(doc), new StreamResult(writer));
-            return writer.getBuffer().toString();
-        } 
-        catch(Exception e) 
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     public static Document parseXML(InputStream inputStream) throws IOException

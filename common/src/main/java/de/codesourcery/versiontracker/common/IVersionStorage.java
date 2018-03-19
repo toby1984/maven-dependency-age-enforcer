@@ -16,7 +16,9 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
-import java.nio.channels.SeekableByteChannel;
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,13 +38,57 @@ public interface IVersionStorage
     public List<VersionInfo> getAllVersions() throws IOException;
     
     /**
+     * Returns all artifact metadata that either has never been requested at all
+     * <b>or</b> , last successful request happened more than <code>lastSuccessDuration</code>
+     * time ago or last failed request happened more than <code>lastFailureDuration</code>
+     * ago (whatever happened last takes precedence here).
+     * 
+     * @param lastSuccessDuration
+     * @param lastFailureDuration
+     * @return
+     * @throws IOException
+     */
+    public default List<VersionInfo> getAllStaleVersions(Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now) throws IOException 
+    {
+        final List<VersionInfo> result = new ArrayList<>();
+        for ( VersionInfo info : getAllVersions() )
+        {
+            if ( isStaleVersion(info,lastSuccessDuration,lastFailureDuration,now) ) {
+                result.add( info );
+            }
+        }
+        return result;
+    }    
+    
+    public static boolean isStaleVersion(VersionInfo info,Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now) 
+    {
+        boolean add = false;
+        if ( info.lastPolledDate() == null ) { // both dates are NULL
+            add = true;
+        } 
+        else if ( info.lastSuccessDate != null &&  info.lastFailureDate != null ) // both are not NULL
+        {
+            if ( info.lastSuccessDate.isAfter( info.lastFailureDate ) ) {
+                add = Duration.between( info.lastSuccessDate,now ).compareTo( lastSuccessDuration ) > 0;
+            } else {
+                add = Duration.between( info.lastFailureDate,now ).compareTo( lastFailureDuration ) > 0;
+            }
+        } else if ( info.lastSuccessDate == null ) {
+            add = Duration.between( info.lastFailureDate,now ).compareTo( lastFailureDuration ) > 0;
+        } else {
+            add = Duration.between( info.lastSuccessDate,now ).compareTo( lastSuccessDuration ) > 0; 
+        } 
+        return add;
+    }
+    
+    /**
      * Stores or updates existing metadata.
      * 
      * @param info
      * @throws IOException
-     * @see #saveAll(List)
+     * @see #saveOrUpdate(List)
      */
-    public void storeVersionInfo(VersionInfo info) throws IOException;
+    public void saveOrUpdate(VersionInfo info) throws IOException;
     
     /**
      * Tries to load metadata for a given artifact.
@@ -51,7 +97,19 @@ public interface IVersionStorage
      * @return
      * @throws IOException
      */
-    public Optional<VersionInfo> loadVersionInfo(Artifact artifact) throws IOException;
+    public default Optional<VersionInfo> getVersionInfo(Artifact artifact) throws IOException
+    {
+        return getAllVersions().stream().filter( item -> item.artifact.matchesExcludingVersion( artifact ) ).findFirst();
+    }    
+    
+    public default void updateLastRequestDate(Artifact artifact, ZonedDateTime date) throws IOException 
+    {
+        final Optional<VersionInfo> existing = getVersionInfo(artifact);
+        if ( existing.isPresent() ) {
+            existing.get().lastRequestDate = date;
+            saveOrUpdate( existing.get() );
+        }
+    }
     
     /**
      * Bulk-storage of new or updated <code>VersionInfo</code> instances.
@@ -59,7 +117,7 @@ public interface IVersionStorage
      * @param data
      * @throws IOException
      * 
-     * @see #storeVersionInfo(VersionInfo)
+     * @see #saveOrUpdate(VersionInfo)
      */
-    public void saveAll(List<VersionInfo> data) throws IOException;    
+    public void saveOrUpdate(List<VersionInfo> data) throws IOException;    
 }

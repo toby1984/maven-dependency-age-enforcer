@@ -18,7 +18,6 @@ package de.codesourcery.versiontracker.server;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -58,24 +57,24 @@ import de.codesourcery.versiontracker.common.VersionInfo;
 public class APIServlet extends HttpServlet
 {
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
-    
+
     /**
      * Environment variable that points to the location where
      * artifact metadata should be stored when using the simple flat-file storage implementation.
      */
     private static final String SYSTEM_PROPERTY_ARTIFACT_FILE = "versiontracker.artifact.file";
-    
+
     private VersionTracker versionTracker;
-    
+
     public interface IUpdateCallback 
     {
         public void received(IVersionProvider.UpdateResult updateResult,VersionInfo info,Exception exception);
     }
-    
+
     public APIServlet() {
         LOG.info("APIServlet(): Instance created");
     }
-    
+
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException
     {
@@ -98,7 +97,7 @@ public class APIServlet extends HttpServlet
             }
         }
     }
-    
+
     public static void main(String[] args)
     {
         System.getProperties().stringPropertyNames().forEach( key -> System.out.println( key+"="+System.getProperty(key) ) );
@@ -122,31 +121,54 @@ public class APIServlet extends HttpServlet
         LOG.error("getArtifactFileLocation(): "+msg);
         throw new RuntimeException(msg);
     }
-    
+
     @Override
     public void init(ServletConfig config) throws ServletException
     {
         super.init(config);
-        
+
         final File versionFile = getArtifactFileLocation();
         final String mavenRepository = "http://repo1.maven.org/maven2/";
+
+        final IVersionStorage fileStorage = new FlatFileStorage( versionFile );
+        CachingStorageDecorator versionStorage  = new CachingStorageDecorator(fileStorage);
+        final IVersionProvider versionProvider = new MavenCentralVersionProvider(mavenRepository);
+        final SharedLockCache lockCache = new SharedLockCache();
         
-        final IVersionStorage versionStorage = new FlatFileStorage( versionFile );
-        final IVersionProvider versionProvider = new MavenCentralVersionProvider(mavenRepository);          
-        versionTracker = new VersionTracker(versionStorage,versionProvider);
-        
-        final int threadCount = Runtime.getRuntime().availableProcessors()*2;
-        versionTracker.setMaxConcurrentThreads( threadCount );
-        
-        versionTracker.start();        
-        
-        LOG.info("service(): ====================");
-        LOG.info("service(): = Servlet initialized.");
-        LOG.info("service():");
-        LOG.info("service(): Version file storage: "+versionFile.getAbsolutePath());
-        LOG.info("service(): Maven repository enpoint: "+mavenRepository);
-        LOG.info("service(): Thread count: "+versionTracker.getMaxConcurrentThreads());
-        LOG.info("service(): ====================");
+        // start background thread
+        final BackgroundUpdater updater = new BackgroundUpdater(versionStorage,versionProvider,lockCache);
+        updater.startThread();
+
+        boolean success = false;
+        try 
+        {
+            final int threadCount = Runtime.getRuntime().availableProcessors()*2;
+            versionTracker = new VersionTracker(versionStorage,versionProvider,lockCache);
+            versionTracker.setMaxConcurrentThreads( threadCount );
+
+            LOG.info("init(): ====================");
+            LOG.info("init(): Servlet initialized.");
+            LOG.info("init(): ");
+            LOG.info("init(): Version file storage: "+versionFile.getAbsolutePath());
+            LOG.info("init(): Maven repository enpoint: "+mavenRepository);
+            LOG.info("init(): Thread count: "+versionTracker.getMaxConcurrentThreads());
+            LOG.info("init(): ====================");
+            success = true;
+        } 
+        finally 
+        {
+            if ( ! success ) 
+            {
+                LOG.error("init(): Servlet failed to initialize");
+                try {
+                    updater.close();
+                }
+                catch (Exception e) 
+                {
+                    LOG.error("init(): Caught "+e.getMessage(),e);
+                }
+            }
+        }
     }
 
     @Override
@@ -159,14 +181,14 @@ public class APIServlet extends HttpServlet
         {
             LOG.info("doPost(): BODY = \n=============\n"+body+"\n================");
             APIRequest apiRequest = JSONHelper.parseAPIRequest( body );
-            
+
             switch(apiRequest.command) 
             {
                 case QUERY:
                     final ObjectMapper mapper = JSONHelper.newObjectMapper();
                     final QueryRequest query = mapper.readValue(body,QueryRequest.class);     
                     final QueryResponse response = processQuery( query );
-                    
+
                     final String responseJSON = mapper.writeValueAsString(response);
                     if ( LOG.isDebugEnabled() ) {
                         LOG.debug("doPost(): RESPONSE: \n"+responseJSON+"\n");
@@ -191,16 +213,16 @@ public class APIServlet extends HttpServlet
             return;
         }
     }
-    
+
     private QueryResponse processQuery(QueryRequest request)
     {
         QueryResponse result = new QueryResponse();
         result.serverVersion = "1.0";
-        
+
         final Map<Artifact,VersionInfo> results = versionTracker.getVersionInfo( request.artifacts );        
-		for ( Artifact artifact : request.artifacts ) 
-		{
-			final VersionInfo info = results.get( artifact );
+        for ( Artifact artifact : request.artifacts ) 
+        {
+            final VersionInfo info = results.get( artifact );
 
             final ArtifactResponse x = new ArtifactResponse();
             result.artifacts.add(x);
@@ -218,7 +240,7 @@ public class APIServlet extends HttpServlet
                     LOG.info("processQuery(): latest release version from metadata: "+info.latestSnapshotVersion);
                     LOG.info("processQuery(): Calculated latest snapshot version: "+x.latestVersion);
                 }
-                
+
                 if ( artifact.version == null || x.latestVersion == null ) 
                 {
                     x.updateAvailable = UpdateAvailable.MAYBE;
@@ -229,17 +251,17 @@ public class APIServlet extends HttpServlet
                     if ( currentVersion.isPresent() ) {
                         x.currentVersion = currentVersion.get();
                     }
-                    
+
                     int cmp = Artifact.VERSION_COMPARATOR.compare( artifact.version, x.latestVersion.versionString);
                     if ( cmp > 1 || cmp == 0 ) {                    	
-                    	x.updateAvailable = UpdateAvailable.NO;
+                        x.updateAvailable = UpdateAvailable.NO;
                     } else if ( cmp < 1 ) {
-                    	x.updateAvailable = UpdateAvailable.YES;                    	
+                        x.updateAvailable = UpdateAvailable.YES;                    	
                     }                     
                 }
                 LOG.info("processQuery(): "+artifact+" <-> "+x.latestVersion+" => "+x.updateAvailable);
             }
-		}
+        }
         return result;
     }    
 }

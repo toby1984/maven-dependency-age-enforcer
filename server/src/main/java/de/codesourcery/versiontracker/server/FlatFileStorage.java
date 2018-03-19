@@ -22,12 +22,10 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
-import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.Version;
@@ -61,7 +59,7 @@ public class FlatFileStorage implements IVersionStorage
     }
 
     @Override
-    public synchronized void saveAll(List<VersionInfo> data) throws IOException 
+    public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
     {
         assertNoDuplicates(data);
         JSONHelper.newObjectMapper().writeValue(file,data);
@@ -136,17 +134,11 @@ public class FlatFileStorage implements IVersionStorage
     }    
 
     @Override
-    public synchronized void storeVersionInfo(VersionInfo info) throws IOException
+    public synchronized void saveOrUpdate(VersionInfo info) throws IOException
     {
         List<VersionInfo> all = getAllVersions();
         all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
         all.add( info );
-        saveAll( all );
-    }
-
-    @Override
-    public synchronized Optional<VersionInfo> loadVersionInfo(Artifact artifact) throws IOException
-    {
-        return getAllVersions().stream().filter( item -> item.artifact.matchesExcludingVersion( artifact ) ).findFirst();
+        saveOrUpdate( all );
     }
 }

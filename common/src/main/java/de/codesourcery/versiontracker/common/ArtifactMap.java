@@ -29,6 +29,8 @@ import org.apache.commons.lang3.Validate;
 /**
  * A container that stores values indexed by artifact group ID and artifact ID.
  *
+ * <b>This class is NOT thread-safe.</b>
+ * 
  * @author tobias.gierke@code-sourcery.de
  * @param T type of values stored in this container
  */

@@ -27,6 +27,7 @@ import org.apache.commons.lang3.Validate;
 
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactMap;
+import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.VersionInfo;
 
 /**
