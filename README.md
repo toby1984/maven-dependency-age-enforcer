@@ -37,6 +37,8 @@ You will need JDK 8+ and Maven 3.5.2+
 
 Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file inside the webapps folder of your favorite application server.
 
+By default the servlet will store all retrieved artifact metadata as a simple JSON file. This file gets stored as ${user.home}/artifacts.json unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the application. 
+
 ## Add the custom rule to your enforcer plugin configuration
 
     <build>

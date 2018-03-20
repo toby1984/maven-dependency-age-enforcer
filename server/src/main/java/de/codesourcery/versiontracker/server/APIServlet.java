@@ -79,7 +79,7 @@ public class APIServlet extends HttpServlet
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException
     {
         if ( LOG.isDebugEnabled() ) {
-            LOG.debug("service(): Called with method "+((HttpServletRequest) req).getMethod());
+            LOG.debug("service(): Incoming request from "+((HttpServletRequest) req).getRemoteAddr());
         }
         final long start = System.currentTimeMillis();
         try {
@@ -96,30 +96,6 @@ public class APIServlet extends HttpServlet
                 LOG.debug("service(): Request finished after "+elapsed+" ms");
             }
         }
-    }
-
-    public static void main(String[] args)
-    {
-        System.getProperties().stringPropertyNames().forEach( key -> System.out.println( key+"="+System.getProperty(key) ) );
-    }
-
-    private File getArtifactFileLocation() 
-    {
-        String location = System.getProperty( SYSTEM_PROPERTY_ARTIFACT_FILE );
-        if ( StringUtils.isNotBlank( location ) ) 
-        {
-            LOG.info("getArtifactFileLocation(): Using artifacts file location from '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM property");
-            return new File( location );
-        }
-        location = System.getProperty("user.home");
-        if ( StringUtils.isNotBlank( location) ) 
-        {
-            LOG.info("getArtifactFileLocation(): Storing artifacts file relative to 'user.home' JVM property");
-            return new File( location , "artifacts.json");            
-        }
-        final String msg = "Neither 'user.home' nor '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM properties are set, don't know where to store artifact metadata";
-        LOG.error("getArtifactFileLocation(): "+msg);
-        throw new RuntimeException(msg);
     }
 
     @Override
@@ -170,6 +146,25 @@ public class APIServlet extends HttpServlet
             }
         }
     }
+    
+    private File getArtifactFileLocation() 
+    {
+        String location = System.getProperty( SYSTEM_PROPERTY_ARTIFACT_FILE );
+        if ( StringUtils.isNotBlank( location ) ) 
+        {
+            LOG.info("getArtifactFileLocation(): Using artifacts file location from '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM property");
+            return new File( location );
+        }
+        location = System.getProperty("user.home");
+        if ( StringUtils.isNotBlank( location) ) 
+        {
+            LOG.info("getArtifactFileLocation(): Storing artifacts file relative to 'user.home' JVM property");
+            return new File( location , "artifacts.json");            
+        }
+        final String msg = "Neither 'user.home' nor '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM properties are set, don't know where to store artifact metadata";
+        LOG.error("getArtifactFileLocation(): "+msg);
+        throw new RuntimeException(msg);
+    }    
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
@@ -233,12 +228,16 @@ public class APIServlet extends HttpServlet
             {
                 if ( artifact.hasReleaseVersion() ) {
                     x.latestVersion = info.findLatestReleaseVersion( request.blacklist ).orElse( null );
-                    LOG.info("processQuery(): latest release version from metadata: "+info.latestReleaseVersion);
-                    LOG.info("processQuery(): Calculated latest release version: "+x.latestVersion);
+                    if ( LOG.isDebugEnabled() ) {
+                        LOG.debug("processQuery(): latest release version from metadata: "+info.latestReleaseVersion);
+                        LOG.debug("processQuery(): Calculated latest release version: "+x.latestVersion);
+                    }
                 } else {
                     x.latestVersion = info.findLatestSnapshotVersion( request.blacklist ).orElse( null );
-                    LOG.info("processQuery(): latest release version from metadata: "+info.latestSnapshotVersion);
-                    LOG.info("processQuery(): Calculated latest snapshot version: "+x.latestVersion);
+                    if ( LOG.isDebugEnabled() ) {
+                        LOG.debug("processQuery(): latest release version from metadata: "+info.latestSnapshotVersion);
+                        LOG.debug("processQuery(): Calculated latest snapshot version: "+x.latestVersion);
+                    }
                 }
 
                 if ( artifact.version == null || x.latestVersion == null ) 
@@ -253,13 +252,15 @@ public class APIServlet extends HttpServlet
                     }
 
                     int cmp = Artifact.VERSION_COMPARATOR.compare( artifact.version, x.latestVersion.versionString);
-                    if ( cmp > 1 || cmp == 0 ) {                    	
+                    if ( cmp >= 0 ) {                    	
                         x.updateAvailable = UpdateAvailable.NO;
-                    } else if ( cmp < 1 ) {
+                    } else if ( cmp < 0 ) {
                         x.updateAvailable = UpdateAvailable.YES;                    	
                     }                     
                 }
-                LOG.info("processQuery(): "+artifact+" <-> "+x.latestVersion+" => "+x.updateAvailable);
+                if ( LOG.isDebugEnabled() ) {
+                    LOG.debug("processQuery(): "+artifact+" <-> "+x.latestVersion+" => "+x.updateAvailable);
+                }
             }
         }
         return result;

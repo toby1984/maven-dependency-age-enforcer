@@ -56,6 +56,14 @@ public class ArtifactMap<T>
         }
     }
     
+    public ArtifactMap() {
+    }
+    
+    public ArtifactMap(ArtifactMap<T> other) 
+    {
+        data = new HashMap<>( other.data );
+    }
+    
     /**
      * Removes a values from this container.
      * 

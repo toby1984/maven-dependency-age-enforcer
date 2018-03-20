@@ -125,7 +125,6 @@ public class VersionTracker implements AutoCloseable
                             synchronized(resultMap) {
                                 resultMap.put(artifact,newInfo);
                             }                             
-                            versionStorage.saveOrUpdate( newInfo );
                             versionProvider.update( newInfo );
                             versionStorage.saveOrUpdate( newInfo );
                         } catch (IOException e) {

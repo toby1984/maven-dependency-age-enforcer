@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.server;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -39,6 +40,8 @@ import de.codesourcery.versiontracker.common.VersionInfo;
  */
 public class FlatFileStorage implements IVersionStorage
 {
+    private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
+    
     private File file;
 
     public FlatFileStorage(File file) {
@@ -81,49 +84,65 @@ public class FlatFileStorage implements IVersionStorage
             }
         }
     }
-
-    private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
-
+    
     public static void main(String[] args) throws IOException {
-
+        
+        dumpToFile( new File("/tmp/artifactTest.noCache"),new File("/tmp/artifactTest.noCache.txt") );
+        dumpToFile( new File("/tmp/artifactTest.withCache"),new File("/tmp/artifactTest.withCache.txt") );
+    }
+    
+    public static void dumpToFile(File inputFile,File outputFile) throws IOException 
+    {
+        String text = dumpToString(inputFile);
+        try ( FileWriter writer = new FileWriter( outputFile) ) {
+            writer.write( text );
+        }
+    }
+    
+    public static String dumpToString(File file) throws IOException 
+    {
         final Function<ZonedDateTime,String> func = time -> {
             return time == null ? "n/a" : format.format(time);
         };
-        FlatFileStorage storage = new FlatFileStorage(new File("/tmp/artifacts.json"));
-        for ( VersionInfo i : storage.getAllVersions() ) {
-            System.out.println("-----------------------------------");
-            System.out.println("group id: "+i.artifact.groupId);
-            System.out.println("artifact id: "+i.artifact.artifactId);
+        final StringBuilder buffer = new StringBuilder();
+        
+        final FlatFileStorage storage = new FlatFileStorage(file);
+        for ( VersionInfo i : storage.getAllVersions() ) 
+        {
+            buffer.append("-----------------------------------").append("\n");
+            buffer.append("group id: "+i.artifact.groupId).append("\n");
+            buffer.append("artifact id: "+i.artifact.artifactId).append("\n");
 
             if  (i.latestReleaseVersion != null ) {
-                System.out.println("latest release: "+i.latestReleaseVersion.versionString+" ("+printDate( i.latestReleaseVersion.releaseDate )+")" );
+                buffer.append("latest release: "+i.latestReleaseVersion.versionString+" ("+printDate( i.latestReleaseVersion.releaseDate )+")" ).append("\n");
             } else {
-                System.out.println("latest release : n/a");
+                buffer.append("latest release : n/a").append("\n");
             }
 
             if  (i.latestSnapshotVersion != null ) {
-                System.out.println("latest snapshot : "+i.latestSnapshotVersion.versionString+" ("+printDate( i.latestSnapshotVersion.releaseDate )+")" );
+                buffer.append("latest snapshot : "+i.latestSnapshotVersion.versionString+" ("+printDate( i.latestSnapshotVersion.releaseDate )+")" ).append("\n");
             } else {
-                System.out.println("latest snapshot : n/a");
+                buffer.append("latest snapshot : n/a").append("\n");
             }
             if ( i.versions == null || i.versions.isEmpty() ) {
-                System.out.println("versions: n/a");
+                buffer.append("versions: n/a").append("\n");
             } else {
-                System.out.println("versions:");
+                buffer.append("versions:").append("\n");
                 final List<Version> list = new ArrayList<>( i.versions );
                 list.sort( (a,b) -> a.versionString.compareTo( b.versionString ) );
                 for ( Version v : list ) 
                 {
-                    System.out.println("            "+v.versionString+" ("+func.apply( v.releaseDate )+")");
+                    buffer.append("            "+v.versionString+" ("+func.apply( v.releaseDate )+")").append("\n");
                 }
             }
 
-            System.out.println("lastRequestDate: "+printDate(i.lastRequestDate));
-            System.out.println("creationDate: "+printDate(i.creationDate));
-            System.out.println("lastSuccessDate: "+printDate(i.lastSuccessDate));
-            System.out.println("lastFailureDate: "+printDate(i.lastFailureDate));
-            System.out.println("lastRepositoryUpdate: "+printDate(i.lastRepositoryUpdate));       
+            buffer.append("lastRequestDate: "+printDate(i.lastRequestDate)).append("\n");
+            buffer.append("creationDate: "+printDate(i.creationDate)).append("\n");
+            buffer.append("lastSuccessDate: "+printDate(i.lastSuccessDate)).append("\n");
+            buffer.append("lastFailureDate: "+printDate(i.lastFailureDate)).append("\n");
+            buffer.append("lastRepositoryUpdate: "+printDate(i.lastRepositoryUpdate)).append("\n");       
         }
+        return buffer.toString();
     }
 
     private static String printDate(ZonedDateTime dt) {

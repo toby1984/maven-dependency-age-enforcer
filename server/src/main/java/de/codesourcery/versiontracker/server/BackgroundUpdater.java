@@ -54,10 +54,7 @@ public class BackgroundUpdater implements AutoCloseable {
     // GuardedBy( THREAD_LOCK )    
     private BGThread thread;
     
-    // GuardedBy( SLEEP_LOCK )
-    private boolean shutdown;
-    
-    private final Object SLEEP_LOCK = new Object();
+    private volatile boolean shutdown;
     
     private volatile Duration lastFailureDuration = Duration.ofHours( 12 );
     private volatile Duration lastSuccessDuration = Duration.ofHours( 24 );
@@ -70,6 +67,7 @@ public class BackgroundUpdater implements AutoCloseable {
     
     protected final class BGThread extends Thread 
     {
+        private final Object SLEEP_LOCK = new Object();        
         private final CountDownLatch stopLatch = new CountDownLatch(1);
         
         public BGThread() 
@@ -212,9 +210,9 @@ public class BackgroundUpdater implements AutoCloseable {
     @Override
     public void close() throws Exception 
     {
+        shutdown = true;
         synchronized( THREAD_LOCK ) 
         {
-            shutdown = true;
             if ( thread != null ) 
             {
                 try {
