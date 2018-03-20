@@ -47,6 +47,22 @@ By default the servlet will store all retrieved artifact metadata as a simple JS
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
           <version>${enforcer.plugin.version}</version>
+          <executions>
+            <execution>
+              <id>enforce-clean</id>
+              <phase>clean</phase>
+              <goals>
+                <goal>enforce</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>enforce-compile</id>
+              <phase>compile</phase>
+              <goals>
+                <goal>enforce</goal>
+              </goals>
+            </execution>
+          </executions>
           <configuration>
             <rules>
               <dependencyAgeRule implementation="de.codesourcery.versiontracker.enforcerrule.DependencyAgeRule">
