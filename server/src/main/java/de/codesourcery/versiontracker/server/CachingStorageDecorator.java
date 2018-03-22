@@ -1,5 +1,5 @@
 /**
- * Copyright 2015 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ * Copyright 2018 Tobias Gierke <tobias.gierke@code-sourcery.de>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,7 +177,9 @@ public class CachingStorageDecorator implements IVersionStorage, AutoCloseable
                 final CollectingVisitor v = new CollectingVisitor(false);
                 dirtyCache.visitValues( v );
                 delegate.saveOrUpdate( v.list);
+                cleanCache.putAll( dirtyCache );
                 dirtyCache.clear();
+                
                 lazyFlushes += v.list.size();
                 if ( LOG.isDebugEnabled() ) {
                     final long elapsed = System.currentTimeMillis() - start;
@@ -221,7 +223,7 @@ public class CachingStorageDecorator implements IVersionStorage, AutoCloseable
         {
             maybeInit();
             final ArtifactMap<VersionInfo> uniqueSet = new ArtifactMap<VersionInfo>( cleanCache );
-            dirtyCache.visitValues(item -> uniqueSet.put(item.artifact.groupId,item.artifact.artifactId,item) );
+            uniqueSet.putAll( dirtyCache );
             final CollectingVisitor collector = new CollectingVisitor(true);
             uniqueSet.visitValues( collector);
             return collector.list;               
@@ -258,6 +260,7 @@ public class CachingStorageDecorator implements IVersionStorage, AutoCloseable
                         forcedFlushes++;
                     }
                     delegate.saveOrUpdate( alreadyDirty );
+                    cleanCache.put( alreadyDirty.artifact.groupId, alreadyDirty.artifact.artifactId, alreadyDirty );
                     success = true;
                 } finally {
                     if ( ! success ) {
@@ -294,6 +297,10 @@ public class CachingStorageDecorator implements IVersionStorage, AutoCloseable
                         forcedFlushes+=toFlush.size();
                     }                    
                     delegate.saveOrUpdate( toFlush );
+                    for ( VersionInfo info : toFlush ) 
+                    {
+                        cleanCache.put( info.artifact.artifactId, info.artifact.groupId, info );
+                    }
                     success = true;
                 } finally {
                     if ( ! success ) 

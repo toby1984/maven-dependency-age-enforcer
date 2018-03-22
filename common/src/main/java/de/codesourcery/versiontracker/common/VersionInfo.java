@@ -1,5 +1,5 @@
 /**
- * Copyright 2015 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ * Copyright 2018 Tobias Gierke <tobias.gierke@code-sourcery.de>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,6 +152,7 @@ public class VersionInfo
        this.latestReleaseVersion = other.latestReleaseVersion == null ? null : other.latestReleaseVersion.copy();
        this.latestSnapshotVersion = other.latestSnapshotVersion == null ? null : other.latestSnapshotVersion.copy();
        this.lastRepositoryUpdate  = other.lastRepositoryUpdate;
+       this.lastRequestDate = other.lastRequestDate;
     }
     
     public Optional<Version> getDetails(String versionNumber) 

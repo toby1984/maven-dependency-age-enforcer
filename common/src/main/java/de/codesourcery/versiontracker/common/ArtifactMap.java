@@ -1,5 +1,5 @@
 /**
- * Copyright 2015 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ * Copyright 2018 Tobias Gierke <tobias.gierke@code-sourcery.de>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -229,5 +229,21 @@ public class ArtifactMap<T>
             return map.get( artifactId );
         }
         return null;
+    }
+
+    /**
+     * Adds all entries from another <code>ArtifactMap</code> to this one.
+     */
+    public void putAll(ArtifactMap<T> other)
+    {
+        for ( Entry<String, Map<String, T>> entry : other.data.entrySet() ) 
+        {
+            Map<String, T> existing = this.data.get( entry.getKey() );
+            if ( existing == null ) {
+                existing = new HashMap<String,T>( entry.getValue().size() );
+                this.data.put( entry.getKey(), existing );
+            }
+            existing.putAll( entry.getValue() );
+        }
     }
 }
