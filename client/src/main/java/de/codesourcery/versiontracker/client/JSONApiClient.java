@@ -44,12 +44,11 @@ import de.codesourcery.versiontracker.common.QueryResponse;
  *
  * @author tobias.gierke@code-sourcery.de
  */
-public class JSONApiClient implements IAPIClient 
+public class JSONApiClient extends AbstractAPIClient
 {
 	private static final org.apache.logging.log4j.Logger LOG = LogManager.getLogger(JSONApiClient.class);
 	
 	private String endpointUrl;
-	private boolean dumpMessages;
 
 	public JSONApiClient(String endpointUrl) {
 		this.endpointUrl = endpointUrl;
@@ -58,11 +57,7 @@ public class JSONApiClient implements IAPIClient
 	@Override
 	public List<ArtifactResponse> query(List<Artifact> artifacts,Blacklist blacklist) throws IOException 
 	{
-		QueryRequest request = new QueryRequest();
-		request.clientVersion = CLIENT_VERSION;
-		request.artifacts = artifacts;
-		request.blacklist = blacklist;
-		
+		final QueryRequest request = toQueryRequest(artifacts, blacklist);
 		final ObjectMapper mapper = JSONHelper.newObjectMapper();
 		final String jsonRequest = mapper.writeValueAsString(request);
 		final String jsonResponse = doPost( jsonRequest );
@@ -72,7 +67,7 @@ public class JSONApiClient implements IAPIClient
 	
 	private String doPost(String json) throws ClientProtocolException, IOException 
 	{
-	    if ( dumpMessages ) {
+	    if ( debugMode ) {
 	        System.out.println("REQUEST: \n"+json+"\n");
 	    }
 	    if ( LOG.isDebugEnabled() ) {
@@ -91,7 +86,7 @@ public class JSONApiClient implements IAPIClient
 	    {
 	    	final String resp = IOUtils.readLines( instream, "UTF8" ).stream().collect(Collectors.joining());
 	    	
-	        if ( dumpMessages ) {
+	        if ( debugMode ) {
 	            System.out.println("RESPONSE: \n"+resp+"\n");
 	        }
 	        
@@ -103,8 +98,7 @@ public class JSONApiClient implements IAPIClient
 	}
 
     @Override
-    public void setDebugMode(boolean yes)
+    public void close() throws Exception
     {
-        dumpMessages = yes;
     }
 }

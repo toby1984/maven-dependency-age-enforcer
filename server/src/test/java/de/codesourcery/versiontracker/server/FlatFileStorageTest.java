@@ -33,6 +33,7 @@ import org.junit.Test;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.FlatFileStorage;
 
 public class FlatFileStorageTest
 {

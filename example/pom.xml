@@ -53,7 +53,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <configuration>
           <rules>
             <dependencyAgeRule implementation="de.codesourcery.versiontracker.enforcerrule.DependencyAgeRule">
-              <apiEndpoint>http://localhost:8080/versiontracker-server/test</apiEndpoint>
+              <!-- <apiEndpoint>http://localhost:8080/versiontracker-server/test</apiEndpoint> -->
               <warnAge>4d</warnAge>
               <maxAge>2m</maxAge>
               <debug>false</debug>

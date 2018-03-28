@@ -33,6 +33,8 @@ import org.junit.Test;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactMap;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.CachingStorageDecorator;
+import de.codesourcery.versiontracker.common.server.FlatFileStorage;
 
 public class CachingStorageDecoratorTest 
 {

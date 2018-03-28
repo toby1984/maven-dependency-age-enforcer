@@ -28,7 +28,7 @@ import de.codesourcery.versiontracker.common.Blacklist;
  *
  * @author tobias.gierke@code-sourcery.de
  */
-public interface IAPIClient 
+public interface IAPIClient extends AutoCloseable
 {
     /**
      * Client protocol version.
@@ -48,7 +48,10 @@ public interface IAPIClient
 	/**
 	 * Enable/disable debug output.
 	 * 
+	 * This setting overrides verbose mode.
+	 * 
 	 * @param yes
+	 * @see #setVerboseMode(boolean)
 	 */
 	public void setDebugMode(boolean yes);
 }

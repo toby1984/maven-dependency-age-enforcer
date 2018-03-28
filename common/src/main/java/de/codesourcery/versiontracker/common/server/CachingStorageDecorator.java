@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package de.codesourcery.versiontracker.server;
+package de.codesourcery.versiontracker.common.server;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -42,7 +42,7 @@ import de.codesourcery.versiontracker.common.VersionInfo;
  *
  * @author tobias.gierke@code-sourcery.de
  */
-public class CachingStorageDecorator implements IVersionStorage, AutoCloseable
+public class CachingStorageDecorator implements IVersionStorage
 {
     private static final org.apache.logging.log4j.Logger LOG = LogManager.getLogger( CachingStorageDecorator.class );
 
@@ -211,6 +211,7 @@ public class CachingStorageDecorator implements IVersionStorage, AutoCloseable
                 {
                     cleanCache.put( v.artifact.groupId, v.artifact.artifactId, v );
                 });
+                LOG.info("maybeInit(): Loaded "+cleanCache.size()+" entries from underlying storage");
                 initialized = true;
             }
         }

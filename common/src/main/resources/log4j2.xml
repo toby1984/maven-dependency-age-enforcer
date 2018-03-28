@@ -4,15 +4,11 @@
     <Console name="STDOUT" target="SYSTEM_OUT">
       <PatternLayout pattern="%d %-5p [%t] %C:%L - %m%n "/>
     </Console>
-    <File name="file" fileName="/tmp/startup2.log">
-      <PatternLayout pattern="%d %-5p [%t] %C:%L - %m%n"/>
-    </File>
   </Appenders>
   <Loggers>
-    <Logger name="de.codesourcery" level="debug"/>
-    <Root level="info">
+    <Logger name="de.codesourcery" level="warn"/>
+    <Root level="warn">
       <AppenderRef ref="STDOUT"/>
-      <AppenderRef ref="file"/>  
     </Root>
   </Loggers>
 </Configuration>

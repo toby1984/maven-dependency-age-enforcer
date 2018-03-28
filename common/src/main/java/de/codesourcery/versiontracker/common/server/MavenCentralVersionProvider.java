@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package de.codesourcery.versiontracker.server;
+package de.codesourcery.versiontracker.common.server;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -242,7 +242,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
             {
                 final Node n = nodeList.item( i );
                 final String versionString = ((Element) n).getTextContent();
-                System.out.println("Got string "+versionString);
                 result.add( versionString );
             }
             return result;

@@ -27,7 +27,7 @@ import java.util.Optional;
  *
  * @author tobias.gierke@code-sourcery.de
  */
-public interface IVersionStorage
+public interface IVersionStorage extends AutoCloseable
 {
     /**
      * Retrieves metadata for all artifacts.

@@ -16,7 +16,6 @@
 package de.codesourcery.versiontracker.server;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +30,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,8 +39,9 @@ import de.codesourcery.versiontracker.common.APIRequest;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
+import de.codesourcery.versiontracker.common.server.APIImpl;
+import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
@@ -58,14 +57,8 @@ public class APIServlet extends HttpServlet
 {
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
 
-    /**
-     * Environment variable that points to the location where
-     * artifact metadata should be stored when using the simple flat-file storage implementation.
-     */
-    private static final String SYSTEM_PROPERTY_ARTIFACT_FILE = "versiontracker.artifact.file";
-
-    private VersionTracker versionTracker;
-
+    private APIImpl apiImpl;
+    
     public interface IUpdateCallback 
     {
         public void received(IVersionProvider.UpdateResult updateResult,VersionInfo info,Exception exception);
@@ -98,74 +91,14 @@ public class APIServlet extends HttpServlet
         }
     }
 
-    @Override
     public void init(ServletConfig config) throws ServletException
     {
         super.init(config);
-
-        final File versionFile = getArtifactFileLocation();
-        final String mavenRepository = "http://repo1.maven.org/maven2/";
-
-        final IVersionStorage fileStorage = new FlatFileStorage( versionFile );
-        CachingStorageDecorator versionStorage  = new CachingStorageDecorator(fileStorage);
-        final IVersionProvider versionProvider = new MavenCentralVersionProvider(mavenRepository);
-        final SharedLockCache lockCache = new SharedLockCache();
         
-        // start background thread
-        final BackgroundUpdater updater = new BackgroundUpdater(versionStorage,versionProvider,lockCache);
-        updater.startThread();
-
-        boolean success = false;
-        try 
-        {
-            final int threadCount = Runtime.getRuntime().availableProcessors()*2;
-            versionTracker = new VersionTracker(versionStorage,versionProvider,lockCache);
-            versionTracker.setMaxConcurrentThreads( threadCount );
-
-            LOG.info("init(): ====================");
-            LOG.info("init(): Servlet initialized.");
-            LOG.info("init(): ");
-            LOG.info("init(): Version file storage: "+versionFile.getAbsolutePath());
-            LOG.info("init(): Maven repository enpoint: "+mavenRepository);
-            LOG.info("init(): Thread count: "+versionTracker.getMaxConcurrentThreads());
-            LOG.info("init(): ====================");
-            success = true;
-        } 
-        finally 
-        {
-            if ( ! success ) 
-            {
-                LOG.error("init(): Servlet failed to initialize");
-                try {
-                    updater.close();
-                }
-                catch (Exception e) 
-                {
-                    LOG.error("init(): Caught "+e.getMessage(),e);
-                }
-            }
-        }
+        apiImpl = new APIImpl(Mode.SERVER);
+        apiImpl.init(false,false);
     }
     
-    private File getArtifactFileLocation() 
-    {
-        String location = System.getProperty( SYSTEM_PROPERTY_ARTIFACT_FILE );
-        if ( StringUtils.isNotBlank( location ) ) 
-        {
-            LOG.info("getArtifactFileLocation(): Using artifacts file location from '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM property");
-            return new File( location );
-        }
-        location = System.getProperty("user.home");
-        if ( StringUtils.isNotBlank( location) ) 
-        {
-            LOG.info("getArtifactFileLocation(): Storing artifacts file relative to 'user.home' JVM property");
-            return new File( location , "artifacts.json");            
-        }
-        final String msg = "Neither 'user.home' nor '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM properties are set, don't know where to store artifact metadata";
-        LOG.error("getArtifactFileLocation(): "+msg);
-        throw new RuntimeException(msg);
-    }    
-
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
     {
@@ -209,12 +142,12 @@ public class APIServlet extends HttpServlet
         }
     }
 
-    private QueryResponse processQuery(QueryRequest request)
+    private QueryResponse processQuery(QueryRequest request) throws InterruptedException
     {
         QueryResponse result = new QueryResponse();
         result.serverVersion = "1.0";
 
-        final Map<Artifact,VersionInfo> results = versionTracker.getVersionInfo( request.artifacts );        
+        final Map<Artifact,VersionInfo> results = apiImpl.getVersionTracker().getVersionInfo( request.artifacts, apiImpl.getBackgroundUpdater() );        
         for ( Artifact artifact : request.artifacts ) 
         {
             final VersionInfo info = results.get( artifact );

@@ -13,20 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package de.codesourcery.versiontracker.server;
+package de.codesourcery.versiontracker.common.server;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang3.Validate;
@@ -37,7 +40,7 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.server.SharedLockCache.ThrowingRunnable;
+import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
 
 /**
  * This class is responsible for requesting and periodically refreshing artifact metadata as well
@@ -90,57 +93,104 @@ public class VersionTracker implements AutoCloseable
     /**
      * Try to retrieve version information for a given artifact.
      * 
-     * @param artifact
+     * @param artifacts
+     * @param updater 
      * @return
-     * @throws Exception 
      * @throws InterruptedException 
      */
-    public Map<Artifact,VersionInfo> getVersionInfo(List<Artifact> artifacts) 
+    public Map<Artifact,VersionInfo> getVersionInfo(List<Artifact> artifacts,BackgroundUpdater updater) throws InterruptedException
     {
         final Map<Artifact,VersionInfo> resultMap = new HashMap<>();
+        final Set<Artifact> missingOrOutdated = new HashSet<>();
+        
         for ( Artifact artifact : artifacts ) 
         {
             final ThrowingRunnable runnable = () -> 
             {
                 final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-                if ( result.isPresent() ) 
+                if( ! result.isPresent() || updater.requiresUpdate( result ) ) 
                 {
-                    LOG.debug("getVersionInfo(): Got "+result.get());   
+                    LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
+                    missingOrOutdated.add( artifact );                    
+                } else {
+                    LOG.debug("getVersionInfo(): Got "+result.get());
+
                     synchronized(resultMap) {
                         resultMap.put(artifact,result.get());
                     }
                     versionStorage.updateLastRequestDate(artifact,ZonedDateTime.now());
-                }
-                else {
-                    LOG.debug("getVersionInfo(): Got no metadata for "+artifact+" yet,fetching it");
-                    final CountDownLatch latch = new CountDownLatch(1);
-                    submit( () -> 
-                    {
-                        final VersionInfo newInfo = new VersionInfo();
-                        try 
-                        {
-                            newInfo.creationDate = ZonedDateTime.now();
-                            newInfo.artifact = artifact;
-                            newInfo.lastRequestDate = ZonedDateTime.now();
-                            synchronized(resultMap) {
-                                resultMap.put(artifact,newInfo);
-                            }                             
-                            versionProvider.update( newInfo );
-                            versionStorage.saveOrUpdate( newInfo );
-                        } catch (IOException e) {
-                            LOG.error("getVersionInfo(): Caught "+e.getMessage()+" while updating "+newInfo,e);
-                        } finally {
-                            latch.countDown();
-                        }
-                    });
-                    latch.await();
                 }                
             };
-            try {
+            try 
+            {
                 lockCache.doWhileLocked( artifact, runnable);
             } catch (Exception e) {
                 LOG.error("getVersionInfo(): Caught unexpected exception "+e.getMessage()+" while handling "+artifact,e);
             }
+        }
+        
+        if ( ! missingOrOutdated.isEmpty() ) 
+        {
+            final CountDownLatch stopLatch = new CountDownLatch(missingOrOutdated.size());
+            for ( Artifact artifact : missingOrOutdated ) 
+            {
+                final AtomicBoolean submitted = new AtomicBoolean(false);
+                final ThrowingRunnable runnable = () -> 
+                {
+                    final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
+                    if ( result.isPresent() ) 
+                    {
+                        LOG.debug("getVersionInfo(): Got "+result.get());
+
+                        synchronized(resultMap) {
+                            resultMap.put(artifact,result.get());
+                        }
+                        versionStorage.updateLastRequestDate(artifact,ZonedDateTime.now());
+                    }
+                    else 
+                    {
+                        LOG.debug("getVersionInfo(): Got no metadata for "+artifact+" yet,fetching it");
+                        submit( () -> 
+                        {
+                            try 
+                            {
+                                final VersionInfo newInfo = new VersionInfo();
+                                try 
+                                {
+                                    newInfo.creationDate = ZonedDateTime.now();
+                                    newInfo.artifact = artifact;
+                                    newInfo.lastRequestDate = ZonedDateTime.now();
+                                    synchronized(resultMap) {
+                                        resultMap.put(artifact,newInfo);
+                                    }                             
+                                    versionProvider.update( newInfo );
+                                    versionStorage.saveOrUpdate( newInfo );
+                                } catch (IOException e) {
+                                    LOG.error("getVersionInfo(): Caught "+e.getMessage()+" while updating "+newInfo,e);
+                                } 
+                            } 
+                            finally 
+                            {
+                                stopLatch.countDown();
+                            }
+                        });
+                        submitted.set(true);
+                    }
+                };
+                try 
+                {
+                    lockCache.doWhileLocked( artifact, runnable);
+                } 
+                catch (Exception e) {
+                    LOG.error("getVersionInfo(): Caught unexpected exception "+e.getMessage()+" while handling "+artifact,e);
+                } finally {
+                    if ( ! submitted.get() ) {
+                        stopLatch.countDown();
+                    }
+                }
+                    
+            }
+            stopLatch.await();
         }
         return resultMap;
     }

@@ -16,7 +16,6 @@
 package de.codesourcery.versiontracker.enforcerrule;
 
 import java.io.File;
-import java.io.IOException;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.time.Duration;
@@ -46,6 +45,7 @@ import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluatio
 
 import de.codesourcery.versiontracker.client.IAPIClient;
 import de.codesourcery.versiontracker.client.JSONApiClient;
+import de.codesourcery.versiontracker.client.LocalAPIClient;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
@@ -68,6 +68,12 @@ public class DependencyAgeRule implements EnforcerRule
 
     public static final Pattern MAX_AGE_PATTERN = Pattern.compile(MAX_AGE_PATTERN_STRING,Pattern.CASE_INSENSITIVE);
 
+    // When running in client mode (=without the proxy servlet doing the actual work)
+    // we need to use a global lock here to prevent concurrent Maven plugin executions (using the -T option) 
+    // from writing to the metadata backing store file concurrently.
+    
+    private static final Object GLOBAL_LOCK = new Object();
+    
     private Log log;
     private MavenProject project;
 
@@ -245,15 +251,58 @@ public class DependencyAgeRule implements EnforcerRule
         }
         return false;
     }
-
-    @Override
-    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    
+    private void setup(EnforcerRuleHelper helper) throws EnforcerRuleException 
     {
         log = helper.getLog();
 
-        if ( StringUtils.isBlank( apiEndpoint ) ) {
-            fail("Configuration error - 'apiEndpoint' configuration property needs to be set");
+        project = eval("${project}",helper,log);
+
+        if ( StringUtils.isNotBlank( maxAge ) ) {
+            parsedMaxAge = parseAge( "maxAge", maxAge );
         }
+        if ( StringUtils.isNotBlank( warnAge ) ) {
+            parsedWarnAge = parseAge( "warnAge", warnAge );
+        }
+
+        if ( parsedWarnAge == null && parsedMaxAge == null ) {
+            fail("Configuration error - either 'maxAge' or 'warnAge' need to be set");
+        }
+
+        if ( parsedWarnAge != null && parsedMaxAge != null ) {
+            final ZonedDateTime now = ZonedDateTime.now();
+            if ( now.plus( parsedWarnAge.toPeriod() ).isAfter( now.plus( parsedMaxAge.toPeriod() ) ) ) {
+                fail("Configuration error - 'warnAge' needs to be less than 'maxAge'");
+            }
+        }
+        log.debug("==== Rule executing with API endpoint = "+apiEndpoint);
+        if ( parsedWarnAge != null )  {
+            log.debug("==== Rule executing with warnAge = "+parsedWarnAge);
+        }
+        if ( parsedMaxAge != null ) {
+            log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
+        }        
+    }
+    
+    @Override
+    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    {
+        setup(helper);
+        
+        if ( StringUtils.isBlank( apiEndpoint ) ) 
+        {
+            synchronized( GLOBAL_LOCK ) 
+            {
+                doExecute(helper);
+            }
+        } else {
+            doExecute(helper);
+        }
+    }
+
+    private void doExecute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    {
+        log = helper.getLog();
 
         project = eval("${project}",helper,log);
 
@@ -281,10 +330,7 @@ public class DependencyAgeRule implements EnforcerRule
         if ( parsedMaxAge != null ) {
             log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
         }
-
-        final IAPIClient client = new JSONApiClient(apiEndpoint);
-        client.setDebugMode( debug );
-
+        
         final Set<org.apache.maven.artifact.Artifact> mavenArtifacts = project.getDependencyArtifacts();
 
         if ( ! mavenArtifacts.isEmpty() ) 
@@ -320,14 +366,40 @@ public class DependencyAgeRule implements EnforcerRule
             }
 
             final List<ArtifactResponse> result;
-            try {
-                log.info("Querying metadata for "+artifacts.size()+" artifacts from "+apiEndpoint);
+            final IAPIClient client; 
+            if ( StringUtils.isBlank( apiEndpoint ) ) 
+            {
+                log.warn("No API endpoint configured, running locally");
+                client = new LocalAPIClient();
+            } else {
+                client = new JSONApiClient(apiEndpoint);
+            }            
+            if ( debug ) {
+                client.setDebugMode( debug );
+            }
+            try 
+            {
+                if ( StringUtils.isBlank( apiEndpoint ) ) {
+                    log.info("Querying metadata for "+artifacts.size()+" artifacts");
+                } else {
+                    log.info("Querying metadata for "+artifacts.size()+" artifacts from "+apiEndpoint);
+                }
                 result = client.query(artifacts,bl);
             } 
-            catch (IOException e) 
+            catch (Exception e) 
             {
                 fail("Failed to query version information from '"+apiEndpoint+"': "+e.getMessage(),e);
                 throw new RuntimeException("Unreachable code reached");
+            } 
+            finally 
+            {
+                try {
+                    client.close();
+                } 
+                catch(Exception e) 
+                {
+                    log.error("Failed to close API client: ",e);
+                }
             }
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
@@ -527,7 +599,8 @@ public class DependencyAgeRule implements EnforcerRule
                     for ( IgnoreVersion v : r.getIgnoreVersions().getIgnoreVersion() ) {
                         blacklist.addIgnoredVersion(r.getGroupId(),v.getValue(),VersionMatcher.fromString( v.getType() ) );
                     }
-                } else if ( hasIgnoredVersions ) 
+                } 
+                else if ( hasIgnoredVersions ) 
                 {
                     for ( IgnoreVersion v : r.getIgnoreVersions().getIgnoreVersion() ) {
                         blacklist.addIgnoredVersion(r.getGroupId(),r.getArtifactId(),v.getValue(),VersionMatcher.fromString( v.getType() ) );

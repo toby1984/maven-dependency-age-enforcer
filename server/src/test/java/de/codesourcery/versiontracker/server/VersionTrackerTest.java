@@ -32,6 +32,9 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
+import de.codesourcery.versiontracker.common.server.SharedLockCache;
+import de.codesourcery.versiontracker.common.server.VersionTracker;
 
 public class VersionTrackerTest
 {
@@ -68,6 +71,11 @@ public class VersionTrackerTest
             this.stored.clear();
             this.stored.addAll( data.stream().map(x->x.copy()).collect(Collectors.toList() ) );
         }
+
+        @Override
+        public void close() throws Exception
+        {
+        }
     }
     
     @Before
@@ -103,13 +111,14 @@ public class VersionTrackerTest
         final SharedLockCache locks = new SharedLockCache();
         tracker = new VersionTracker(storage,provider,locks);
         
+        final BackgroundUpdater updater = new BackgroundUpdater(storage,provider,locks);
         final Artifact artifact = new Artifact();
         artifact.groupId="de.codesourcery";
         artifact.artifactId="versiontracker";
         artifact.version="1.0";
         for ( int i = 0 ; i < 2 ; i++ ) 
         {
-            Map<Artifact, VersionInfo> result = tracker.getVersionInfo( Collections.singletonList( artifact ) );
+            Map<Artifact, VersionInfo> result = tracker.getVersionInfo( Collections.singletonList( artifact ), updater );
             Thread.sleep(1000);
             System.out.println( result );
         }

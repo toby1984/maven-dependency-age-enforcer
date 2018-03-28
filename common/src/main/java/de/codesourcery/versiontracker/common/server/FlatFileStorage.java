@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package de.codesourcery.versiontracker.server;
+package de.codesourcery.versiontracker.common.server;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -23,7 +23,9 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
@@ -60,12 +62,22 @@ public class FlatFileStorage implements IVersionStorage
         assertNoDuplicates(result); // TODO: Remove debug code
         return result;
     }
+    
+    private static String toKey(VersionInfo x) 
+    {
+        return x.artifact.groupId+":"+x.artifact.artifactId;
+    }
 
     @Override
     public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
     {
         assertNoDuplicates(data);
-        JSONHelper.newObjectMapper().writeValue(file,data);
+        
+        final Set<String> set = data.stream().map( FlatFileStorage::toKey ).collect( Collectors.toSet() );
+        final List<VersionInfo> mergeTarget = getAllVersions();
+        mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
+        mergeTarget.addAll( data );
+        JSONHelper.newObjectMapper().writeValue(file,mergeTarget);
     }
 
     public static void assertNoDuplicates(List<VersionInfo> data) 
@@ -159,5 +171,10 @@ public class FlatFileStorage implements IVersionStorage
         all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
         all.add( info );
         saveOrUpdate( all );
+    }
+
+    @Override
+    public void close() throws Exception
+    {
     }
 }

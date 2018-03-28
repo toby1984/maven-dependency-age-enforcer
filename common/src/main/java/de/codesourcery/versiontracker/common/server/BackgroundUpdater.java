@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package de.codesourcery.versiontracker.server;
+package de.codesourcery.versiontracker.common.server;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -30,10 +31,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 
+import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.server.SharedLockCache.ThrowingRunnable;
+import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
 
 /**
  * Background process that periodically wakes up and initiates 
@@ -56,8 +58,22 @@ public class BackgroundUpdater implements AutoCloseable {
     
     private volatile boolean shutdown;
     
-    private volatile Duration lastFailureDuration = Duration.ofHours( 12 );
-    private volatile Duration lastSuccessDuration = Duration.ofHours( 24 );
+    /**
+     * Time to wait before retrying artifact metadata retrieval if the last
+     * attempt FAILED.
+     */
+    private volatile Duration lastFailureDuration = Duration.ofDays( 1 );
+    
+    /**
+     * Time to wait before retrying artifact metadata retrieval if the last
+     * attempt was a SUCCESS.
+     */
+    private volatile Duration lastSuccessDuration = Duration.ofDays( 7 );
+    
+    /**
+     * Time the background thread will sleep() before checking the backing storage 
+     * for stale artifact metadata.  
+     */
     public volatile Duration pollingInterval = Duration.ofMinutes( 1 );
     
     private final IVersionStorage storage;
@@ -163,22 +179,36 @@ public class BackgroundUpdater implements AutoCloseable {
         final List<VersionInfo> infos = storage.getAllStaleVersions( lastSuccessDuration , lastFailureDuration, ZonedDateTime.now() );
         for (VersionInfo info : infos) 
         {
-            submit( () -> 
-            {
-                artifactLocks.doWhileLocked( info.artifact, () -> 
-                {
-                    final Optional<VersionInfo> existing = storage.getVersionInfo( info.artifact );
-                    if ( existing.isPresent() && IVersionStorage.isStaleVersion(existing.get(),lastSuccessDuration,lastFailureDuration,ZonedDateTime.now() ) ) 
-                    {
-                        LOG.debug("doUpdate(): Refreshing "+info.artifact);
-                        provider.update( info );
-                        storage.saveOrUpdate( info );
-                    } else {
-                        LOG.debug("doUpdate(): Doing nothing, concurrent update to "+info.artifact);
-                    }
-                } );                
-            });
+            doUpdate(info);
         }
+    }
+    
+    public boolean requiresUpdate(Optional<VersionInfo> info) 
+    {
+        return info.isPresent() && IVersionStorage.isStaleVersion(
+                info.get(),
+                lastSuccessDuration,
+                lastFailureDuration,
+                ZonedDateTime.now() ); 
+    }
+    
+    public void doUpdate(VersionInfo info) throws IOException 
+    {
+        submit( () -> 
+        {
+            artifactLocks.doWhileLocked( info.artifact, () -> 
+            {
+                final Optional<VersionInfo> existing = storage.getVersionInfo( info.artifact );
+                if ( requiresUpdate(existing) )
+                {
+                    LOG.debug("doUpdate(): Refreshing "+info.artifact);
+                    provider.update( info );
+                    storage.saveOrUpdate( info );
+                } else {
+                    LOG.debug("doUpdate(): Doing nothing, concurrent update to "+info.artifact);
+                }                
+            }); 
+        });
     }
     
     private void submit(ThrowingRunnable job) 
