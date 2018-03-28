@@ -42,6 +42,7 @@ public class FlatFileStorageTest
     @Before
     public void setup() throws IOException {
         file = File.createTempFile("versiontracktest",".json");
+        file.delete();
     }
     
     @After

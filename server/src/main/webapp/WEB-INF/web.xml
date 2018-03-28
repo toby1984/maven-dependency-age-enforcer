@@ -8,6 +8,11 @@
 
   <display-name>versiontracker</display-name>
 
+  <!-- Listener needed to make sure we flush in-memory artifact metadata to disk when the servlet is reloaded -->
+  <listener>
+    <listener-class>de.codesourcery.versiontracker.server.APIImplDestructionListener</listener-class>
+  </listener>
+  
   <!-- Servlets -->
   <servlet>
     <servlet-name>api-servlet</servlet-name>

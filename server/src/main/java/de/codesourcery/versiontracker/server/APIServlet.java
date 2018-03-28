@@ -22,6 +22,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -57,8 +59,6 @@ public class APIServlet extends HttpServlet
 {
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
 
-    private APIImpl apiImpl;
-    
     public interface IUpdateCallback 
     {
         public void received(IVersionProvider.UpdateResult updateResult,VersionInfo info,Exception exception);
@@ -91,14 +91,6 @@ public class APIServlet extends HttpServlet
         }
     }
 
-    public void init(ServletConfig config) throws ServletException
-    {
-        super.init(config);
-        
-        apiImpl = new APIImpl(Mode.SERVER);
-        apiImpl.init(false,false);
-    }
-    
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
     {
@@ -147,7 +139,8 @@ public class APIServlet extends HttpServlet
         QueryResponse result = new QueryResponse();
         result.serverVersion = "1.0";
 
-        final Map<Artifact,VersionInfo> results = apiImpl.getVersionTracker().getVersionInfo( request.artifacts, apiImpl.getBackgroundUpdater() );        
+        final APIImpl impl = APIImplHolder.getInstance().getImpl();
+        final Map<Artifact,VersionInfo> results = impl.getVersionTracker().getVersionInfo( request.artifacts, impl.getBackgroundUpdater() );        
         for ( Artifact artifact : request.artifacts ) 
         {
             final VersionInfo info = results.get( artifact );

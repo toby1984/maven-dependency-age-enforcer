@@ -385,7 +385,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         {
             final Thread t = new Thread(threadGroup,r);
             t.setDaemon( true );
-            t.setName("relasedate-request-thread-"+threadId.incrementAndGet());
+            t.setName("releasedate-request-thread-"+threadId.incrementAndGet());
             return t;
         }
     };
