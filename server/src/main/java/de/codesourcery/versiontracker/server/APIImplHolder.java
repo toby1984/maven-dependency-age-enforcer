@@ -22,7 +22,7 @@ public class APIImplHolder
 {
     private static final APIImplHolder INSTANCE = new APIImplHolder();
     
-    private final APIImpl apiImpl;
+    protected final APIImpl apiImpl;
     
     private APIImplHolder() 
     {

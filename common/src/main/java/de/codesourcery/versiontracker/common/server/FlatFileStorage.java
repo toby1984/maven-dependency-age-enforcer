@@ -28,6 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
@@ -44,6 +45,13 @@ public class FlatFileStorage implements IVersionStorage
 {
     private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
     
+    private ThreadLocal<ObjectMapper> mapper = new ThreadLocal<>() 
+    {
+     protected ObjectMapper initialValue() {
+         return JSONHelper.newObjectMapper();
+     }
+    };
+    
     private File file;
 
     public FlatFileStorage(File file) {
@@ -57,10 +65,7 @@ public class FlatFileStorage implements IVersionStorage
         if ( ! file.exists() ) {
             return result;
         }
-
-        result = JSONHelper.newObjectMapper().readValue(file,new TypeReference<List<VersionInfo>>() {});
-        assertNoDuplicates(result); // TODO: Remove debug code
-        return result;
+        return mapper.get().readValue(file,new TypeReference<List<VersionInfo>>() {});
     }
     
     private static String toKey(VersionInfo x) 
@@ -68,35 +73,6 @@ public class FlatFileStorage implements IVersionStorage
         return x.artifact.groupId+":"+x.artifact.artifactId;
     }
 
-    @Override
-    public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
-    {
-        assertNoDuplicates(data);
-        
-        final Set<String> set = data.stream().map( FlatFileStorage::toKey ).collect( Collectors.toSet() );
-        final List<VersionInfo> mergeTarget = getAllVersions();
-        mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
-        mergeTarget.addAll( data );
-        JSONHelper.newObjectMapper().writeValue(file,mergeTarget);
-    }
-
-    public static void assertNoDuplicates(List<VersionInfo> data) 
-    {
-        for ( int i1 = 0 ; i1 < data.size() ; i1++ ) 
-        {
-            final VersionInfo a = data.get(i1);
-            for ( int i2 = 0 ; i2 < data.size() ; i2++ ) 
-            { 
-                if ( i2 != i1 ) {
-                    final VersionInfo b = data.get(i2);
-                    if ( a.artifact.matchesExcludingVersion( b.artifact ) ) {
-                        throw new IllegalArgumentException("Duplicate entry at index ("+i1+","+i2+") for \n"+a+"\n\n<->\n\n"+b);
-                    }
-                }
-            }
-        }
-    }
-    
     public static void main(String[] args) throws IOException {
         
         dumpToFile( new File("/tmp/artifactTest.noCache"),new File("/tmp/artifactTest.noCache.txt") );
@@ -170,8 +146,25 @@ public class FlatFileStorage implements IVersionStorage
         List<VersionInfo> all = getAllVersions();
         all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
         all.add( info );
+        if ( 1 != 2 ) {
+            return;
+        }        
         saveOrUpdate( all );
     }
+    
+    @Override
+    public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
+    {
+//        if ( 1 != 2 ) {
+//            return;
+//        }
+        
+        final Set<String> set = data.stream().map( FlatFileStorage::toKey ).collect( Collectors.toSet() );
+        final List<VersionInfo> mergeTarget = getAllVersions();
+        mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
+        mergeTarget.addAll( data );
+        mapper.get().writeValue(file,mergeTarget);
+    }    
 
     @Override
     public void close() throws Exception

@@ -44,9 +44,8 @@ public class JSONHelper
 {
 	private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm").withZone(ZoneId.of("UTC"));
 	
-	public static APIRequest parseAPIRequest(String jsonString ) throws IOException 
+	public static APIRequest parseAPIRequest(String jsonString,ObjectMapper mapper) throws IOException 
 	{
-	    final ObjectMapper mapper = newObjectMapper();
 	    final JsonNode tree = mapper.readTree( jsonString );
 	    final String cmd = tree.get( "command").asText();
 	    final String clientVersion = tree.get( "clientVersion").asText();

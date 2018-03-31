@@ -36,7 +36,6 @@ import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 
 public class APIImpl implements AutoCloseable
 {
@@ -46,7 +45,7 @@ public class APIImpl implements AutoCloseable
      * Environment variable that points to the location where
      * artifact metadata should be stored when using the simple flat-file storage implementation.
      */
-    private static final String SYSTEM_PROPERTY_ARTIFACT_FILE = "versiontracker.artifact.file";    
+    public static final String SYSTEM_PROPERTY_ARTIFACT_FILE = "versiontracker.artifact.file";    
 
     private VersionTracker versionTracker;
     private IVersionStorage versionStorage;

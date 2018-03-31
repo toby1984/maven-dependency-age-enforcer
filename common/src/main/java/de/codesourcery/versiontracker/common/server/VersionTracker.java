@@ -103,6 +103,7 @@ public class VersionTracker implements AutoCloseable
         final Map<Artifact,VersionInfo> resultMap = new HashMap<>();
         final Set<Artifact> missingOrOutdated = new HashSet<>();
         
+        final ZonedDateTime now = ZonedDateTime.now();
         for ( Artifact artifact : artifacts ) 
         {
             final ThrowingRunnable runnable = () -> 
@@ -118,7 +119,7 @@ public class VersionTracker implements AutoCloseable
                     synchronized(resultMap) {
                         resultMap.put(artifact,result.get());
                     }
-                    versionStorage.updateLastRequestDate(artifact,ZonedDateTime.now());
+                    versionStorage.updateLastRequestDate(artifact,now);
                 }                
             };
             try 

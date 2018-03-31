@@ -62,13 +62,13 @@ public class BackgroundUpdater implements AutoCloseable {
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt FAILED.
      */
-    private volatile Duration lastFailureDuration = Duration.ofDays( 1 );
+    private volatile Duration lastFailureDuration = Duration.ofDays( 30 );
     
     /**
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt was a SUCCESS.
      */
-    private volatile Duration lastSuccessDuration = Duration.ofDays( 7 );
+    private volatile Duration lastSuccessDuration = Duration.ofDays( 30 );
     
     /**
      * Time the background thread will sleep() before checking the backing storage 

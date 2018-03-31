@@ -252,6 +252,22 @@ public class DependencyAgeRule implements EnforcerRule
         return false;
     }
     
+    @Override
+    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    {
+        setup(helper);
+        
+        if ( StringUtils.isBlank( apiEndpoint ) ) 
+        {
+            synchronized( GLOBAL_LOCK ) 
+            {
+                doExecute(helper);
+            }
+        } else {
+            doExecute(helper);
+        }
+    }
+    
     private void setup(EnforcerRuleHelper helper) throws EnforcerRuleException 
     {
         log = helper.getLog();
@@ -282,55 +298,10 @@ public class DependencyAgeRule implements EnforcerRule
         if ( parsedMaxAge != null ) {
             log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
         }        
-    }
-    
-    @Override
-    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException
-    {
-        setup(helper);
-        
-        if ( StringUtils.isBlank( apiEndpoint ) ) 
-        {
-            synchronized( GLOBAL_LOCK ) 
-            {
-                doExecute(helper);
-            }
-        } else {
-            doExecute(helper);
-        }
-    }
+    }    
 
     private void doExecute(EnforcerRuleHelper helper) throws EnforcerRuleException
     {
-        log = helper.getLog();
-
-        project = eval("${project}",helper,log);
-
-        if ( StringUtils.isNotBlank( maxAge ) ) {
-            parsedMaxAge = parseAge( "maxAge", maxAge );
-        }
-        if ( StringUtils.isNotBlank( warnAge ) ) {
-            parsedWarnAge = parseAge( "warnAge", warnAge );
-        }
-
-        if ( parsedWarnAge == null && parsedMaxAge == null ) {
-            fail("Configuration error - either 'maxAge' or 'warnAge' need to be set");
-        }
-
-        if ( parsedWarnAge != null && parsedMaxAge != null ) {
-            final ZonedDateTime now = ZonedDateTime.now();
-            if ( now.plus( parsedWarnAge.toPeriod() ).isAfter( now.plus( parsedMaxAge.toPeriod() ) ) ) {
-                fail("Configuration error - 'warnAge' needs to be less than 'maxAge'");
-            }
-        }
-        log.debug("==== Rule executing with API endpoint = "+apiEndpoint);
-        if ( parsedWarnAge != null )  {
-            log.debug("==== Rule executing with warnAge = "+parsedWarnAge);
-        }
-        if ( parsedMaxAge != null ) {
-            log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
-        }
-        
         final Set<org.apache.maven.artifact.Artifact> mavenArtifacts = project.getDependencyArtifacts();
 
         if ( ! mavenArtifacts.isEmpty() ) 

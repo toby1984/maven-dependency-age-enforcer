@@ -250,26 +250,7 @@ public class CachingStorageDecorator implements IVersionStorage
     {
         synchronized(cleanCache) 
         {
-            // TODO: delegate.saveOrUpdate() might set a primary key value that the caller depends upon...how to deal with this ?
-            final VersionInfo alreadyDirty = dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, info );
-            if ( alreadyDirty != null ) 
-            {
-                boolean success = false;
-                try {
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("saveOrUpdate(): Forced flush: "+alreadyDirty);
-                        forcedFlushes++;
-                    }
-                    delegate.saveOrUpdate( alreadyDirty );
-                    cleanCache.put( alreadyDirty.artifact.groupId, alreadyDirty.artifact.artifactId, alreadyDirty );
-                    success = true;
-                } finally {
-                    if ( ! success ) {
-                        forcedFlushes--;
-                        dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, alreadyDirty );
-                    }
-                }
-            }
+            dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, info );
         }        
     }    
 
@@ -278,38 +259,9 @@ public class CachingStorageDecorator implements IVersionStorage
     {
         synchronized(cleanCache) 
         {
-            final List<VersionInfo> toFlush = new ArrayList<>();
             for ( VersionInfo info : data ) 
             {
-                // TODO: delegate.saveOrUpdate() might set a primary key value that the caller depends upon...how to deal with this ?                
-                final VersionInfo alreadyDirty = dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, info );
-                if ( alreadyDirty != null ) 
-                {
-                    toFlush.add( alreadyDirty );
-                }
-            }
-            if ( ! toFlush.isEmpty() ) 
-            {
-                boolean success = false;
-                try 
-                {
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("saveOrUpdate(): Forced flush of "+toFlush.size()+" items");
-                        forcedFlushes+=toFlush.size();
-                    }                    
-                    delegate.saveOrUpdate( toFlush );
-                    for ( VersionInfo info : toFlush ) 
-                    {
-                        cleanCache.put( info.artifact.artifactId, info.artifact.groupId, info );
-                    }
-                    success = true;
-                } finally {
-                    if ( ! success ) 
-                    {
-                        forcedFlushes-=toFlush.size();
-                        toFlush.forEach( i -> dirtyCache.put(i.artifact.groupId, i.artifact.artifactId, i ) );
-                    }
-                }
+                dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, info );
             }
         }
     }

@@ -21,9 +21,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -41,14 +38,13 @@ import de.codesourcery.versiontracker.common.APIRequest;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
-import de.codesourcery.versiontracker.common.server.APIImpl;
-import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.APIImpl;
 
 /**
  * Servlet responsible for processing {@link APIRequest}s.
@@ -64,6 +60,13 @@ public class APIServlet extends HttpServlet
         public void received(IVersionProvider.UpdateResult updateResult,VersionInfo info,Exception exception);
     }
 
+    private ThreadLocal<ObjectMapper> mapper = new ThreadLocal<>() 
+    {
+     protected ObjectMapper initialValue() {
+         return JSONHelper.newObjectMapper();
+     }
+    };
+    
     public APIServlet() {
         LOG.info("APIServlet(): Instance created");
     }
@@ -100,26 +103,12 @@ public class APIServlet extends HttpServlet
         try 
         {
             LOG.info("doPost(): BODY = \n=============\n"+body+"\n================");
-            APIRequest apiRequest = JSONHelper.parseAPIRequest( body );
-
-            switch(apiRequest.command) 
-            {
-                case QUERY:
-                    final ObjectMapper mapper = JSONHelper.newObjectMapper();
-                    final QueryRequest query = mapper.readValue(body,QueryRequest.class);     
-                    final QueryResponse response = processQuery( query );
-
-                    final String responseJSON = mapper.writeValueAsString(response);
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("doPost(): RESPONSE: \n"+responseJSON+"\n");
-                    }
-                    resp.getWriter().write(  responseJSON );                                
-                    resp.setStatus(200);
-                    break;
-                default:
-                    resp.sendError(502,"Unknown command");
-                    return;
-            }
+            final String responseJSON = processRequest(body);
+            if ( LOG.isDebugEnabled() ) {
+                LOG.debug("doPost(): RESPONSE: \n"+responseJSON+"\n");
+            }            
+            resp.getWriter().write( responseJSON );                                
+            resp.setStatus(200);
         } 
         catch(Exception e) 
         {
@@ -132,6 +121,21 @@ public class APIServlet extends HttpServlet
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Internal error: "+e.getMessage());            
             return;
         }
+    }
+    
+    public String processRequest(String jsonRequest) throws Exception {
+        
+        APIRequest apiRequest = JSONHelper.parseAPIRequest( jsonRequest, mapper.get() );
+        final ObjectMapper jsonMapper = mapper.get();
+        switch(apiRequest.command) 
+        {
+            case QUERY:
+                final QueryRequest query = jsonMapper.readValue(jsonRequest,QueryRequest.class);     
+                final QueryResponse response = processQuery( query );
+                return jsonMapper.writeValueAsString(response);
+            default:
+                throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
+        }        
     }
 
     private QueryResponse processQuery(QueryRequest request) throws InterruptedException
