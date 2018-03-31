@@ -81,7 +81,7 @@ By default the servlet will store all retrieved artifact metadata as a simple JS
               <dependency>
                 <groupId>de.codesourcery.versiontracker</groupId>
                 <artifactId>versiontracker-enforcerrule</artifactId>
-                <version>0.0.1</version>
+                <version>0.0.3</version>
                 <classifier>jdk8</classifier> <!-- classifier needs to match the JDK version you're using -->
               </dependency>
             </dependencies>
