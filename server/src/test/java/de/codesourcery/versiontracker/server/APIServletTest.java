@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import de.codesourcery.versiontracker.common.server.APIImpl;
+import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 
 public class APIServletTest {
 
@@ -89,8 +90,13 @@ public class APIServletTest {
         }
         
         System.setProperty( APIImpl.SYSTEM_PROPERTY_ARTIFACT_FILE , tmpOut.getAbsolutePath() );
-        final APIImpl impl = APIImplHolder.getInstance().getImpl();
+        
+        APIImplHolder.mode = Mode.CLIENT; // disable background update thread
+        
+        // force initialization
+        APIImplHolder.getInstance().getImpl();
         servlet = new APIServlet();
+        servlet.setArtifactUpdatesEnabled( false );
     }
     
     public void tearDown() throws Exception 
@@ -101,25 +107,33 @@ public class APIServletTest {
     @Test
     public void testPerformance() throws Exception 
     {
-        for ( int i = 0 ; i < 1 ; i++ ) {
+        long sum = 0;
+        long count = 0;
+        for ( int i = 0 ; i < 50 ; i++ ) {
+            final long start = System.currentTimeMillis();
             doTest();
+            final long end = System.currentTimeMillis();
+            if ( i >= 30 ) {
+                sum += (end-start);
+                count++;
+                System.out.println("Test: "+(end-start)+" ms");
+            } else {
+                System.out.println("WARMUP: "+(end-start)+" ms");
+            }
         }
-        System.out.println("Press any key");
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-        reader.readLine();
+        System.out.println("Average time: "+(sum/(float) count)+" ms");            
         
-        final long start = System.currentTimeMillis();
-        doTest();
-        final long end = System.currentTimeMillis();
-        System.out.println("Test: "+(end-start)+" ms");
+//        System.out.println("Press any key");
+//        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+//        reader.readLine();
     }
     
     private void doTest() throws Exception 
     {
         for (int i = 0; i < queries.length; i++) {
             String req = queries[i];
-            System.out.println("Query #"+i);
-            System.out.println(req);
+//            System.out.println("Query #"+i);
+//            System.out.println(req);
             servlet.processRequest( req );
         }
     }

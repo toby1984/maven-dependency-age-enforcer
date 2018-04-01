@@ -111,14 +111,13 @@ public class VersionTrackerTest
         final SharedLockCache locks = new SharedLockCache();
         tracker = new VersionTracker(storage,provider,locks);
         
-        final BackgroundUpdater updater = new BackgroundUpdater(storage,provider,locks);
         final Artifact artifact = new Artifact();
         artifact.groupId="de.codesourcery";
         artifact.artifactId="versiontracker";
         artifact.version="1.0";
         for ( int i = 0 ; i < 2 ; i++ ) 
         {
-            Map<Artifact, VersionInfo> result = tracker.getVersionInfo( Collections.singletonList( artifact ), updater );
+            Map<Artifact, VersionInfo> result = tracker.getVersionInfo( Collections.singletonList( artifact ), optArtifact -> false );
             Thread.sleep(1000);
             System.out.println( result );
         }

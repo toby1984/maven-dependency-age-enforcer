@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 
-import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -62,13 +61,13 @@ public class BackgroundUpdater implements AutoCloseable {
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt FAILED.
      */
-    private volatile Duration lastFailureDuration = Duration.ofDays( 30 );
+    private volatile Duration lastFailureDuration = Duration.ofDays( 1 );
     
     /**
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt was a SUCCESS.
      */
-    private volatile Duration lastSuccessDuration = Duration.ofDays( 30 );
+    private volatile Duration lastSuccessDuration = Duration.ofDays( 1 );
     
     /**
      * Time the background thread will sleep() before checking the backing storage 

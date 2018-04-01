@@ -19,6 +19,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletException;
@@ -45,6 +46,7 @@ import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
+import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
 
 /**
  * Servlet responsible for processing {@link APIRequest}s.
@@ -66,6 +68,8 @@ public class APIServlet extends HttpServlet
          return JSONHelper.newObjectMapper();
      }
     };
+    
+    private boolean artifactUpdatesEnabled = true;
     
     public APIServlet() {
         LOG.info("APIServlet(): Instance created");
@@ -144,7 +148,15 @@ public class APIServlet extends HttpServlet
         result.serverVersion = "1.0";
 
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
-        final Map<Artifact,VersionInfo> results = impl.getVersionTracker().getVersionInfo( request.artifacts, impl.getBackgroundUpdater() );        
+        
+        final Predicate<Optional<VersionInfo>> requiresUpdate;
+        if ( artifactUpdatesEnabled ) {
+            final BackgroundUpdater updater = impl.getBackgroundUpdater();
+            requiresUpdate = updater::requiresUpdate;
+        } else {
+            requiresUpdate = optVersionInfo -> false;
+        }
+        final Map<Artifact,VersionInfo> results = impl.getVersionTracker().getVersionInfo( request.artifacts, requiresUpdate );        
         for ( Artifact artifact : request.artifacts ) 
         {
             final VersionInfo info = results.get( artifact );
@@ -194,5 +206,9 @@ public class APIServlet extends HttpServlet
             }
         }
         return result;
-    }    
+    }
+ 
+    public void setArtifactUpdatesEnabled(boolean artifactUpdatesEnabled) {
+        this.artifactUpdatesEnabled = artifactUpdatesEnabled;
+    }
 }

@@ -20,18 +20,23 @@ import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 
 public class APIImplHolder
 {
-    private static final APIImplHolder INSTANCE = new APIImplHolder();
+    public static Mode mode = Mode.SERVER;
+
+    private static APIImplHolder INSTANCE;
     
     protected final APIImpl apiImpl;
     
     private APIImplHolder() 
     {
-        apiImpl = new APIImpl(Mode.SERVER);
+        apiImpl = new APIImpl(mode);
         apiImpl.init(false,false);           
     }
     
     public static synchronized APIImplHolder getInstance() 
     {
+        if ( INSTANCE == null ) {
+            INSTANCE = new APIImplHolder();
+        }
         return INSTANCE;
     }
     

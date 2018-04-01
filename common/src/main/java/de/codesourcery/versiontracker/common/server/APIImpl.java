@@ -213,7 +213,7 @@ public class APIImpl implements AutoCloseable
         QueryResponse result = new QueryResponse();
         result.serverVersion = "1.0";
 
-        final Map<Artifact,VersionInfo> results = versionTracker.getVersionInfo( request.artifacts, updater );        
+        final Map<Artifact,VersionInfo> results = versionTracker.getVersionInfo( request.artifacts, updater::requiresUpdate );        
         for ( Artifact artifact : request.artifacts ) 
         {
             final VersionInfo info = results.get( artifact );
