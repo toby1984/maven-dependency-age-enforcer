@@ -84,7 +84,7 @@ public class APIServlet extends HttpServlet
     @Override
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException
     {
-        if ( LOG.isDebugEnabled() ) {
+        if ( LOG.isInfoEnabled() ) {
             LOG.debug("service(): Incoming request from "+((HttpServletRequest) req).getRemoteAddr());
         }
         final long start = System.currentTimeMillis();
@@ -97,9 +97,9 @@ public class APIServlet extends HttpServlet
         }
         finally 
         {
-            if ( LOG.isDebugEnabled() ) {
+            if ( LOG.isInfoEnabled() ) {
                 final long elapsed = System.currentTimeMillis() - start;
-                LOG.debug("service(): Request finished after "+elapsed+" ms");
+                LOG.info("service(): Request finished after "+elapsed+" ms");
             }
         }
     }

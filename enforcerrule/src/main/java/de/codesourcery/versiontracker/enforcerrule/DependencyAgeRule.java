@@ -27,6 +27,7 @@ import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,9 +45,9 @@ import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
 
 import de.codesourcery.versiontracker.client.IAPIClient;
-import de.codesourcery.versiontracker.client.RemoteApiClient;
 import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.client.LocalAPIClient;
+import de.codesourcery.versiontracker.client.RemoteApiClient;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
@@ -65,6 +66,8 @@ import de.codesourcery.versiontracker.xsd.Ruleset;
  */
 public class DependencyAgeRule implements EnforcerRule
 {
+	private static final AtomicLong ID = new AtomicLong(0);
+	
     private static final String MAX_AGE_PATTERN_STRING = "(\\d+)\\s*([dwmy]|(day|days|week|weeks|month|months|year|years))";
 
     public static final Pattern MAX_AGE_PATTERN = Pattern.compile(MAX_AGE_PATTERN_STRING,Pattern.CASE_INSENSITIVE);
@@ -75,6 +78,18 @@ public class DependencyAgeRule implements EnforcerRule
     
     private static final Object GLOBAL_LOCK = new Object();
     
+    private static final JAXBContext jaxbContext;
+    
+    static 
+    {
+        try {
+			jaxbContext = JAXBContext.newInstance(Ruleset.class);
+		} catch (JAXBException e) {
+			throw new RuntimeException(e);
+		}
+    }
+
+    private final long id = ID.incrementAndGet();
     private Log log;
     private MavenProject project;
 
@@ -256,9 +271,20 @@ public class DependencyAgeRule implements EnforcerRule
     }
     
     @Override
-    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException {
+    	long start = System.currentTimeMillis();
+    	try {
+    		executeInternal(helper);
+    	} finally  {
+    		final long elapsed = System.currentTimeMillis() - start;
+    		log.warn("RULE TIME: "+elapsed+" ms");
+    	}
+    }
+    
+    public void executeInternal(EnforcerRuleHelper helper) throws EnforcerRuleException
     {
         setup(helper);
+        log.warn("Now executing... rule #"+id);
         
         if ( StringUtils.isBlank( apiEndpoint ) ) 
         {
@@ -559,8 +585,6 @@ public class DependencyAgeRule implements EnforcerRule
         }        
 
         final Blacklist blacklist = new Blacklist();
-
-        final JAXBContext jaxbContext = JAXBContext.newInstance(Ruleset.class);
         final Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
         final Ruleset result = (Ruleset) jaxbUnmarshaller.unmarshal(rulesFile);
         assertSupportedComparisonMethod(result.getComparisonMethod());
