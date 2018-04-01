@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,4 +33,46 @@ public class QueryRequest extends APIRequest
 	{
 		super(Command.QUERY);
 	}
+	
+	public boolean equals(Object obj) 
+	{
+		if ( obj instanceof QueryRequest ) {
+			QueryRequest o = (QueryRequest) obj;
+			if ( this.artifacts.size() != o.artifacts.size() ) {
+				return false;
+			}
+			for ( Artifact a1 : this.artifacts ) {
+				if ( ! o.artifacts.stream().anyMatch( x -> x.equals(a1) ) ) {
+					return false;
+				}
+			}
+			if ( this.blacklist == null || o.blacklist == null ) {
+				return this.blacklist == o.blacklist;
+			}
+			return this.blacklist.equals( o.blacklist );
+		}
+		return false;
+	}
+
+    @Override
+    protected void doSerialize(BinarySerializer serializer) throws IOException 
+    {
+        serializer.writeInt( artifacts.size() );
+        for ( Artifact a : artifacts ) {
+            a.serialize( serializer );
+        }
+        // TODO: Serialize blacklist
+        blacklist.serialize( serializer );
+    }
+    
+    static QueryRequest doDeserialize(BinarySerializer serializer) throws IOException {
+        final QueryRequest result = new QueryRequest();
+        for ( int count = serializer.readInt() ; count > 0 ; count--) 
+        {
+            final Artifact artifact = Artifact.deserialize( serializer );
+            result.artifacts.add( artifact );
+        }
+        result.blacklist = Blacklist.deserialize(serializer);
+        return result;
+    }
 }

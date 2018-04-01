@@ -15,10 +15,12 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -33,9 +35,15 @@ public class Blacklist implements IBlacklistCheck
     public static enum VersionMatcher 
     {
         @JsonProperty("exact")        
-        EXACT,
+        EXACT("exact"),
         @JsonProperty("regex")
-        REGEX;
+        REGEX("regex");
+        
+        public final String text;
+        
+        private VersionMatcher(String text) {
+            this.text = text;
+        }
         
         public static VersionMatcher fromString(String s) 
         {
@@ -52,6 +60,131 @@ public class Blacklist implements IBlacklistCheck
     private final List<VersionStringMatcher> globalIgnores = new ArrayList<>();
     private final Map<String,List<VersionStringMatcher>>  groupIdIgnores = new HashMap<>();
     private final Map<String,Map<String,List<VersionStringMatcher>>>  artifactIgnores = new HashMap<>();
+    
+    @Override
+    public boolean equals(Object other) 
+    {
+    	if ( other instanceof Blacklist) {
+    		Blacklist o = (Blacklist) other;
+    		if ( ! equals(this.globalIgnores, o.globalIgnores ) ) {
+    			return false;
+    		}
+    		if ( ! equals(this.groupIdIgnores,o.groupIdIgnores) ) {
+    			return false;
+    		}
+    		if ( artifactIgnores.size() != o.artifactIgnores.size() ) {
+    			return false;
+    		}
+    		for ( Entry<String, Map<String, List<VersionStringMatcher>>> entry1 : this.artifactIgnores.entrySet() ) {
+    			final String key = entry1.getKey();
+    			final Map<String, List<VersionStringMatcher>> map1 = entry1.getValue(); 
+    			final Map<String, List<VersionStringMatcher>> map2 = o.artifactIgnores.get(key);
+    			if ( ! equals(map1,map2) ) {
+    				return false;
+    			}
+    		}
+    		return true;
+    	}
+    	return false;
+    }
+    
+    private static boolean equals(Map<String,List<VersionStringMatcher>> m1,Map<String,List<VersionStringMatcher>> m2 ) {
+		if ( m1.size() != m2.size() ) {
+			return false;
+		}
+		for ( Entry<String, List<VersionStringMatcher>> entry : m1.entrySet() ) {
+			final List<VersionStringMatcher> l1 = entry.getValue();
+			final List<VersionStringMatcher> l2 = m2.get( entry.getKey() );
+			if ( ! equals(l1,l2) ) {
+				return false;
+			}
+		}
+		return true;
+    }
+    
+    private static boolean equals(List<VersionStringMatcher> l1,List<VersionStringMatcher> l2) {
+    	if ( l1 == null || l2 == null ) {
+    		return l1 == l2;
+    	}
+    	if ( l1.size() != l2.size() ) {
+    		return false;
+    	}
+   		for ( VersionStringMatcher m1 : l1 ) {
+			if ( ! l2.stream().anyMatch( x -> x.equals( m1 ) ) )  {
+				return false;
+			}
+		}
+    	return true;
+    }
+    
+    public void serialize(BinarySerializer serializer) throws IOException  
+    {
+        serializer.writeInt( globalIgnores.size() );
+        for ( VersionStringMatcher matcher : globalIgnores ) {
+            matcher.serialize(serializer);
+        }
+        
+        serializer.writeInt( groupIdIgnores.size() );
+        for (Entry<String, List<VersionStringMatcher>> entry : groupIdIgnores.entrySet() ) 
+        {
+            serializeMapEntry(entry,serializer);
+        }
+        
+        serializer.writeInt( artifactIgnores.size() );
+        for ( Entry<String, Map<String, List<VersionStringMatcher>>> entry : artifactIgnores.entrySet() ) 
+        {
+            serializer.writeString( entry.getKey() );
+            final Map<String, List<VersionStringMatcher>> map = entry.getValue();
+            serializer.writeInt( map.size() );
+            for ( Entry<String, List<VersionStringMatcher>> entry2 : map.entrySet() ) 
+            {
+                serializeMapEntry(entry2,serializer);
+            }
+        }
+    }
+    
+    private void serializeMapEntry(Entry<String, List<VersionStringMatcher>> entry,BinarySerializer serializer) throws IOException {
+        serializer.writeString(entry.getKey());
+        serializer.writeInt( entry.getValue().size() );
+        for ( VersionStringMatcher matcher : entry.getValue() ) {
+            matcher.serialize(serializer);
+        }
+    }
+    
+    private static void deserializeMapEntry(Map<String, List<VersionStringMatcher>> map,BinarySerializer serializer) throws IOException 
+    {
+        final String key = serializer.readString();
+        int count = serializer.readInt();
+        final List<VersionStringMatcher> list = new ArrayList<>( count );
+        for ( ; count > 0 ; count-- ) {
+            list.add( VersionStringMatcher.deserialize(serializer) );
+        }
+        map.put( key , list );
+    } 
+    
+    public static Blacklist deserialize(BinarySerializer serializer) throws IOException  
+    {
+        final Blacklist result = new Blacklist();
+        for ( int count = serializer.readInt() ; count > 0 ; count--) {
+            result.globalIgnores.add( VersionStringMatcher.deserialize( serializer ) );
+        }
+        
+        for ( int count = serializer.readInt() ; count > 0 ; count--) {
+            deserializeMapEntry(result.groupIdIgnores,serializer);
+        }
+        
+        for ( int count = serializer.readInt() ; count > 0 ; count-- ) 
+        {
+            final String key = serializer.readString();
+            int count2 = serializer.readInt();
+            final Map<String, List<VersionStringMatcher>> map = new HashMap<>( count2 );
+            for ( ; count2 > 0 ; count2-- ) {
+                deserializeMapEntry(map,serializer);
+            }
+            result.artifactIgnores.put( key , map );
+        }
+        return result;
+    }
     
     public boolean isAllVersionsBlacklisted(String groupId,String artifactId) {
     	if ( containsNeverMatcher(globalIgnores ) ) {
@@ -104,6 +237,29 @@ public class Blacklist implements IBlacklistCheck
             return new VersionStringMatcher(pattern,type);
         }
         
+        @Override
+        public boolean equals(Object other) 
+        {
+        	if ( other != null && getClass() == other.getClass() ) {
+        		VersionStringMatcher o = (VersionStringMatcher) other; 
+        		return Objects.equals(this.pattern, o.pattern) &&
+        				Objects.equals( this.type, o.type );
+        	}
+        	return false;
+        }
+        
+        public void serialize(BinarySerializer serializer) throws IOException  {
+            serializer.writeString( type.text );
+            serializer.writeString( pattern );
+        }
+        
+        public static VersionStringMatcher deserialize(BinarySerializer serializer) throws IOException  
+        {
+            final String type = serializer.readString();
+            final String pattern = serializer.readString();
+            return VersionStringMatcher.createMatcher( pattern, VersionMatcher.fromString( type ) );
+        }
+        
         private VersionStringMatcher(String pattern, VersionMatcher type) {
             Validate.notBlank(pattern,"pattern must not be NULL or blank");
             Validate.notNull(type,"type must not be NULL");
@@ -122,19 +278,6 @@ public class Blacklist implements IBlacklistCheck
         @Override
         public int hashCode() {
             return 31 * (31  + pattern.hashCode()) + type.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) 
-        {
-            if ( this == obj ) {
-                return true;
-            }            
-            if ( obj instanceof VersionStringMatcher) {
-                final VersionStringMatcher other = (VersionStringMatcher) obj;
-                return this.pattern.equals( other.pattern ) && this.type == other.type;
-            }
-            return false;
         }
 
         public boolean isIgnoredVersion(String s) 

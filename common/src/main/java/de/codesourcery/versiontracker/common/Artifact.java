@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -67,6 +68,25 @@ public class Artifact
     public String artifactId;
     private String classifier;
     public String type;
+    
+    public void serialize(BinarySerializer serializer) throws IOException {
+        serializer.writeString(groupId);
+        serializer.writeString(version);
+        serializer.writeString(artifactId);
+        serializer.writeString(classifier);
+        serializer.writeString(type);
+    }
+    
+    public static Artifact deserialize(BinarySerializer serializer) throws IOException 
+    {
+        final Artifact a = new Artifact();
+        a.groupId = serializer.readString();
+        a.version = serializer.readString();
+        a.artifactId = serializer.readString();
+        a.classifier = serializer.readString();
+        a.type = serializer.readString();
+        return a;
+    }
     
     public Artifact() {
     }

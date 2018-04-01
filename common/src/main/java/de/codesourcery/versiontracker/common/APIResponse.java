@@ -15,12 +15,48 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
+
 /**
  * Abstract base-class for all API responses.
  *
  * @author tobias.gierke@code-sourcery.de
  */
-public abstract class APIResponse {
-
+public abstract class APIResponse 
+{
+    /**
+     * Server protocol version.
+     */
+    public static final String SERVER_VERSION = "1.0";
+    
 	public String serverVersion;
+	public APIRequest.Command command;
+	
+   public APIResponse(APIRequest.Command cmd) {
+        this.serverVersion = SERVER_VERSION;
+        this.command = cmd;
+    }
+	
+    public final void serialize(BinarySerializer serializer) throws IOException {
+        serializer.writeString( serverVersion );
+        serializer.writeString( command.text );
+        doSerialize(serializer);
+    }	
+    
+    protected abstract void doSerialize(BinarySerializer serializer) throws IOException;
+    
+    public static APIResponse deserialize(BinarySerializer serializer) throws IOException {
+        final String serverVersion = serializer.readString();
+        if ( ! SERVER_VERSION.equals( serverVersion ) ) {
+            throw new IOException("Unknown server version: '"+serverVersion+"'");
+        }
+        final APIRequest.Command  cmd = APIRequest.Command.fromString( serializer.readString() );
+        switch(cmd) 
+        {
+            case QUERY:
+                return QueryResponse.doDeserialize( serializer );
+            default:
+                throw new RuntimeException("Internal error,unhandled command "+cmd);
+        }
+    }
 }

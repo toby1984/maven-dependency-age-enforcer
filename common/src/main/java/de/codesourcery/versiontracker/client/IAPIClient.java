@@ -18,6 +18,7 @@ package de.codesourcery.versiontracker.client;
 import java.io.IOException;
 import java.util.List;
 
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.Blacklist;
@@ -34,6 +35,37 @@ public interface IAPIClient extends AutoCloseable
      * Client protocol version.
      */
     public static final String CLIENT_VERSION = "1.0";
+    
+    public static enum Protocol {
+        JSON((byte) 0xab),
+        BINARY((byte) 0xba);
+        
+        public final byte id;
+
+        private Protocol(byte id) {
+            this.id = id;
+        }
+        
+        public static Protocol fromByte(byte id) {
+            if ( id == JSON.id ) {
+                return JSON;
+            }
+            if ( id == BINARY.id ) {
+                return BINARY;
+            }
+            throw new IllegalArgumentException("Unsupporter protocol ID : 0x"+Integer.toHexString( id & 0xff ) );
+        }
+    }
+    
+    public static byte[] toWireFormat(byte[] input,Protocol protocol) 
+    {
+        final byte[] tmp = new byte[ input.length+1 ];
+        tmp[0] = protocol.id;
+        for ( int readPtr=0,writePtr=1,len=input.length ; readPtr < len ; readPtr++,writePtr++ ) {
+            tmp[writePtr] = input[readPtr];
+        }
+        return tmp;
+    }
     
     /**
      * Query artifact metadata.

@@ -15,7 +15,11 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import de.codesourcery.versiontracker.client.IAPIClient;
 
 /**
  * Abstract base-class for all API requests.
@@ -37,7 +41,7 @@ public abstract class APIRequest
 	    @JsonProperty("query")
 		QUERY("query");
 		
-	    private final String text;
+	    public final String text;
 	    
 		private Command(String text) {
 			this.text = text;
@@ -59,5 +63,30 @@ public abstract class APIRequest
 	
 	public APIRequest(APIRequest.Command cmd) {
 		this.command = cmd;
+	}
+	
+	public final void serialize(BinarySerializer serializer) throws IOException {
+	    serializer.writeString( clientVersion );
+	    serializer.writeString( command.text );
+	    doSerialize( serializer );
+	}
+	
+	protected abstract void doSerialize(BinarySerializer serializer) throws IOException; 
+	
+	public static APIRequest deserialize(BinarySerializer serializer) throws IOException 
+	{
+	    String version = serializer.readString();
+        if ( ! IAPIClient.CLIENT_VERSION.equals( version ) ) {
+            throw new IOException("Unknown client version: '"+version+"'");
+        }
+        
+	    Command cmd = APIRequest.Command.fromString( serializer.readString() );
+	    switch(cmd) 
+	    {
+            case QUERY:
+                return QueryRequest.doDeserialize(serializer);
+            default:
+                throw new IOException("Unsupported command '"+cmd+"'");
+	    }
 	}
 }

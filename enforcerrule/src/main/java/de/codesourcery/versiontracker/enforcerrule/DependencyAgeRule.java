@@ -44,7 +44,8 @@ import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
 
 import de.codesourcery.versiontracker.client.IAPIClient;
-import de.codesourcery.versiontracker.client.JSONApiClient;
+import de.codesourcery.versiontracker.client.RemoteApiClient;
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.client.LocalAPIClient;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
@@ -126,6 +127,8 @@ public class DependencyAgeRule implements EnforcerRule
      * Whether to fail when an artifact could not be found in the repository.
      */
     private boolean failOnMissingArtifacts=true;
+    
+    private boolean binaryProtocol=true;
 
     /**
      * Whether to look for the rules XML file in parent directories
@@ -342,8 +345,14 @@ public class DependencyAgeRule implements EnforcerRule
             {
                 log.warn("No API endpoint configured, running locally");
                 client = new LocalAPIClient();
-            } else {
-                client = new JSONApiClient(apiEndpoint);
+            } 
+            else 
+            {
+            	final Protocol protocol = binaryProtocol ? Protocol.BINARY : Protocol.JSON;
+            	if ( verbose ) {
+            		log.info("Using "+protocol+" protocol");
+            	}
+                client = new RemoteApiClient(apiEndpoint,protocol);
             }            
             if ( debug ) {
                 client.setDebugMode( debug );

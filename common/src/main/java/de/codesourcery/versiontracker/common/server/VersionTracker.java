@@ -173,7 +173,11 @@ public class VersionTracker implements AutoCloseable
                         versionProvider.update( newInfo );
                         versionStorage.saveOrUpdate( newInfo );
                     } catch (IOException e) {
-                        LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact,e);
+                    	if ( LOG.isDebugEnabled() ) {
+                    		LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact,e);
+                    	} else {
+                    		LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact+": "+e.getMessage());
+                    	}
                     } 
                 };
                 try 

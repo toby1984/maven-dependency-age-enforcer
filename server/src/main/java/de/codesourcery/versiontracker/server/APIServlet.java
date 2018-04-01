@@ -15,12 +15,15 @@
  */
 package de.codesourcery.versiontracker.server;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -29,20 +32,23 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
+import de.codesourcery.versiontracker.common.BinarySerializer;
+import de.codesourcery.versiontracker.common.BinarySerializer.IBuffer;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
+import de.codesourcery.versiontracker.common.Utils;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
@@ -69,7 +75,7 @@ public class APIServlet extends HttpServlet
      }
     };
     
-    private boolean artifactUpdatesEnabled = true;
+    private boolean artifactUpdatesEnabled = false; // FIXME: Debug, change to TRUE!!
     
     public APIServlet() {
         LOG.info("APIServlet(): Instance created");
@@ -101,21 +107,40 @@ public class APIServlet extends HttpServlet
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
     {
-        final BufferedReader reader = req.getReader();
-        final String body = IOUtils.readLines( reader ).stream().collect( Collectors.joining() );
-
+        final InputStream in = req.getInputStream();
+        final ByteArrayOutputStream reqData = new ByteArrayOutputStream();
+        
+        Protocol protocol = null;
         try 
         {
-            LOG.info("doPost(): BODY = \n=============\n"+body+"\n================");
-            final String responseJSON = processRequest(body);
-            if ( LOG.isDebugEnabled() ) {
-                LOG.debug("doPost(): RESPONSE: \n"+responseJSON+"\n");
-            }            
-            resp.getWriter().write( responseJSON );                                
+            final int protoId = in.read();
+            if ( protoId == -1 ) {
+                throw new EOFException("Premature end of input, expected protocol ID");
+            }
+            protocol = Protocol.fromByte( (byte) protoId );
+            
+            final byte[] binaryResponse = processRequest(in, reqData, protocol);
+			resp.getOutputStream().write( binaryResponse );            
             resp.setStatus(200);
         } 
         catch(Exception e) 
         {
+            final String body;
+            if ( protocol == null || reqData.toByteArray().length == 0 ) 
+            {
+                body = Utils.toHex( reqData.toByteArray() );
+            } 
+            else 
+            {
+                switch( protocol ) 
+                {
+                    case JSON:
+                        body = new String( reqData.toByteArray(), "UTF8" );
+                        break;
+                    default:
+                        body = Utils.toHex( reqData.toByteArray() );
+                }
+            }
             if ( LOG.isDebugEnabled() ) {
                 LOG.error("doPost(): Caught ",e);
                 LOG.error("doPost(): BODY = \n=============\n"+body+"\n================");
@@ -126,20 +151,74 @@ public class APIServlet extends HttpServlet
             return;
         }
     }
+
+	public byte[] processRequest(final InputStream in, final ByteArrayOutputStream reqData, Protocol protocol)
+			throws IOException, Exception, UnsupportedEncodingException 
+	{
+		final byte[] buffer = new byte[10*1024];
+		int len=0;
+		while ( ( len = in.read( buffer ) ) > 0 ) {
+		    reqData.write(buffer,0,len);
+		}            
+		
+		switch( protocol ) 
+		{
+		    case BINARY:
+		    	return processRequest( reqData.toByteArray() );
+		    case JSON:
+		        final String body = new String( reqData.toByteArray() , "UTF8" );
+		        final String responseJSON = processRequest(body);
+		        return responseJSON.getBytes("UTF8");
+		    default:
+		}
+		throw new RuntimeException("Internal error,unhandled protocol "+protocol);
+	}
     
-    public String processRequest(String jsonRequest) throws Exception {
+    public byte[] processRequest(byte[] requestData) throws Exception {
         
-        APIRequest apiRequest = JSONHelper.parseAPIRequest( jsonRequest, mapper.get() );
-        final ObjectMapper jsonMapper = mapper.get();
+        final IBuffer inBuffer = IBuffer.wrap( requestData );
+        final BinarySerializer inSerializer = new BinarySerializer(inBuffer);
+        final APIRequest apiRequest = APIRequest.deserialize( inSerializer );
         switch(apiRequest.command) 
         {
             case QUERY:
-                final QueryRequest query = jsonMapper.readValue(jsonRequest,QueryRequest.class);     
+                final QueryRequest query = (QueryRequest) apiRequest;
                 final QueryResponse response = processQuery( query );
+                
+                final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                final IBuffer outBuffer = IBuffer.wrap( byteArrayOutputStream );
+                final BinarySerializer outSerializer = new BinarySerializer(outBuffer);
+                response.serialize( outSerializer );
+                return byteArrayOutputStream.toByteArray();
+            default:
+                throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
+        }        
+    }    
+    
+    public String processRequest(String jsonRequest) throws Exception {
+        
+        final ObjectMapper jsonMapper = mapper.get();
+        final APIRequest apiRequest = parse(jsonRequest,jsonMapper);
+        switch(apiRequest.command) 
+        {
+            case QUERY:
+                final QueryResponse response = processQuery( (QueryRequest) apiRequest );
                 return jsonMapper.writeValueAsString(response);
             default:
                 throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
         }        
+    }
+    
+    public static APIRequest parse(String json,ObjectMapper mapper) throws Exception 
+    {
+        final APIRequest apiRequest = JSONHelper.parseAPIRequest( json, mapper );
+        switch(apiRequest.command) 
+        {
+            case QUERY:
+                return mapper.readValue(json,QueryRequest.class);     
+            default:
+                throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
+        } 
     }
 
     private QueryResponse processQuery(QueryRequest request) throws InterruptedException

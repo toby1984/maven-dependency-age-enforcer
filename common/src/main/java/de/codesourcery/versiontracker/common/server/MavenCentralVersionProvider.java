@@ -226,7 +226,11 @@ public class MavenCentralVersionProvider implements IVersionProvider
             return expression.evaluate( document );
         } 
         catch(Exception e) {
-            LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
+        	if ( LOG.isDebugEnabled() ) {
+        		LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
+        	} else {
+        		LOG.error("parseXML(): Failed to parse document: "+e.getMessage());
+        	}
             throw new IOException("Failed to parse document: "+e.getMessage(),e);            
         }
     }
@@ -359,7 +363,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 LOG.warn("getLatestVersion(): Failed to find artifact on server: "+info);
                 return UpdateResult.ARTIFACT_NOT_FOUND;
             }
-            LOG.error("getLatestVersion(): Error while retrieving artifact metadata from server: "+info,e);
+            LOG.error("getLatestVersion(): Error while retrieving artifact metadata from server: "+info+": "+e.getMessage(), LOG.isDebugEnabled() ? e : null);
             throw new IOException(e);
         } finally {
         	LOG.debug("Finished retrieving metadata for "+info.artifact);
@@ -503,7 +507,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
         catch(ParserConfigurationException | SAXException e) 
         {
-            LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
+            LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),LOG.isDebugEnabled() ? e : null);
             throw new IOException("Failed to parse document: "+e.getMessage(),e);
         }
     }

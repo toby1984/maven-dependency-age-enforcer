@@ -15,6 +15,9 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
+import java.util.Objects;
+
 /**
  * Response for a single artifact from a {@link QueryRequest}.
  *
@@ -69,7 +72,75 @@ public class ArtifactResponse
 	public Version currentVersion;
 	public Version latestVersion;
 	public UpdateAvailable updateAvailable;
+
+	@Override
+	public boolean equals(Object obj) {
+		if ( obj instanceof ArtifactResponse) {
+			ArtifactResponse o = (ArtifactResponse) obj;
+			if ( ! Objects.equals(this.artifact,o.artifact) ) {
+				return false;
+			}
+			if ( currentVersion == null || o.currentVersion == null ) {
+				if ( currentVersion != o.currentVersion ) {
+					return false;
+				}
+			} else {
+				if ( ! Version.sameFields(this.currentVersion, o.currentVersion ) ) {
+					return false;
+				}
+			}
+			if ( latestVersion == null || o.latestVersion == null ) {
+				if ( latestVersion != o.latestVersion ) {
+					return false;
+				}
+			} else {
+				if ( ! Version.sameFields(this.latestVersion, o.latestVersion ) ) {
+					return false;
+				}
+			}			
+			return Objects.equals(this.updateAvailable, o.updateAvailable);
+		}
+		return false;
+	}
 	
+    public void serialize(BinarySerializer serializer) throws IOException 
+    {
+        artifact.serialize( serializer );
+        
+        if ( currentVersion != null ) {
+            serializer.writeBoolean( true );
+            currentVersion.serialize( serializer );
+        } else {
+            serializer.writeBoolean( false );
+        }
+        
+        if ( latestVersion != null ) {
+            serializer.writeBoolean( true );
+            latestVersion.serialize( serializer );
+        } else {
+            serializer.writeBoolean( false );
+        }
+
+        serializer.writeString( updateAvailable == null ? null : updateAvailable.text );
+    }
+    
+    public static ArtifactResponse deserialize(BinarySerializer serializer) throws IOException {
+        final ArtifactResponse response = new ArtifactResponse();
+        response.artifact = Artifact.deserialize(serializer);
+        
+        boolean isPresent = serializer.readBoolean();
+        if ( isPresent ) {
+            response.currentVersion = Version.deserialize(serializer);
+        }
+        isPresent = serializer.readBoolean();
+        if ( isPresent ) {
+            response.latestVersion = Version.deserialize(serializer);
+        }
+        final String updAvailable = serializer.readString();
+        response.updateAvailable = updAvailable == null ? null : UpdateAvailable.fromString( updAvailable );
+        return response;
+    }
+    
 	@Override
 	public String toString() {
 	    return "ArtifactResponse[ updateAvailable: "+updateAvailable+", current_version: "+currentVersion+" latest_version: "+latestVersion+", artifact: "+artifact+" ]";

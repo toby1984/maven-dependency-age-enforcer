@@ -15,8 +15,12 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+
+import de.codesourcery.versiontracker.common.APIRequest.Command;
 
 /**
  * API response in reply to {@link QueryRequest}.
@@ -25,5 +29,47 @@ import java.util.List;
  */
 public class QueryResponse extends APIResponse
 {
-	public final List<ArtifactResponse> artifacts=new ArrayList<>();
+    public final List<ArtifactResponse> artifacts=new ArrayList<>();
+
+	public QueryResponse() {
+        super(Command.QUERY);
+    }
+	
+	public boolean equals(Object obj) 
+	{
+		if ( obj instanceof QueryResponse) {
+			final QueryResponse o = (QueryResponse) obj;
+			if ( this.artifacts.size() != o.artifacts.size() ) {
+				System.out.println(">>>>>>>> Artifact size mismatch");
+				return false;
+			}
+			for (ArtifactResponse a1 : artifacts) 
+			{
+				if ( ! o.artifacts.stream().anyMatch( x -> x.equals(a1 ) ) ) {
+					System.out.println(">>>>>>>> Artifact not found: "+a1);
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+	
+    @Override
+    protected void doSerialize(BinarySerializer serializer) throws IOException 
+    {
+        serializer.writeInt( artifacts.size() );
+        for ( ArtifactResponse resp : artifacts ) {
+            resp.serialize(serializer);
+        }
+    }
+
+    public static APIResponse doDeserialize(BinarySerializer serializer) throws IOException {
+        final QueryResponse result = new QueryResponse();
+        for ( int count = serializer.readInt() ; count > 0 ; count-- ) 
+        {
+            result.artifacts.add( ArtifactResponse.deserialize( serializer ) );
+        }
+        return result;
+    }
 }

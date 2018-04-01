@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Objects;
 
@@ -29,6 +30,33 @@ public class Version
     public ZonedDateTime releaseDate;
     
     public Version() {
+    }
+    
+    public void serialize(BinarySerializer serializer) throws IOException 
+    {
+        serializer.writeString( versionString );
+        serializer.writeZonedDateTime(releaseDate);
+    }
+    
+    public static Version deserialize(BinarySerializer serializer) throws IOException {
+        final Version result = new Version();
+        result.versionString = serializer.readString();
+        result.releaseDate = serializer.readZonedDateTime();
+        return result;
+    }
+    
+    public static boolean sameFields(Version a,Version b) 
+    {
+    	if ( a == null ||b == null ) {
+    		return a == b;
+    	}
+    	if ( ! Objects.equals( a.versionString, b.versionString ) ) {
+    		return false;
+    	}
+    	if ( a.releaseDate == null || b.releaseDate == null ) {
+    		return a.releaseDate == b.releaseDate;
+    	}
+    	return a.releaseDate.toInstant().equals( b.releaseDate.toInstant() );
     }
     
     public Version(String versionString, ZonedDateTime releaseDate)
