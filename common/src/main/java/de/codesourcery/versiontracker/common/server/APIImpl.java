@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
@@ -105,8 +106,36 @@ public class APIImpl implements AutoCloseable
         initialized = true;
 
         final File versionFile = getArtifactFileLocation();
-
-        final IVersionStorage fileStorage = new FlatFileStorage( versionFile );
+        
+        final IVersionStorage fileStorage;
+        if ( versionFile.getName().endsWith(".json") ) 
+        {
+        	final File binaryFile = new File( versionFile.getAbsolutePath()+".binary");
+        	boolean useBinaryFile = binaryFile.exists();
+        	if ( ! binaryFile.exists() ) 
+        	{
+        		if ( versionFile.exists() ) 
+        		{
+        			try {
+						FlatFileStorage.convert(versionFile, Protocol.JSON, binaryFile, Protocol.BINARY);
+						LOG.info("init(): Converted "+versionFile.getAbsolutePath()+" -> "+binaryFile.getAbsolutePath());
+						useBinaryFile = true;
+					} catch (Exception e) {
+						LOG.error("init(): Using JSON file , failed to convert "+versionFile.getAbsolutePath()+" -> "
+								+ binaryFile.getAbsolutePath(),e);
+					}
+        		}
+        	}
+        	if ( useBinaryFile ) {
+        		LOG.info("init(): Using binary file "+binaryFile.getAbsolutePath());
+        		fileStorage = new FlatFileStorage( binaryFile,Protocol.BINARY );
+        	} else {
+        		fileStorage = new FlatFileStorage( versionFile );
+        	}
+        } else {
+        	LOG.info("init(): Using JSON file "+versionFile.getAbsolutePath());
+        	fileStorage = new FlatFileStorage( versionFile );
+        }
         versionStorage  = new CachingStorageDecorator(fileStorage);
         versionProvider = new MavenCentralVersionProvider(mavenRepository);
         final SharedLockCache lockCache = new SharedLockCache();

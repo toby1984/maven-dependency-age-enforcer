@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -82,6 +83,102 @@ public class VersionInfo
     public List<Version> versions = new ArrayList<>();
     
     public VersionInfo() {
+    }
+    
+    public void serialize(BinarySerializer serializer) throws IOException 
+    {
+    	artifact.serialize( serializer );
+    	serializer.writeZonedDateTime( lastRequestDate );
+    	serializer.writeZonedDateTime( creationDate );
+    	serializer.writeZonedDateTime( lastSuccessDate );
+    	serializer.writeZonedDateTime( lastFailureDate);
+    	serializer.writeZonedDateTime( lastRepositoryUpdate );
+    	if ( latestReleaseVersion != null ) {
+    		serializer.writeBoolean( true);
+    		latestReleaseVersion.serialize( serializer );
+    		
+    	} else {
+    		serializer.writeBoolean( false );
+    	}
+    	
+    	if ( latestSnapshotVersion != null ) {
+    		serializer.writeBoolean( true);
+    		latestSnapshotVersion.serialize( serializer );
+    		
+    	} else {
+    		serializer.writeBoolean( false );
+    	}
+    	
+    	serializer.writeInt( versions.size() );
+    	for ( Version v : versions ) {
+    		v.serialize( serializer );
+    	}
+    }
+    
+    public boolean hasSameFields(VersionInfo other) {
+    	if ( this.artifact == null || other.artifact == null ) {
+    		if ( this.artifact != other.artifact ) {
+    			return false;
+    		}
+    	} else {
+    		if ( ! this.artifact.equals( other.artifact ) ) {
+    			return false;
+    		}
+    	}
+    	if ( ! Objects.equals( this.lastRequestDate , other.lastRequestDate ) ) {
+    		return false;
+    	}
+    	if ( ! Objects.equals( this.creationDate , other.creationDate ) ) {
+    		return false;
+    	}
+    	if ( ! Objects.equals( this.lastSuccessDate , other.lastSuccessDate ) ) {
+    		return false;
+    	}
+    	if ( ! Objects.equals( this.lastFailureDate , other.lastFailureDate ) ) {
+    		return false;
+    	} 
+    	if ( ! Objects.equals( this.lastRepositoryUpdate , other.lastRepositoryUpdate ) ) {
+    		return false;
+    	}     	
+    	if ( ! Version.sameFields( this.latestReleaseVersion ,  other.latestReleaseVersion ) ) {
+    		return false;
+    	}
+    	if ( ! Version.sameFields( this.latestSnapshotVersion ,  other.latestSnapshotVersion ) ) {
+    		return false;
+    	}
+    	if ( this.versions.size() != other.versions.size() ) {
+    		return false;
+    	}
+    	for ( Version v : this.versions ) {
+    		if ( other.versions.stream().noneMatch( x -> Version.sameFields( x , v ) ) ) {
+    			return false;
+    		}
+    	}
+    	return true;
+    }
+    
+    public static VersionInfo deserialize(BinarySerializer serializer) throws IOException {
+
+    	final VersionInfo  result = new VersionInfo();
+    	result.artifact = Artifact.deserialize( serializer );
+    	result.lastRequestDate = serializer.readZonedDateTime();
+    	result.creationDate = serializer.readZonedDateTime();
+    	result.lastSuccessDate = serializer.readZonedDateTime();
+    	result.lastFailureDate = serializer.readZonedDateTime();
+    	result.lastRepositoryUpdate = serializer.readZonedDateTime();
+    	if ( serializer.readBoolean() ) {
+    		result.latestReleaseVersion = Version.deserialize( serializer );
+    	}
+    	
+    	if ( serializer.readBoolean() ) {
+    		result.latestSnapshotVersion = Version.deserialize( serializer );
+    	}
+    	final int size = serializer.readInt();
+    	result.versions = new ArrayList<>(size);
+    	for ( int i = 0 ; i < size ; i++) {
+    		result.versions.add( Version.deserialize( serializer ) );
+    	}
+    	return result;
     }
     
     public boolean hasVersions() {

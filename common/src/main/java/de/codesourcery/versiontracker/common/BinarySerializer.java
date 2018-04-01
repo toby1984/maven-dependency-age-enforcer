@@ -44,10 +44,14 @@ public class BinarySerializer implements AutoCloseable,Closeable
     public interface IBuffer extends AutoCloseable,Closeable
     {
         public byte read() throws IOException;
+        
+        public void read(byte[] destination) throws IOException;
 
         public boolean isEOF() throws IOException;
         
         public void write(byte value) throws IOException;
+        
+        public void write(byte[] array) throws IOException;
         
         @Override
         public void close() throws IOException;
@@ -97,6 +101,28 @@ public class BinarySerializer implements AutoCloseable,Closeable
             return (byte) result;
         }
         
+        @Override
+        public void read(byte[] destination) throws IOException 
+        {
+        	if ( destination.length > 1 ) 
+        	{
+                int result = this.next;
+                if ( result == -1 ) {
+                    throw new EOFException();
+                }
+        		destination[0] = (byte) result;
+        		final int expected = destination.length-1;
+				final int bytesRead = in.read(destination, 1, expected);
+        		if ( bytesRead != expected ) {
+        			throw new EOFException("Expected "+destination.length+" bytes but got only "+(1+bytesRead));
+        		}
+        		offset += destination.length;
+        		this.next = in.read();
+        	} else if ( destination.length == 1 ) {
+        		destination[0] = read();
+        	}
+        }
+        
         private String asHex(int value,int padLen) {
             String s = Integer.toHexString( value );
             s = StringUtils.leftPad(s,padLen,'0');
@@ -106,6 +132,8 @@ public class BinarySerializer implements AutoCloseable,Closeable
         @Override public boolean isEOF() throws IOException { return next == -1; }
 
         @Override public void write(byte value) throws IOException { throw new UnsupportedOperationException("not supported: write()"); }
+        
+        @Override public void write(byte[] value) throws IOException { throw new UnsupportedOperationException("not supported: write()"); }
 
         @Override public void close() throws IOException { in.close(); }
         
@@ -136,6 +164,11 @@ public class BinarySerializer implements AutoCloseable,Closeable
         public byte read() throws IOException {
             throw new UnsupportedOperationException("method not supported: read()");
         }
+        
+        @Override
+        public void read(byte[] destination) throws IOException {
+        	throw new UnsupportedOperationException("method not supported: read()");
+        }
 
         @Override
         public boolean isEOF() throws IOException {
@@ -146,6 +179,12 @@ public class BinarySerializer implements AutoCloseable,Closeable
         public void write(byte value) throws IOException {
             out.write( value );
             offset++;
+        }
+        
+        @Override
+        public void write(byte[] array) throws IOException {
+        	out.write( array );
+        	offset += array.length;
         }
 
         @Override
@@ -184,17 +223,12 @@ public class BinarySerializer implements AutoCloseable,Closeable
     public void writeArray(byte[] value) throws IOException 
     {
         writeInt( value.length );
-        for ( int i = 0,len=value.length ; i< len ; i++ ) {
-            writeByte( value[i] );
-        }
+        this.buffer.write( value );
     }
 
     public byte[] readArray() throws IOException {
-        final int len = readInt();
-        final byte[] result = new byte[ len ];
-        for ( int i = 0 ; i < len ; i++ ) {
-            result[i] = readByte();
-        }
+        final byte[] result = new byte[ readInt() ];
+        buffer.read(result);
         return result;
     }
     

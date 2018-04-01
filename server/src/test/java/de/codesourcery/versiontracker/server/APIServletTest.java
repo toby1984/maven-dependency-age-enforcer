@@ -263,7 +263,7 @@ public class APIServletTest {
                 System.out.println("WARMUP: "+(end-start)+" ms");
             }
         }
-        System.out.println("Average time: "+(sum/(float) count)+" ms");            
+        System.out.println("Average JSON time: "+(sum/(float) count)+" ms");            
     }
     
     @Test
@@ -289,6 +289,6 @@ public class APIServletTest {
                 System.out.println("WARMUP: "+(end-start)+" ms");
             }
         }
-        System.out.println("Average time: "+(sum/(float) count)+" ms");            
+        System.out.println("Average BINARY time: "+(sum/(float) count)+" ms");            
     }
 }

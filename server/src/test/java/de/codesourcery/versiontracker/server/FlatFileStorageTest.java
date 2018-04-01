@@ -16,20 +16,24 @@
 package de.codesourcery.versiontracker.server;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
+import org.apache.commons.io.IOUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -37,125 +41,174 @@ import de.codesourcery.versiontracker.common.server.FlatFileStorage;
 
 public class FlatFileStorageTest
 {
-    private File file;
-    
-    @Before
-    public void setup() throws IOException {
-        file = File.createTempFile("versiontracktest",".json");
-        file.delete();
-    }
-    
-    @After
-    public void tearDown() {
-        if ( file != null ) 
-        {
-            try {
-                file.delete();
-                file.deleteOnExit();
-            } finally {
-                file = null;
-            }
-        }
-    }    
-    
-    @Test
-    public void testStoreAndLoadEmpty() throws IOException 
-    {
-        FlatFileStorage storage = new FlatFileStorage(file);
-        List<VersionInfo> data = new ArrayList<>();
-        storage.saveOrUpdate( data );
-        
-        storage = new FlatFileStorage(file);
-        List<VersionInfo> loaded = storage.getAllVersions();
-        Assert.assertEquals(0,loaded.size());
-    }
-    
-    private VersionInfo createData() {
-        VersionInfo info = new VersionInfo();
-        info.artifact = new Artifact();
-        info.artifact.groupId = "de.codesourcery";
-        info.artifact.artifactId = "test";
-        info.artifact.version = "1.0.0";
-        info.artifact.setClassifier("jdk9");
-        info.artifact.type= "jar";
-        
-        final ZonedDateTime now = ZonedDateTime.now();
-        final Version a = new Version("1.2", now.plusDays( 1 ));
-        final Version b = new Version("1.3", now.plusDays( 5 ));
-        final Version c = new Version("1.4", now.plusDays( 6 ));
+	private File file;
 
-        info.lastRequestDate = now;
-        info.creationDate = now.plus(Duration.ofSeconds(1));
-        info.lastSuccessDate = now.plus(Duration.ofSeconds(2));
-        info.lastFailureDate = now.plus(Duration.ofSeconds(13));
-        info.latestReleaseVersion = a;
-        info.latestSnapshotVersion = b;
-        info.lastRepositoryUpdate = now.plus(Duration.ofSeconds(6));
-        info.versions = new ArrayList<>( Arrays.asList(a,b,c) );
-        return info;
-    }
-    
-    public void testStoreAndLoadOne() throws IOException 
-    {
-        final VersionInfo info = createData();
-        final VersionInfo copy = info.copy();
-        
-        FlatFileStorage storage = new FlatFileStorage(file);
-        storage.saveOrUpdate(info);
-        
-        storage = new FlatFileStorage(file);
-        final List<VersionInfo> loaded = storage.getAllVersions();
-        Assert.assertEquals(1,loaded.size());
-        Assert.assertEquals( copy , loaded.get(0) );
-    } 
-    
-    @Test
-    public void testStoreAndLoadBulk() throws IOException 
-    {
-        final VersionInfo info = createData();
-        final VersionInfo copy = info.copy();
-        
-        FlatFileStorage storage = new FlatFileStorage(file);
-        storage.saveOrUpdate( Collections.singletonList( info ));
-        
-        storage = new FlatFileStorage(file);
-        final List<VersionInfo> loaded = storage.getAllVersions();
-        Assert.assertEquals(1,loaded.size());
-        Assert.assertEquals( copy , loaded.get(0) );
-    }     
-    
-//    @Test
-//    public void loadTest() throws IOException 
-//    {
-//        FlatFileStorage storage = new FlatFileStorage(new File("/tmp/artifacts.json"));
-//        List<VersionInfo> versions = storage.getAllVersions();
-//        
-//        final Comparator<Artifact> cmp = new Comparator<Artifact>()
-//        {
-//            private int nullSafeCompare(String a,String b) {
-//                if ( a != null && b != null ) {
-//                    return a.compareTo( b );
-//                } 
-//                return ( a != null ) ? -1 : 1;
-//            }
-//            
-//            @Override
-//            public int compare(Artifact a, Artifact b)
-//            {
-//                int result=nullSafeCompare(a.groupId,b.groupId);
-//                if ( result == 0 ) {
-//                    result = nullSafeCompare(a.artifactId,  b.artifactId );
-//                    if ( result == 0 ) {
-//                        result = nullSafeCompare(a.version, b.version);
-//                    }
-//                }
-//                return result;
-//            }
-//        };
-//        versions.sort( (a,b) -> cmp.compare(a.artifact,b.artifact) );
-//        for ( VersionInfo i : versions ) 
-//        {
-//          System.out.println("|"+i.artifact.groupId+"|"+i.artifact.artifactId+"|"+i.artifact);    
-//        }
-//    }
+	@Before
+	public void setup() throws IOException {
+		file = File.createTempFile("versiontracktest",".json");
+		file.delete();
+	}
+
+	@After
+	public void tearDown() {
+		if ( file != null ) 
+		{
+			try {
+				file.delete();
+				file.deleteOnExit();
+			} finally {
+				file = null;
+			}
+		}
+	}    
+
+	@Test
+	public void testStoreAndLoadEmpty() throws IOException 
+	{
+		FlatFileStorage storage = new FlatFileStorage(file);
+		List<VersionInfo> data = new ArrayList<>();
+		storage.saveOrUpdate( data );
+
+		storage = new FlatFileStorage(file);
+		List<VersionInfo> loaded = storage.getAllVersions();
+		Assert.assertEquals(0,loaded.size());
+	}
+
+	private VersionInfo createData() {
+		VersionInfo info = new VersionInfo();
+		info.artifact = new Artifact();
+		info.artifact.groupId = "de.codesourcery";
+		info.artifact.artifactId = "test";
+		info.artifact.version = "1.0.0";
+		info.artifact.setClassifier("jdk9");
+		info.artifact.type= "jar";
+
+		final ZonedDateTime now = ZonedDateTime.now();
+		final Version a = new Version("1.2", now.plusDays( 1 ));
+		final Version b = new Version("1.3", now.plusDays( 5 ));
+		final Version c = new Version("1.4", now.plusDays( 6 ));
+
+		info.lastRequestDate = now;
+		info.creationDate = now.plus(Duration.ofSeconds(1));
+		info.lastSuccessDate = now.plus(Duration.ofSeconds(2));
+		info.lastFailureDate = now.plus(Duration.ofSeconds(13));
+		info.latestReleaseVersion = a;
+		info.latestSnapshotVersion = b;
+		info.lastRepositoryUpdate = now.plus(Duration.ofSeconds(6));
+		info.versions = new ArrayList<>( Arrays.asList(a,b,c) );
+		return info;
+	}
+
+	public void testStoreAndLoadOne() throws IOException 
+	{
+		final VersionInfo info = createData();
+		final VersionInfo copy = info.copy();
+
+		FlatFileStorage storage = new FlatFileStorage(file);
+		storage.saveOrUpdate(info);
+
+		storage = new FlatFileStorage(file);
+		final List<VersionInfo> loaded = storage.getAllVersions();
+		Assert.assertEquals(1,loaded.size());
+		Assert.assertEquals( copy , loaded.get(0) );
+	} 
+
+	@Test
+	public void testStoreAndLoadBulk() throws IOException 
+	{
+		final VersionInfo info = createData();
+		final VersionInfo copy = info.copy();
+
+		FlatFileStorage storage = new FlatFileStorage(file);
+		storage.saveOrUpdate( Collections.singletonList( info ));
+
+		storage = new FlatFileStorage(file);
+		final List<VersionInfo> loaded = storage.getAllVersions();
+		Assert.assertEquals(1,loaded.size());
+		Assert.assertEquals( copy , loaded.get(0) );
+	}     
+
+	@Test
+	public void testLoadTimeJSON() throws Exception {
+
+		final File tmp = File.createTempFile("xxx", "yyy");
+		tmp.delete();
+		final InputStream in = getClass().getResourceAsStream("/artifacts.json");
+		final OutputStream out = new FileOutputStream(tmp);
+		IOUtils.copy( in ,  out );
+		out.close();
+		in.close();
+
+		long sum = 0;
+		long count = 0;
+		for ( int i = 0 ; i < 80 ; i++ ) {
+
+			long start = System.currentTimeMillis();
+			try ( FlatFileStorage storage = new FlatFileStorage(tmp) ) {
+				List<VersionInfo> results = storage.getAllVersions();
+				long end = System.currentTimeMillis();
+				if ( i >= 60 ) {
+					sum += (end-start);
+					count++;
+				}
+//				System.out.println("Loaded "+results.size()+" in "+(end-start)+" ms");
+			}
+		}
+		System.out.println("Average time json: "+(sum/(float)count)+" ms");
+	}
+	
+	@Test
+	public void testRoundTrip() throws Exception {
+		final File tmp = File.createTempFile("xxx", "yyy");
+		tmp.delete();
+		final InputStream in = getClass().getResourceAsStream("/artifacts.json");
+		final OutputStream out = new FileOutputStream(tmp);
+		IOUtils.copy( in ,  out );
+		out.close();
+		in.close();
+		
+		final File binaryFile = new File( tmp.getAbsolutePath()+".bin" );
+		binaryFile.deleteOnExit();
+
+		FlatFileStorage.convert( tmp, Protocol.JSON, binaryFile, Protocol.BINARY );
+		
+		FlatFileStorage storage1 = new FlatFileStorage(tmp,Protocol.JSON);
+		FlatFileStorage storage2 = new FlatFileStorage(binaryFile,Protocol.BINARY);
+		
+		Assert.assertEquals( storage1.getAllVersions() , storage2.getAllVersions() );
+	}
+	
+	@Test
+	public void testLoadTimeBinary() throws Exception {
+
+		final File tmp = File.createTempFile("xxx", "yyy");
+		tmp.delete();
+		final InputStream in = getClass().getResourceAsStream("/artifacts.json");
+		final OutputStream out = new FileOutputStream(tmp);
+		IOUtils.copy( in ,  out );
+		out.close();
+		in.close();
+		
+		final File binaryFile = new File( tmp.getAbsolutePath()+".bin" );
+		binaryFile.deleteOnExit();
+
+		FlatFileStorage.convert( tmp, Protocol.JSON, binaryFile, Protocol.BINARY );
+
+		long sum = 0;
+		long count = 0;
+		for ( int i = 0 ; i < 80 ; i++ ) {
+
+			long start = System.currentTimeMillis();
+			try ( FlatFileStorage storage = new FlatFileStorage(binaryFile,Protocol.BINARY) ) {
+				List<VersionInfo> results = storage.getAllVersions();
+				long end = System.currentTimeMillis();
+				if ( i >= 60 ) {
+					sum += (end-start);
+					count++;
+				}
+//				System.out.println("Loaded "+results.size()+" in "+(end-start)+" ms");
+			}
+		}
+		System.out.println("Average time binary: "+(sum/(float)count)+" ms");
+	}
 }

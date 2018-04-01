@@ -15,7 +15,11 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.ZoneId;
@@ -30,6 +34,8 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.common.BinarySerializer;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.Version;
@@ -43,131 +49,179 @@ import de.codesourcery.versiontracker.common.VersionInfo;
  */
 public class FlatFileStorage implements IVersionStorage
 {
-    private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
-    
-    private ThreadLocal<ObjectMapper> mapper = new ThreadLocal<>() 
-    {
-     protected ObjectMapper initialValue() {
-         return JSONHelper.newObjectMapper();
-     }
-    };
-    
-    private File file;
+	private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
-    public FlatFileStorage(File file) {
-        this.file = file;
-    }    
+	private static final long MAGIC = 0xdeadbeef;
 
-    @Override
-    public synchronized List<VersionInfo> getAllVersions() throws IOException  
-    {
-        List<VersionInfo>  result = new ArrayList<>();
-        if ( ! file.exists() ) {
-            return result;
-        }
-        return mapper.get().readValue(file,new TypeReference<List<VersionInfo>>() {});
-    }
-    
-    private static String toKey(VersionInfo x) 
-    {
-        return x.artifact.groupId+":"+x.artifact.artifactId;
-    }
+	private static final ObjectMapper mapper = JSONHelper.newObjectMapper();
 
-    public static void main(String[] args) throws IOException {
-        
-        dumpToFile( new File("/tmp/artifactTest.noCache"),new File("/tmp/artifactTest.noCache.txt") );
-        dumpToFile( new File("/tmp/artifactTest.withCache"),new File("/tmp/artifactTest.withCache.txt") );
-    }
-    
-    public static void dumpToFile(File inputFile,File outputFile) throws IOException 
-    {
-        String text = dumpToString(inputFile);
-        try ( FileWriter writer = new FileWriter( outputFile) ) {
-            writer.write( text );
-        }
-    }
-    
-    public static String dumpToString(File file) throws IOException 
-    {
-        final Function<ZonedDateTime,String> func = time -> {
-            return time == null ? "n/a" : format.format(time);
-        };
-        final StringBuilder buffer = new StringBuilder();
-        
-        final FlatFileStorage storage = new FlatFileStorage(file);
-        for ( VersionInfo i : storage.getAllVersions() ) 
-        {
-            buffer.append("-----------------------------------").append("\n");
-            buffer.append("group id: "+i.artifact.groupId).append("\n");
-            buffer.append("artifact id: "+i.artifact.artifactId).append("\n");
+	private final Protocol protocol;
+	private File file;
 
-            if  (i.latestReleaseVersion != null ) {
-                buffer.append("latest release: "+i.latestReleaseVersion.versionString+" ("+printDate( i.latestReleaseVersion.releaseDate )+")" ).append("\n");
-            } else {
-                buffer.append("latest release : n/a").append("\n");
-            }
+	public FlatFileStorage(File file) 
+	{
+		this(file,Protocol.JSON);
+	}    
 
-            if  (i.latestSnapshotVersion != null ) {
-                buffer.append("latest snapshot : "+i.latestSnapshotVersion.versionString+" ("+printDate( i.latestSnapshotVersion.releaseDate )+")" ).append("\n");
-            } else {
-                buffer.append("latest snapshot : n/a").append("\n");
-            }
-            if ( i.versions == null || i.versions.isEmpty() ) {
-                buffer.append("versions: n/a").append("\n");
-            } else {
-                buffer.append("versions:").append("\n");
-                final List<Version> list = new ArrayList<>( i.versions );
-                list.sort( (a,b) -> a.versionString.compareTo( b.versionString ) );
-                for ( Version v : list ) 
-                {
-                    buffer.append("            "+v.versionString+" ("+func.apply( v.releaseDate )+")").append("\n");
-                }
-            }
+	public FlatFileStorage(File file,Protocol protocol) {
+		this.file = file;
+		this.protocol = protocol;
+	}
 
-            buffer.append("lastRequestDate: "+printDate(i.lastRequestDate)).append("\n");
-            buffer.append("creationDate: "+printDate(i.creationDate)).append("\n");
-            buffer.append("lastSuccessDate: "+printDate(i.lastSuccessDate)).append("\n");
-            buffer.append("lastFailureDate: "+printDate(i.lastFailureDate)).append("\n");
-            buffer.append("lastRepositoryUpdate: "+printDate(i.lastRepositoryUpdate)).append("\n");       
-        }
-        return buffer.toString();
-    }
+	@Override
+	public synchronized List<VersionInfo> getAllVersions() throws IOException  
+	{
+		if ( ! file.exists() ) {
+			return new ArrayList<>(0);
+		}
+		if ( protocol == Protocol.BINARY ) 
+		{
+			final List<VersionInfo>  result;
+			try ( BufferedInputStream in = new BufferedInputStream( new FileInputStream(file) ) ) 
+			{
+				try ( final BinarySerializer serializer = new BinarySerializer(BinarySerializer.IBuffer.wrap(in ) ) ) 
+				{
+					long magic = serializer.readLong();
+					if ( magic != MAGIC ) {
+						throw new IOException("Invalid file magic "+Long.toHexString( magic ) );
+					}
+					final int count = serializer.readInt();
+					result = new ArrayList<>(count);
+					for ( int i = 0 ; i < count ; i++ ) {
+						result.add( VersionInfo.deserialize( serializer ) );
+					}
+				}
+			}
+			return result;
+		} 
+		if ( protocol == Protocol.JSON ) {
+			return mapper.readValue(file,new TypeReference<List<VersionInfo>>() {});
+		} 
+		throw new RuntimeException("Unhandled protocol "+protocol);
+	}
 
-    private static String printDate(ZonedDateTime dt) {
-        if ( dt == null ) {
-            return "n/a";
-        }
-        return format.format( dt );
-    }    
+	private static String toKey(VersionInfo x) 
+	{
+		return x.artifact.groupId+":"+x.artifact.artifactId;
+	}
 
-    @Override
-    public synchronized void saveOrUpdate(VersionInfo info) throws IOException
-    {
-        List<VersionInfo> all = getAllVersions();
-        all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
-        all.add( info );
-        if ( 1 != 2 ) {
-            return;
-        }        
-        saveOrUpdate( all );
-    }
-    
-    @Override
-    public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
-    {
-//        if ( 1 != 2 ) {
-//            return;
-//        }
-        
-        final Set<String> set = data.stream().map( FlatFileStorage::toKey ).collect( Collectors.toSet() );
-        final List<VersionInfo> mergeTarget = getAllVersions();
-        mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
-        mergeTarget.addAll( data );
-        mapper.get().writeValue(file,mergeTarget);
-    }    
+	public static void main(String[] args) throws IOException {
 
-    @Override
-    public void close() throws Exception
-    {
-    }
+		dumpToFile( new File("/tmp/artifactTest.noCache"),new File("/tmp/artifactTest.noCache.txt") );
+		dumpToFile( new File("/tmp/artifactTest.withCache"),new File("/tmp/artifactTest.withCache.txt") );
+	}
+
+	public static void dumpToFile(File inputFile,File outputFile) throws IOException 
+	{
+		String text = dumpToString(inputFile);
+		try ( FileWriter writer = new FileWriter( outputFile) ) {
+			writer.write( text );
+		}
+	}
+
+	public static String dumpToString(File file) throws IOException 
+	{
+		final Function<ZonedDateTime,String> func = time -> {
+			return time == null ? "n/a" : format.format(time);
+		};
+		final StringBuilder buffer = new StringBuilder();
+
+		final FlatFileStorage storage = new FlatFileStorage(file);
+		for ( VersionInfo i : storage.getAllVersions() ) 
+		{
+			buffer.append("-----------------------------------").append("\n");
+			buffer.append("group id: "+i.artifact.groupId).append("\n");
+			buffer.append("artifact id: "+i.artifact.artifactId).append("\n");
+
+			if  (i.latestReleaseVersion != null ) {
+				buffer.append("latest release: "+i.latestReleaseVersion.versionString+" ("+printDate( i.latestReleaseVersion.releaseDate )+")" ).append("\n");
+			} else {
+				buffer.append("latest release : n/a").append("\n");
+			}
+
+			if  (i.latestSnapshotVersion != null ) {
+				buffer.append("latest snapshot : "+i.latestSnapshotVersion.versionString+" ("+printDate( i.latestSnapshotVersion.releaseDate )+")" ).append("\n");
+			} else {
+				buffer.append("latest snapshot : n/a").append("\n");
+			}
+			if ( i.versions == null || i.versions.isEmpty() ) {
+				buffer.append("versions: n/a").append("\n");
+			} else {
+				buffer.append("versions:").append("\n");
+				final List<Version> list = new ArrayList<>( i.versions );
+				list.sort( (a,b) -> a.versionString.compareTo( b.versionString ) );
+				for ( Version v : list ) 
+				{
+					buffer.append("            "+v.versionString+" ("+func.apply( v.releaseDate )+")").append("\n");
+				}
+			}
+
+			buffer.append("lastRequestDate: "+printDate(i.lastRequestDate)).append("\n");
+			buffer.append("creationDate: "+printDate(i.creationDate)).append("\n");
+			buffer.append("lastSuccessDate: "+printDate(i.lastSuccessDate)).append("\n");
+			buffer.append("lastFailureDate: "+printDate(i.lastFailureDate)).append("\n");
+			buffer.append("lastRepositoryUpdate: "+printDate(i.lastRepositoryUpdate)).append("\n");       
+		}
+		return buffer.toString();
+	}
+
+	private static String printDate(ZonedDateTime dt) {
+		if ( dt == null ) {
+			return "n/a";
+		}
+		return format.format( dt );
+	}    
+
+	@Override
+	public synchronized void saveOrUpdate(VersionInfo info) throws IOException
+	{
+		List<VersionInfo> all = getAllVersions();
+		all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
+		all.add( info );
+		saveOrUpdate( all );
+	}
+
+	@Override
+	public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
+	{
+		final Set<String> set = data.stream().map( FlatFileStorage::toKey ).collect( Collectors.toSet() );
+		final List<VersionInfo> mergeTarget = getAllVersions();
+		mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
+		mergeTarget.addAll( data );
+
+		if ( protocol == Protocol.BINARY ) {
+			try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream(file) ) ) 
+			{
+				try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) ) {
+					serializer.writeLong( MAGIC );
+					serializer.writeInt( data.size() );
+					for ( VersionInfo info : data ) {
+						info.serialize( serializer );
+					}
+				}
+			}
+		} else if ( protocol == Protocol.JSON ) {
+			mapper.writeValue(file,mergeTarget);
+		} else {
+			throw new RuntimeException("Unhandled protocol: "+protocol);
+		}
+	}    
+
+	@Override
+	public void close() throws Exception
+	{
+	}
+	
+	public static void convert(File input,Protocol inputProtocol,File output,Protocol outputProtocol) throws Exception {
+		if ( input.equals( output ) ) {
+			throw new IllegalArgumentException("Input and output file must differ");
+		}
+		output.delete();
+		
+		try ( FlatFileStorage in = new FlatFileStorage(input,inputProtocol) ) {
+			try ( FlatFileStorage out = new FlatFileStorage(output,outputProtocol) ) {
+				out.saveOrUpdate( in.getAllVersions() );
+			}
+		}
+	}
 }
