@@ -24,9 +24,9 @@ import java.util.List;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.logging.log4j.LogManager;
 
@@ -54,9 +54,25 @@ public class RemoteApiClient extends AbstractAPIClient
     private final Protocol protocol;
     private final String endpointUrl;
 
+    private final Object CLIENT_LOCK = new Object();
+    
+    // @GuardedBy(CLIENT_LOCK)
+    private CloseableHttpClient client;
+
     public RemoteApiClient(String endpointUrl,Protocol protocol) {
         this.endpointUrl = endpointUrl;
         this.protocol = protocol; 
+    }
+
+    private synchronized CloseableHttpClient client() 
+    {
+        synchronized (CLIENT_LOCK) 
+        {
+            if ( client == null ) {
+                client = HttpClients.createDefault();
+            }
+            return client;
+        }
     }
 
     @Override
@@ -114,11 +130,9 @@ public class RemoteApiClient extends AbstractAPIClient
     private byte[] doPost(byte[] input) throws ClientProtocolException, IOException {
         return doPost(input,false);
     }
-    
+
     private byte[] doPost(byte[] input,boolean debugPrinted) throws ClientProtocolException, IOException 
     {
-        final HttpClient httpclient = HttpClients.createDefault();
-
         final HttpPost httppost = new HttpPost( endpointUrl );
 
         final byte[] tmp = IAPIClient.toWireFormat(input,protocol);
@@ -135,7 +149,7 @@ public class RemoteApiClient extends AbstractAPIClient
             }
         }
 
-        final HttpResponse response = httpclient.execute(httppost);
+        final HttpResponse response = client().execute(httppost);
         final HttpEntity entity = response.getEntity();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -164,5 +178,14 @@ public class RemoteApiClient extends AbstractAPIClient
     @Override
     public void close() throws Exception
     {
+        synchronized (CLIENT_LOCK) {
+            if ( client != null ) {
+                try {
+                    client.close();
+                } finally {
+                    client = null;
+                }
+            }
+        }
     }
 }

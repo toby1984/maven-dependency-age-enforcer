@@ -25,7 +25,9 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -77,6 +79,14 @@ public class DependencyAgeRule implements EnforcerRule
     // from writing to the metadata backing store file concurrently.
     
     private static final Object GLOBAL_LOCK = new Object();
+    
+    // @GuardedBy(CLIENTS)
+    private static final Map<String,RemoteApiClient> CLIENTS = new HashMap<>();
+    
+    private static Object LOCAL_API_CLIENT_LOCK = new Object();
+    
+    // @GuardedBy(LOCAL_API_CLIENT_LOCK)
+    private static LocalAPIClient LOCAL_API_CLIENT;
     
     private static final JAXBContext jaxbContext;
     
@@ -370,7 +380,7 @@ public class DependencyAgeRule implements EnforcerRule
             if ( StringUtils.isBlank( apiEndpoint ) ) 
             {
                 log.warn("No API endpoint configured, running locally");
-                client = new LocalAPIClient();
+                client = getLocalAPIClient();
             } 
             else 
             {
@@ -378,10 +388,7 @@ public class DependencyAgeRule implements EnforcerRule
             	if ( verbose ) {
             		log.info("Using "+protocol+" protocol");
             	}
-                client = new RemoteApiClient(apiEndpoint,protocol);
-            }            
-            if ( debug ) {
-                client.setDebugMode( debug );
+                client = getRemoteAPIClient(apiEndpoint,protocol,debug);
             }
             try 
             {
@@ -645,6 +652,60 @@ public class DependencyAgeRule implements EnforcerRule
     {
         if (method != null && ! method.equals("maven") ) {
             throw new ParseException("Sorry, rules file "+rulesFile.getAbsolutePath()+" contains custom comparison method '"+method+"' but custom comparison methods are not supported by this plugin.",-1);
+        }
+    }
+    
+    private static LocalAPIClient getLocalAPIClient() 
+    {
+        synchronized(LOCAL_API_CLIENT_LOCK) 
+        {
+            if ( LOCAL_API_CLIENT == null ) {
+                LOCAL_API_CLIENT = new LocalAPIClient();
+                Runtime.getRuntime().addShutdownHook( new Thread( () -> {
+                    synchronized(LOCAL_API_CLIENT_LOCK) 
+                    {
+                        try {
+                            LOCAL_API_CLIENT.close();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
+                            LOCAL_API_CLIENT = null;
+                        }
+                    }
+                }));
+            }
+            return LOCAL_API_CLIENT;
+        }
+    }
+    
+    private static RemoteApiClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug) 
+    {
+        final String key = endpoint+protocol.name()+debug;
+        synchronized(CLIENTS) 
+        {
+            RemoteApiClient existing = CLIENTS.get( key );
+            if ( existing == null ) {
+                existing = new RemoteApiClient(endpoint,protocol);
+                existing.setDebugMode( debug );
+                CLIENTS.put(key, existing );
+                
+                Runtime.getRuntime().addShutdownHook( new Thread( () -> {
+                    synchronized(CLIENTS) 
+                    {
+                        RemoteApiClient client = CLIENTS.get( key );
+                        if ( client != null ) {
+                            try {
+                                client.close();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            } finally {
+                                CLIENTS.put(key,null);
+                            }
+                        }
+                    }
+                }));                
+            }
+            return existing;
         }
     }
 }

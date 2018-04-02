@@ -39,6 +39,10 @@ public class BinarySerializer implements AutoCloseable,Closeable
 {
     protected static final Logger LOG = org.apache.logging.log4j.LogManager.getLogger(BinarySerializer.class);
     
+    protected static final ZoneId UTC =  ZoneId.of( "UTC" );
+    
+    static final boolean TRACK_OFFSET = false;
+    
     private final IBuffer buffer;
     
     public interface IBuffer extends AutoCloseable,Closeable
@@ -93,9 +97,11 @@ public class BinarySerializer implements AutoCloseable,Closeable
             if ( result == -1 ) {
                 throw new EOFException();
             }
-            offset++;
+            if (TRACK_OFFSET) {
+                offset++;
+            }
             this.next = in.read();
-            if ( LOG.isTraceEnabled() ) {
+            if ( TRACK_OFFSET && LOG.isTraceEnabled() ) {
                 LOG.trace("read(): "+asHex(offset,8)+" => "+asHex( result & 0xff, 2 ) );
             }
             return (byte) result;
@@ -116,7 +122,9 @@ public class BinarySerializer implements AutoCloseable,Closeable
         		if ( bytesRead != expected ) {
         			throw new EOFException("Expected "+destination.length+" bytes but got only "+(1+bytesRead));
         		}
-        		offset += destination.length;
+        		if ( TRACK_OFFSET ) {
+        		    offset += destination.length;
+        		}
         		this.next = in.read();
         	} else if ( destination.length == 1 ) {
         		destination[0] = read();
@@ -178,13 +186,17 @@ public class BinarySerializer implements AutoCloseable,Closeable
         @Override
         public void write(byte value) throws IOException {
             out.write( value );
-            offset++;
+            if ( TRACK_OFFSET ) {
+                offset++;
+            }
         }
         
         @Override
         public void write(byte[] array) throws IOException {
         	out.write( array );
-        	offset += array.length;
+        	if ( TRACK_OFFSET ) {
+        	    offset += array.length;
+        	}
         }
 
         @Override
@@ -195,7 +207,7 @@ public class BinarySerializer implements AutoCloseable,Closeable
         @Override
         public String toString()
         {
-            return "OutBuffer @ 0x"+Integer.toHexString( offset );
+            return TRACK_OFFSET ? "OutBuffer @ 0x"+Integer.toHexString( offset ) : "OutBuffer";
         }
 
         @Override
@@ -340,7 +352,6 @@ public class BinarySerializer implements AutoCloseable,Closeable
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            writeString( dt.getZone().getId() );
             final long millis = dt.toEpochSecond()*1000 + dt.getNano()/1000000;
             writeLong( millis );
         }
@@ -351,9 +362,8 @@ public class BinarySerializer implements AutoCloseable,Closeable
         if ( ! isPresent ) {
             return null;
         }
-        final ZoneId id = ZoneId.of( readString() );
         final Instant instant = Instant.ofEpochMilli( readLong() );
-        return ZonedDateTime.ofInstant(instant,id);
+        return ZonedDateTime.ofInstant(instant,UTC);
     }
 
     public void writeDate(Date d) throws IOException 
