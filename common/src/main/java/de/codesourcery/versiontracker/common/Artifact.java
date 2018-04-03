@@ -206,9 +206,9 @@ public class Artifact
     public String toString()
     {
         if ( classifier == null ) {
-            return "Artifact " + groupId + ":" + artifactId + ":"+version+":"+type;
+            return groupId + ":" + artifactId + ":"+version+":"+type;
         }
-        return "Artifact " + groupId + ":" + artifactId + ":"+version+":"+type+":"+classifier;
+        return groupId + ":" + artifactId + ":"+version+":"+type+":"+classifier;
     }
 
     public String getClassifier()

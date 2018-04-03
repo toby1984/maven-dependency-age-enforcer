@@ -22,6 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * Responsible for handling persistence of artifact metadata.
  *
@@ -29,6 +32,8 @@ import java.util.Optional;
  */
 public interface IVersionStorage extends AutoCloseable
 {
+    static final Logger STORAGE_LOG = LogManager.getLogger(IVersionStorage.class);
+    
     /**
      * Retrieves metadata for all artifacts.
      * 
@@ -63,20 +68,40 @@ public interface IVersionStorage extends AutoCloseable
     public static boolean isStaleVersion(VersionInfo info,Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now) 
     {
         boolean add = false;
-        if ( info.lastPolledDate() == null ) { // both dates are NULL
+        if ( info.lastPolledDate() == null ) { // lastSuccessDate AND  lastFailureDate are NULL
             add = true;
+            if ( STORAGE_LOG.isDebugEnabled() ) {
+                STORAGE_LOG.debug("isStaleVersion(): [yes,never polled] "+info.artifact);
+            }
         } 
         else if ( info.lastSuccessDate != null &&  info.lastFailureDate != null ) // both are not NULL
         {
             if ( info.lastSuccessDate.isAfter( info.lastFailureDate ) ) {
                 add = Duration.between( info.lastSuccessDate,now ).compareTo( lastSuccessDuration ) > 0;
+                if ( add && STORAGE_LOG.isDebugEnabled() ) 
+                {
+                    STORAGE_LOG.debug("isStaleVersion(): [yes,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
+                }                
             } else {
                 add = Duration.between( info.lastFailureDate,now ).compareTo( lastFailureDuration ) > 0;
+                if ( add && STORAGE_LOG.isDebugEnabled() ) 
+                {
+                    STORAGE_LOG.debug("isStaleVersion(): [yes,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
+                }                  
             }
-        } else if ( info.lastSuccessDate == null ) {
+
+        } else if ( info.lastSuccessDate == null ) { // lastFailureDate is not null
             add = Duration.between( info.lastFailureDate,now ).compareTo( lastFailureDuration ) > 0;
+            if ( add && STORAGE_LOG.isDebugEnabled() ) 
+            {
+                STORAGE_LOG.debug("isStaleVersion(): [yes,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
+            }             
         } else {
             add = Duration.between( info.lastSuccessDate,now ).compareTo( lastSuccessDuration ) > 0; 
+            if ( add && STORAGE_LOG.isDebugEnabled() ) 
+            {
+                STORAGE_LOG.debug("isStaleVersion(): [yes,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
+            }             
         } 
         return add;
     }

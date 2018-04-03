@@ -240,23 +240,13 @@ public class APIImpl implements AutoCloseable
     public QueryResponse processQuery(QueryRequest request) throws InterruptedException
     {
         QueryResponse result = new QueryResponse();
-        result.serverVersion = "1.0";
 
         final Map<Artifact,VersionInfo> results = versionTracker.getVersionInfo( request.artifacts, updater::requiresUpdate );        
         for ( Artifact artifact : request.artifacts ) 
         {
             final VersionInfo info = results.get( artifact );
-            if ( mode == Mode.CLIENT && updater.requiresUpdate( Optional.of(info) )) 
-            {
-                try 
-                {
-                    LOG.info("processQuery(): Fetching information for outdated artifact "+info.artifact+" from repository...");
-                    updater.doUpdate( info );
-                } 
-                catch (Exception e) 
-                {
-
-                }
+            if ( info == null ) {
+                throw new RuntimeException("Got no result for "+artifact+"?");
             }
 
             final ArtifactResponse x = new ArtifactResponse();

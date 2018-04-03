@@ -261,7 +261,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
     {
         final Artifact artifact = info.artifact;
         final URL url = new URL( serverBase+metaDataPath( artifact ) );
-        LOG.debug("update(): Retrieving metadata for "+info.artifact+" from "+url);
+        
+        if ( LOG.isDebugEnabled() ) {
+            LOG.debug("update(): Retrieving metadata for "+info.artifact+" from "+url);
+        }
         
         try 
         {

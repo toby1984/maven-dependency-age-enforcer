@@ -176,6 +176,7 @@ public class BackgroundUpdater implements AutoCloseable {
     private void doUpdate() throws Exception
     {
         final List<VersionInfo> infos = storage.getAllStaleVersions( lastSuccessDuration , lastFailureDuration, ZonedDateTime.now() );
+        LOG.info("doUpdate(): Updating "+infos.size()+" stale artifacts");
         for (VersionInfo info : infos) 
         {
             doUpdate(info);
@@ -184,11 +185,18 @@ public class BackgroundUpdater implements AutoCloseable {
     
     public boolean requiresUpdate(Optional<VersionInfo> info) 
     {
-        return info.isPresent() && IVersionStorage.isStaleVersion(
-                info.get(),
-                lastSuccessDuration,
-                lastFailureDuration,
-                ZonedDateTime.now() ); 
+        if ( info.isPresent() ) {
+            boolean result = IVersionStorage.isStaleVersion(
+                    info.get(),
+                    lastSuccessDuration,
+                    lastFailureDuration,
+                    ZonedDateTime.now() );
+            if ( LOG.isDebugEnabled() ) {
+                LOG.debug("requiresUpdate(): [YES] "+info.get().artifact);
+            }
+            return result;
+        }
+        return false;
     }
     
     public void doUpdate(VersionInfo info) throws IOException 
@@ -197,6 +205,7 @@ public class BackgroundUpdater implements AutoCloseable {
         {
             artifactLocks.doWhileLocked( info.artifact, () -> 
             {
+                // check again after we aquired the lock,something might've already updated the artifact in the meantime
                 final Optional<VersionInfo> existing = storage.getVersionInfo( info.artifact );
                 if ( requiresUpdate(existing) )
                 {

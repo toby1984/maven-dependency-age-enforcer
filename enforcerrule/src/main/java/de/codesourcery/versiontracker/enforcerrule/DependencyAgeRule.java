@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,8 +67,6 @@ import de.codesourcery.versiontracker.xsd.Ruleset;
  */
 public class DependencyAgeRule implements EnforcerRule
 {
-	private static final AtomicLong ID = new AtomicLong(0);
-	
     private static final String MAX_AGE_PATTERN_STRING = "(\\d+)\\s*([dwmy]|(day|days|week|weeks|month|months|year|years))";
 
     public static final Pattern MAX_AGE_PATTERN = Pattern.compile(MAX_AGE_PATTERN_STRING,Pattern.CASE_INSENSITIVE);
@@ -99,7 +96,6 @@ public class DependencyAgeRule implements EnforcerRule
 		}
     }
 
-    private final long id = ID.incrementAndGet();
     private Log log;
     private MavenProject project;
 
@@ -285,16 +281,19 @@ public class DependencyAgeRule implements EnforcerRule
     	long start = System.currentTimeMillis();
     	try {
     		executeInternal(helper);
-    	} finally  {
-    		final long elapsed = System.currentTimeMillis() - start;
-    		log.warn("RULE TIME: "+elapsed+" ms");
+    	} 
+    	finally 
+    	{
+    	    if ( debug ) {
+    	        final long elapsed = System.currentTimeMillis() - start;
+    	        log.info("RULE TIME: "+elapsed+" ms");
+    	    }
     	}
     }
     
     public void executeInternal(EnforcerRuleHelper helper) throws EnforcerRuleException
     {
         setup(helper);
-        log.warn("Now executing... rule #"+id);
         
         if ( StringUtils.isBlank( apiEndpoint ) ) 
         {
@@ -380,7 +379,7 @@ public class DependencyAgeRule implements EnforcerRule
             if ( StringUtils.isBlank( apiEndpoint ) ) 
             {
                 log.warn("No API endpoint configured, running locally");
-                client = getLocalAPIClient();
+                client = getLocalAPIClient(debug);
             } 
             else 
             {
@@ -655,12 +654,13 @@ public class DependencyAgeRule implements EnforcerRule
         }
     }
     
-    private static LocalAPIClient getLocalAPIClient() 
+    private static LocalAPIClient getLocalAPIClient(boolean debug) 
     {
         synchronized(LOCAL_API_CLIENT_LOCK) 
         {
             if ( LOCAL_API_CLIENT == null ) {
                 LOCAL_API_CLIENT = new LocalAPIClient();
+                LOCAL_API_CLIENT.setDebugMode( debug );
                 Runtime.getRuntime().addShutdownHook( new Thread( () -> {
                     synchronized(LOCAL_API_CLIENT_LOCK) 
                     {

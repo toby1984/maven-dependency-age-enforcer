@@ -68,7 +68,7 @@ public class APIServlet extends HttpServlet
         public void received(IVersionProvider.UpdateResult updateResult,VersionInfo info,Exception exception);
     }
 
-    private ThreadLocal<ObjectMapper> mapper = new ThreadLocal<>() 
+    private ThreadLocal<ObjectMapper> mapper = new ThreadLocal<ObjectMapper>() 
     {
      protected ObjectMapper initialValue() {
          return JSONHelper.newObjectMapper();

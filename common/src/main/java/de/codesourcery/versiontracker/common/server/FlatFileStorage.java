@@ -31,6 +31,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -49,6 +52,8 @@ import de.codesourcery.versiontracker.common.VersionInfo;
  */
 public class FlatFileStorage implements IVersionStorage
 {
+    private static final Logger LOG = LogManager.getLogger(FlatFileStorage.class);
+    
 	private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
 	private static final long MAGIC = 0xdeadbeef;
@@ -175,6 +180,10 @@ public class FlatFileStorage implements IVersionStorage
 	@Override
 	public synchronized void saveOrUpdate(VersionInfo info) throws IOException
 	{
+        if ( LOG.isDebugEnabled() ) {
+            LOG.debug("saveOrUpdate(): Called for "+info);
+        }
+        
 		List<VersionInfo> all = getAllVersions();
 		all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
 		all.add( info );
@@ -188,14 +197,18 @@ public class FlatFileStorage implements IVersionStorage
 		final List<VersionInfo> mergeTarget = getAllVersions();
 		mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
 		mergeTarget.addAll( data );
+		
+		if ( LOG.isDebugEnabled() ) {
+		    LOG.debug("saveOrUpdate(): Persisting "+mergeTarget.size()+" entries");
+		}
 
 		if ( protocol == Protocol.BINARY ) {
 			try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream(file) ) ) 
 			{
 				try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) ) {
 					serializer.writeLong( MAGIC );
-					serializer.writeInt( data.size() );
-					for ( VersionInfo info : data ) {
+					serializer.writeInt( mergeTarget.size() );
+					for ( VersionInfo info : mergeTarget ) {
 						info.serialize( serializer );
 					}
 				}
@@ -210,6 +223,7 @@ public class FlatFileStorage implements IVersionStorage
 	@Override
 	public void close() throws Exception
 	{
+	    LOG.info("close(): File storage for "+file+" got closed");
 	}
 	
 	public static void convert(File input,Protocol inputProtocol,File output,Protocol outputProtocol) throws Exception {
