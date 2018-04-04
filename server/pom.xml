@@ -4,10 +4,10 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
   <parent>
     <groupId>de.codesourcery.versiontracker</groupId>
     <artifactId>versiontracker-parent</artifactId>
-    <version>0.0.5</version>
+    <version>0.0.6-SNAPSHOT</version>
   </parent>
   <artifactId>versiontracker-server</artifactId>
-  <version>0.0.5</version>
+  <version>0.0.6-SNAPSHOT</version>
   <name>versiontracker-server</name>
   <packaging>war</packaging>
   <dependencies>
