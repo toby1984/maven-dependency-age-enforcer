@@ -403,16 +403,6 @@ public class DependencyAgeRule implements EnforcerRule
                 fail("Failed to query version information from '"+apiEndpoint+"': "+e.getMessage(),e);
                 throw new RuntimeException("Unreachable code reached");
             } 
-            finally 
-            {
-                try {
-                    client.close();
-                } 
-                catch(Exception e) 
-                {
-                    log.error("Failed to close API client: ",e);
-                }
-            }
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
             ZonedDateTime oldestOffendingRelease = null;
@@ -678,9 +668,10 @@ public class DependencyAgeRule implements EnforcerRule
         }
     }
     
-    private static RemoteApiClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug) 
+    private RemoteApiClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug) 
     {
         final String key = endpoint+protocol.name()+debug;
+        final String callingThreadName = Thread.currentThread().getName();
         synchronized(CLIENTS) 
         {
             RemoteApiClient existing = CLIENTS.get( key );
@@ -689,7 +680,11 @@ public class DependencyAgeRule implements EnforcerRule
                 existing.setDebugMode( debug );
                 CLIENTS.put(key, existing );
                 
-                Runtime.getRuntime().addShutdownHook( new Thread( () -> {
+                Runtime.getRuntime().addShutdownHook( new Thread( () -> 
+                {
+                    if ( log != null && debug ) {
+                        log.info("Shutting down HTTP client aquired by "+callingThreadName+" connecting to "+endpoint+" using "+protocol);
+                    }
                     synchronized(CLIENTS) 
                     {
                         RemoteApiClient client = CLIENTS.get( key );
@@ -699,7 +694,7 @@ public class DependencyAgeRule implements EnforcerRule
                             } catch (Exception e) {
                                 e.printStackTrace();
                             } finally {
-                                CLIENTS.put(key,null);
+                                CLIENTS.remove( key );
                             }
                         }
                     }
