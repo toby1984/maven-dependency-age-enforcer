@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -225,11 +226,12 @@ public class DependencyAgeRule implements EnforcerRule
                     throw new RuntimeException("Internal error, unhandled switch/case: "+unit);                    
             }
         }
-        
-        public int compareTo(Duration duration,ZonedDateTime referencePoint) {
-            
-            Duration thisDuration = Duration.between( referencePoint , referencePoint.plus( toPeriod() ) );
-            return thisDuration.compareTo( duration );
+
+        public boolean isExceeded(Duration duration)
+        {
+            final ZonedDateTime now = ZonedDateTime.now();
+            final Duration thisDuration = Duration.between( now , now.plus( toPeriod() ) );
+            return duration.compareTo( thisDuration ) > 0;
         }
     }
     
@@ -251,15 +253,20 @@ public class DependencyAgeRule implements EnforcerRule
         if ( response.hasCurrentVersion() &&
                 response.hasLatestVersion() )
         {
+            // FIXME: This check is actually kinda crude as we also need to consider
+            // FIXME: whether the version currently in use is more than 1 version behind the latest
+            // FIXME: release ... in this case we should really consider the time range (used_version_release_date,latest_version_release_date)
+            // FIXME: instead of unconditionally checking (latest_version_release_date,now())
             if ( response.currentVersion.hasReleaseDate() &&
                  response.latestVersion.hasReleaseDate() &&
+                    ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
                  response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
             {
-                final Duration elapsedTime = Duration.between( response.currentVersion.releaseDate , response.latestVersion.releaseDate );
-                if ( threshold.compareTo( elapsedTime, ZonedDateTime.now() ) < 0 ) 
+                final Duration age = Duration.between( response.latestVersion.releaseDate , ZonedDateTime.now() );
+                if ( threshold.isExceeded( age ) )
                 {
-                    final Duration age = Duration.between(response.currentVersion.releaseDate , response.latestVersion.releaseDate);
-                    log.debug("Age threshold exceeded for "+response.artifact+", age is "+age+" but threshold is "+threshold);
+                    final String msg = "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold;
+                    log.debug(msg);
                     return true;
                 }
             } 
@@ -405,7 +412,7 @@ public class DependencyAgeRule implements EnforcerRule
             } 
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
-            ZonedDateTime oldestOffendingRelease = null;
+            ZonedDateTime earliestOffendingRelease = null;
             for ( ArtifactResponse resp : result ) 
             {
                 if ( resp.updateAvailable == UpdateAvailable.NOT_FOUND ) {
@@ -418,8 +425,8 @@ public class DependencyAgeRule implements EnforcerRule
                 failBecauseAgeExceeded |= maxAgeExceeded;
                 if ( warnAgeExceeded && ! maxAgeExceeded ) {
                     printMessage(resp,false); // log warning
-                    if ( oldestOffendingRelease == null || resp.latestVersion.releaseDate.isBefore( oldestOffendingRelease ) ) {
-                        oldestOffendingRelease = resp.latestVersion.releaseDate;
+                    if ( earliestOffendingRelease == null || resp.latestVersion.releaseDate.isBefore( earliestOffendingRelease) ) {
+                        earliestOffendingRelease = resp.latestVersion.releaseDate;
                     }
                 }
                 if ( maxAgeExceeded) 
@@ -433,12 +440,10 @@ public class DependencyAgeRule implements EnforcerRule
             if ( artifactsNotFound && failOnMissingArtifacts ) {
                 fail("Failed to find metadata for one or more dependencies of this project");
             }
-            if ( oldestOffendingRelease != null && parsedMaxAge != null ) 
+            if ( earliestOffendingRelease != null && parsedMaxAge != null )
             {
                 final ZonedDateTime now = ZonedDateTime.now();
-                final Duration age = Duration.between(oldestOffendingRelease, now );
-                final Duration timeRemaining = Duration.between( now , now.plus( parsedMaxAge.toPeriod() ) ).minus(age);
-                final ZonedDateTime failureTime = now.plus( timeRemaining );
+                final ZonedDateTime failureTime = earliestOffendingRelease.plus( parsedMaxAge.toPeriod() );
                 final Duration remainingTime = Duration.between(now,failureTime);
                 final long millis = remainingTime.toMillis();
                 final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
