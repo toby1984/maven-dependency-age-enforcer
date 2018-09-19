@@ -21,6 +21,44 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
 
   <profiles>
     <profile>
+      <id>jdk11</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+        <jdk>11</jdk>
+      </activation>
+      <properties>
+        <javac.source>1.8</javac.source>
+        <javac.target>1.8</javac.target>
+        <javac.release>11</javac.release>
+        <myclassifier>jdk11</myclassifier>
+      </properties>
+      <build>
+        <resources>
+          <resource>
+            <directory>src/main/resources</directory>
+            <excludes>
+              <exclude>rebel.xml</exclude>
+              <exclude>**/rebel.xml</exclude>
+            </excludes>
+          </resource>
+        </resources>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <version>3.7.0</version>
+              <configuration>
+                <source>${javac.source}</source>
+                <target>${javac.target}</target>
+                <release>${javac.release}</release>
+                <encoding>UTF-8</encoding>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+    <profile>
       <id>jdk10</id>
       <activation>
         <activeByDefault>false</activeByDefault>

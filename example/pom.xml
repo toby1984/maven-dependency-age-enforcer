@@ -26,6 +26,13 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <artifactId>log4j-api</artifactId>
         <version>${log4.version}</version>
       </dependency>
+
+      <dependency>
+        <groupId>com.cronutils</groupId>
+        <artifactId>cron-utils</artifactId>
+        <version>7.0.5</version>
+      </dependency>
+
   </dependencies>
 
   <build>
@@ -56,7 +63,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
               <!-- <apiEndpoint>http://localhost:8080/versiontracker-server/test</apiEndpoint> -->
               <warnAge>4d</warnAge>
               <maxAge>2m</maxAge>
-              <debug>false</debug>
+              <debug>true</debug>
               <verbose>true</verbose>
               <rulesFile>${project.basedir}/rules.xml</rulesFile>
             </dependencyAgeRule> 
@@ -66,8 +73,8 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
             <dependency>
               <groupId>de.codesourcery.versiontracker</groupId>
               <artifactId>versiontracker-enforcerrule</artifactId>
-              <version>0.0.1</version>
-              <classifier>jdk9</classifier> <!-- obviously depends on your JDK version -->
+              <version>0.0.7-SNAPSHOT</version>
+              <classifier>jdk10</classifier> <!-- obviously depends on your JDK version -->
             </dependency>
           </dependencies>
       </plugin>
