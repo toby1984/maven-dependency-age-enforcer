@@ -210,8 +210,17 @@ public class BackgroundUpdater implements AutoCloseable {
                 if ( requiresUpdate(existing) )
                 {
                     LOG.debug("doUpdate(): Refreshing "+info.artifact);
-                    provider.update( info );
-                    storage.saveOrUpdate( info );
+                    try
+                    {
+                        provider.update(info);
+                    }
+                    finally
+                    {
+                        // make sure to store any changes,
+                        // lastFailure will be updated if
+                        // we failed to retrieve the version info
+                        storage.saveOrUpdate(info);
+                    }
                 } else {
                     LOG.debug("doUpdate(): Doing nothing, concurrent update to "+info.artifact);
                 }                
