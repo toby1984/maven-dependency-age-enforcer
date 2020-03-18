@@ -59,16 +59,16 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
       </build>
     </profile>
     <profile>
-      <id>jdk10</id>
+      <id>jdk14</id>
       <activation>
         <activeByDefault>false</activeByDefault>
-        <jdk>10</jdk>
+        <jdk>14</jdk>
       </activation>
       <properties>
-        <javac.source>1.8</javac.source>
-        <javac.target>1.8</javac.target>
-        <javac.release>10</javac.release>
-        <myclassifier>jdk10</myclassifier>
+        <javac.source>14</javac.source>
+        <javac.target>14</javac.target>
+        <javac.release>14</javac.release>
+        <myclassifier>jdk14</myclassifier>
       </properties>
       <build>
         <resources>
@@ -90,52 +90,6 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
                 <target>${javac.target}</target>
                 <release>${javac.release}</release>
                 <encoding>UTF-8</encoding>
-                <compilerArgs>
-                  <arg>--add-modules</arg>
-                  <arg>java.xml.bind</arg>
-                </compilerArgs>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
-    </profile>
-    <profile>
-      <id>jdk9</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <jdk>9</jdk>
-      </activation>
-      <properties>
-        <javac.source>1.8</javac.source>
-        <javac.target>1.8</javac.target>
-        <javac.release>9</javac.release>
-        <myclassifier>jdk9</myclassifier>
-      </properties>
-      <build>
-        <resources>
-          <resource>
-            <directory>src/main/resources</directory>
-            <excludes>
-              <exclude>rebel.xml</exclude>
-              <exclude>**/rebel.xml</exclude>
-            </excludes>
-          </resource>
-        </resources>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.7.0</version>
-              <configuration>
-                <source>${javac.source}</source>
-                <target>${javac.target}</target>
-                <release>${javac.release}</release>
-                <encoding>UTF-8</encoding>
-                <compilerArgs>
-                  <arg>--add-modules</arg>
-                  <arg>java.xml.bind</arg>
-                </compilerArgs>
               </configuration>
             </plugin>
           </plugins>
