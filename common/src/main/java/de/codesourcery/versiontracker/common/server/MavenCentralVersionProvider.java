@@ -15,11 +15,9 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -131,7 +129,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public MavenCentralVersionProvider() 
     {
-        this("http://repo1.maven.org/maven2");
+        this("https://repo1.maven.org/maven2");
         connManager.setDefaultMaxPerRoute(10);
         connManager.setMaxTotal(20);
     }
@@ -500,19 +498,47 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
         final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
+        final StringBuilder xml = logServerResponseOnError() ? inputStreamToString(inputStream) : null;
         try {
             final DocumentBuilder builder = factory.newDocumentBuilder();
 
             // set fake EntityResolver , otherwise parsing is incredibly slow (~1 sec per file on my i7)
             // because the parser will download the DTD from the internets...
             builder.setEntityResolver( new DummyResolver() );
-            return builder.parse( inputStream);
+            if ( logServerResponseOnError() )
+            {
+                inputStream = new ByteArrayInputStream(xml.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            return builder.parse(inputStream);
         }
         catch(ParserConfigurationException | SAXException e) 
         {
             LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),LOG.isDebugEnabled() ? e : null);
+            if ( logServerResponseOnError() )
+            {
+                LOG.error("parseXML(): Response from server: "+xml);
+            }
             throw new IOException("Failed to parse document: "+e.getMessage(),e);
         }
+    }
+
+    private static StringBuilder inputStreamToString(InputStream inputStream) throws IOException
+    {
+        StringBuilder xml;
+        xml = new StringBuilder();
+        try (InputStreamReader reader = new InputStreamReader(inputStream))
+        {
+            final char[] buffer = new char[1024];
+            for (int len; (len = reader.read(buffer)) > 0; )
+            {
+                xml.append(buffer, 0, len);
+            }
+        }
+        return xml;
+    }
+
+    private static boolean logServerResponseOnError() {
+        return LOG.isDebugEnabled();
     }
 
     private static final class DummyResolver implements EntityResolver {
