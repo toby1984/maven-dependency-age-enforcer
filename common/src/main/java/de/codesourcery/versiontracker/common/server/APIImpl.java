@@ -56,7 +56,7 @@ public class APIImpl implements AutoCloseable
     
     private boolean registerShutdownHook = true;
 
-    private String mavenRepository = "http://repo1.maven.org/maven2/";
+    private String mavenRepository = MavenCentralVersionProvider.DEFAULT_MAVEN_URL;
 
     public static enum Mode 
     {

@@ -89,6 +89,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private static final DateTimeFormatter MAVEN_REPO_INDEX_DATE_FORMATTER = 
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
+    public static final String DEFAULT_MAVEN_URL = "https://repo1.maven.org/maven2/";
+
     @FunctionalInterface
     public interface MyStreamHandler<T>
     {
@@ -129,10 +131,11 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public MavenCentralVersionProvider() 
     {
-        this("https://repo1.maven.org/maven2");
+        this(DEFAULT_MAVEN_URL);
         connManager.setDefaultMaxPerRoute(10);
         connManager.setMaxTotal(20);
     }
+
     public MavenCentralVersionProvider(String serverBase) 
     {
         this.serverBase = serverBase+(serverBase.trim().endsWith("/") ? "" : "/" );
