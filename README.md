@@ -1,3 +1,5 @@
+![example workflow](https://github.com/toby1984/maven-dependency-version-enforcer/actions/workflows/build.yml/badge.svg)
+
 # What's this?
 
 A custom rule implementation for the maven-enforcer plugin that enforces dependency versions used by a project are not older than a set duration. Requires running a custom smart proxy (a simple Java servlet) that provides release dates for each artifact version (among other things).
