@@ -59,6 +59,44 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
       </build>
     </profile>
     <profile>
+      <id>jdk16</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+        <jdk>16</jdk>
+      </activation>
+      <properties>
+        <javac.source>16</javac.source>
+        <javac.target>16</javac.target>
+        <javac.release>16</javac.release>
+        <myclassifier>jdk16</myclassifier>
+      </properties>
+      <build>
+        <resources>
+          <resource>
+            <directory>src/main/resources</directory>
+            <excludes>
+              <exclude>rebel.xml</exclude>
+              <exclude>**/rebel.xml</exclude>
+            </excludes>
+          </resource>
+        </resources>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <version>3.7.0</version>
+              <configuration>
+                <source>${javac.source}</source>
+                <target>${javac.target}</target>
+                <release>${javac.release}</release>
+                <encoding>UTF-8</encoding>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+    <profile>
       <id>jdk15</id>
       <activation>
         <activeByDefault>false</activeByDefault>

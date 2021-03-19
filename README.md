@@ -32,6 +32,8 @@ The custom enforcer rule also supports an optional XML file to blacklist specifi
 # Building
 
 You will need JDK 8+ and Maven 3.5.2+
+
+Note for JDK16 and upwards: You'll need to set your MAVEN_OPTS to include "--illegal-access=permit" because otherwise some of the more ancient Maven plugins in this pom.xml will crash
  
 # Installation
 
