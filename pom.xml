@@ -1,9 +1,8 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.codesourcery.versiontracker</groupId>
   <artifactId>versiontracker-parent</artifactId>
-  <version>1.0.3</version>
+  <version>1.0.4-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>versiontracker-parent</name>
   <url>https://github.com/toby1984/maven-dependency-version-enforcer</url>
@@ -18,7 +17,6 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
     <enforcerrule.maven.project.version>2.2.1</enforcerrule.maven.project.version>
     <!-- for some reason there's no later artifact that looks legit -->
   </properties>
-
   <profiles>
     <profile>
       <id>jdk11</id>
@@ -32,31 +30,6 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <javac.release>11</javac.release>
         <myclassifier>jdk11</myclassifier>
       </properties>
-      <build>
-        <resources>
-          <resource>
-            <directory>src/main/resources</directory>
-            <excludes>
-              <exclude>rebel.xml</exclude>
-              <exclude>**/rebel.xml</exclude>
-            </excludes>
-          </resource>
-        </resources>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.7.0</version>
-              <configuration>
-                <source>${javac.source}</source>
-                <target>${javac.target}</target>
-                <release>${javac.release}</release>
-                <encoding>UTF-8</encoding>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
     </profile>
     <profile>
       <id>jdk16</id>
@@ -70,31 +43,19 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <javac.release>16</javac.release>
         <myclassifier>jdk16</myclassifier>
       </properties>
-      <build>
-        <resources>
-          <resource>
-            <directory>src/main/resources</directory>
-            <excludes>
-              <exclude>rebel.xml</exclude>
-              <exclude>**/rebel.xml</exclude>
-            </excludes>
-          </resource>
-        </resources>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.7.0</version>
-              <configuration>
-                <source>${javac.source}</source>
-                <target>${javac.target}</target>
-                <release>${javac.release}</release>
-                <encoding>UTF-8</encoding>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
+    </profile>
+    <profile>
+      <id>jdk17</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+        <jdk>17</jdk>
+      </activation>
+      <properties>
+        <javac.source>17</javac.source>
+        <javac.target>17</javac.target>
+        <javac.release>17</javac.release>
+        <myclassifier>jdk17</myclassifier>
+      </properties>
     </profile>
     <profile>
       <id>jdk15</id>
@@ -108,31 +69,6 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <javac.release>15</javac.release>
         <myclassifier>jdk15</myclassifier>
       </properties>
-      <build>
-        <resources>
-          <resource>
-            <directory>src/main/resources</directory>
-            <excludes>
-              <exclude>rebel.xml</exclude>
-              <exclude>**/rebel.xml</exclude>
-            </excludes>
-          </resource>
-        </resources>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.7.0</version>
-              <configuration>
-                <source>${javac.source}</source>
-                <target>${javac.target}</target>
-                <release>${javac.release}</release>
-                <encoding>UTF-8</encoding>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
     </profile>
     <profile>
       <id>jdk8</id>
@@ -145,51 +81,31 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <javac.target>1.8</javac.target>
         <myclassifier>jdk8</myclassifier>
       </properties>
-      <build>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.7.0</version>
-              <configuration>
-                <source>${javac.source}</source>
-                <target>${javac.target}</target>
-                <encoding>UTF-8</encoding>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
     </profile>
   </profiles>
   <distributionManagement>
-
     <repository>
       <id>voipfuture-releases</id>
       <uniqueVersion>false</uniqueVersion>
       <name>voipfuture-releases</name>
-      <url>http://artifactory.voipfuture.com/artifactory/libs-release-local</url>
+      <url>https://artifactory.voipfuture.com/artifactory/libs-release-local</url>
     </repository>
-
     <snapshotRepository>
       <id>voipfuture-snapshots</id>
       <uniqueVersion>true</uniqueVersion>
       <name>voipfuture-snapshots</name>
-      <url>http://artifactory.voipfuture.com/artifactory/libs-snapshot-local</url>
+      <url>https://artifactory.voipfuture.com/artifactory/libs-snapshot-local</url>
     </snapshotRepository>
-
     <site>
       <id>dummy.website</id>
       <name>Dummy Website</name>
       <url>file:///tmp/cloudportal</url>
     </site>
   </distributionManagement>
-
   <scm>
-      <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
-      <tag>HEAD</tag>
+    <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
+    <tag>HEAD</tag>
   </scm>
-
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
@@ -212,25 +128,25 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-common</artifactId>
-        <version>1.0.3</version>
+        <version>1.0.4-SNAPSHOT</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-client</artifactId>
-        <version>1.0.3</version>
+        <version>1.0.4-SNAPSHOT</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-server</artifactId>
-        <version>1.0.3</version>
+        <version>1.0.4-SNAPSHOT</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-enforcerrule</artifactId>
-        <version>1.0.3</version>
+        <version>1.0.4-SNAPSHOT</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <!-- used by all sub-modules-->
@@ -330,12 +246,12 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-war-plugin</artifactId>
-          <version>2.2</version>
+          <version>3.3.2</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
-          <version>2.4</version>
+          <version>3.2.0</version>
           <configuration>
             <classifier>${myclassifier}</classifier>
           </configuration>
@@ -343,12 +259,12 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.12.4</version>
+          <version>3.0.0-M5</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-source-plugin</artifactId>
-          <version>3.0.1</version>
+          <version>3.2.1</version>
           <executions>
             <execution>
               <id>attach-sources</id>
@@ -361,27 +277,30 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-javadoc-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.3.1</version>
+          <configuration>
+            <doclint>none</doclint>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-resources-plugin</artifactId>
-          <version>2.6</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-clean-plugin</artifactId>
-          <version>2.5</version>
+          <version>3.1.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-install-plugin</artifactId>
-          <version>2.4</version>
+          <version>2.5.2</version> <!-- Must be 2.5.2 because of https://issues.apache.org/jira/browse/MINSTALL-151 , this is the last plugin version that works correctly... -->
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-site-plugin</artifactId>
-          <version>3.3</version>
+          <version>3.9.1</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -400,7 +319,13 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
         </plugin>
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.7.0</version>
+          <version>3.8.1</version>
+          <configuration>
+            <source>${javac.source}</source>
+            <target>${javac.target}</target>
+            <release>${javac.release}</release>
+            <encoding>UTF-8</encoding>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>com.mycila.maven-license-plugin</groupId>
