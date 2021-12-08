@@ -45,11 +45,6 @@
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
-      <artifactId>maven-project</artifactId>
-      <version>${enforcerrule.maven.project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven</groupId>
       <artifactId>maven-core</artifactId>
       <version>${enforcerrule.maven.version}</version>
     </dependency>
