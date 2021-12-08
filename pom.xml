@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.codesourcery.versiontracker</groupId>
   <artifactId>versiontracker-parent</artifactId>
-  <version>1.0.6-SNAPSHOT</version>
+  <version>1.0.6</version>
   <packaging>pom</packaging>
   <name>versiontracker-parent</name>
   <url>https://github.com/toby1984/maven-dependency-version-enforcer</url>
@@ -103,7 +103,7 @@
   </distributionManagement>
   <scm>
     <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
-    <tag>HEAD</tag>
+    <tag>versiontracker-parent-1.0.6</tag>
   </scm>
   <licenses>
     <license>
@@ -127,25 +127,25 @@
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-common</artifactId>
-        <version>1.0.6-SNAPSHOT</version>
+        <version>1.0.6</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-client</artifactId>
-        <version>1.0.6-SNAPSHOT</version>
+        <version>1.0.6</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-server</artifactId>
-        <version>1.0.6-SNAPSHOT</version>
+        <version>1.0.6</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
         <groupId>de.codesourcery.versiontracker</groupId>
         <artifactId>versiontracker-enforcerrule</artifactId>
-        <version>1.0.6-SNAPSHOT</version>
+        <version>1.0.6</version>
         <classifier>${myclassifier}</classifier>
       </dependency>
       <!-- used by all sub-modules-->
