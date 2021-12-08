@@ -14,7 +14,6 @@
     <!-- properties specific to building the enforcer rule -->
     <enforcer.api.version>3.0.0</enforcer.api.version>
     <enforcerrule.maven.version>3.8.4</enforcerrule.maven.version>
-    <!-- for some reason there's no later artifact that looks legit -->
   </properties>
   <profiles>
     <profile>
