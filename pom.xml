@@ -10,7 +10,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <wicket.version>7.10.0</wicket.version>
     <apache.tomcat.version>9.0.5</apache.tomcat.version>
-    <log4.version>2.14.0</log4.version>
+    <log4.version>2.15.0</log4.version>
     <!-- properties specific to building the enforcer rule -->
     <enforcer.api.version>3.0.0</enforcer.api.version>
     <enforcerrule.maven.version>3.8.4</enforcerrule.maven.version>
