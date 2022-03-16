@@ -17,12 +17,14 @@ package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
@@ -32,7 +34,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Blacklist implements IBlacklistCheck 
 {
-    public static enum VersionMatcher 
+    public enum VersionMatcher
     {
         @JsonProperty("exact")        
         EXACT("exact"),
@@ -58,6 +60,8 @@ public class Blacklist implements IBlacklistCheck
     }
     
     private final List<VersionStringMatcher> globalIgnores = new ArrayList<>();
+
+    // key is group ID
     private final Map<String,List<VersionStringMatcher>>  groupIdIgnores = new HashMap<>();
     private final Map<String,Map<String,List<VersionStringMatcher>>>  artifactIgnores = new HashMap<>();
     
@@ -317,9 +321,10 @@ public class Blacklist implements IBlacklistCheck
     /**
      * Adds an ignored version pattern.
      *  
-     * This pattern will only ignore versions of artifacts with a matching group ID.
+     * This pattern will ignore versions all artifacts that have a group ID equal to/starting with
+     * the group ID passed to this method.
      *  
-     * @param groupId
+     * @param groupId groupId to ignore. Note that all sub-packages of this one will be ignored as well.
      * @param pattern
      * @param matcher
      */
@@ -382,17 +387,14 @@ public class Blacklist implements IBlacklistCheck
                     return true;
                 }
             }
-            
-            final List<VersionStringMatcher> groupOnlyMatchers = groupIdIgnores.get( artifact.groupId );
-            if ( groupOnlyMatchers != null ) 
-            {
-                for ( VersionStringMatcher m : groupOnlyMatchers ) {
-                    if ( m.isIgnoredVersion( version ) ) {
-                        return true;
-                    }
-                }                
+
+            final List<VersionStringMatcher> groupOnlyMatchers = getMatchersForGroupId( artifact.groupId );
+            for ( VersionStringMatcher m : groupOnlyMatchers ) {
+                if ( m.isIgnoredVersion( version ) ) {
+                    return true;
+                }
             }
-            
+
             Map<String, List<VersionStringMatcher>> groupAndArtifact = artifactIgnores.get( artifact.groupId );
             if ( groupAndArtifact != null ) 
             {
@@ -407,6 +409,27 @@ public class Blacklist implements IBlacklistCheck
         return false;
     }
 
+    private List<VersionStringMatcher> getMatchersForGroupId(String artifactGroupId)
+    {
+        String mostSpecificMatch = null;
+        for ( String expectedGroupId : groupIdIgnores.keySet() )
+        {
+            // matching on group IDs is special as those rules actually apply to
+            // ANY artifact that the same group ID _OR_ has a group ID that is a
+            // CHILD of the group ID (so a group ID of "com.foo" is treated like "com.foo.*").
+            // See https://www.mojohaus.org/versions-maven-plugin/version-rules.html where it says:
+            // "Note: the groupId attribute in the rule elements has a lazy .* at the end, such that com.mycompany will match com.mycompany, com.mycompany.foo, com.mycompany.foo.bar, etc."
+
+            final boolean matches = artifactGroupId.equals( expectedGroupId ) ||artifactGroupId.startsWith( expectedGroupId + "." );
+            // we'll only keep the most-specific match (longest prefix)
+            if ( matches && ( mostSpecificMatch == null || expectedGroupId.length() > mostSpecificMatch.length() ) )
+            {
+                mostSpecificMatch = expectedGroupId;
+            }
+        }
+        return mostSpecificMatch == null ? Collections.emptyList() : groupIdIgnores.get( mostSpecificMatch );
+    }
+
     @Override
     public boolean isVersionBlacklisted(String groupId, String artifactId, String version) 
     {
@@ -418,15 +441,13 @@ public class Blacklist implements IBlacklistCheck
                 return true;
             }
         }
-        List<VersionStringMatcher> list = groupIdIgnores.get( groupId );
-        if ( list != null ) {
-            for ( VersionStringMatcher m : list ) {
-                if ( m.isIgnoredVersion( version ) ) {
-                    return true;
-                }
+        List<VersionStringMatcher> list = getMatchersForGroupId( groupId );
+        for ( VersionStringMatcher m : list ) {
+            if ( m.isIgnoredVersion( version ) ) {
+                return true;
             }
         }
-        
+
         final Map<String, List<VersionStringMatcher>> map = artifactIgnores.get( groupId );
         if ( map != null ) {
             list = map.get( artifactId );
