@@ -3,10 +3,10 @@
   <parent>
     <groupId>de.codesourcery.versiontracker</groupId>
     <artifactId>versiontracker-parent</artifactId>
-    <version>1.0.13</version>
+    <version>1.0.14-SNAPSHOT</version>
   </parent>
   <artifactId>versiontracker-enforcerrule</artifactId>
-  <version>1.0.13</version>
+  <version>1.0.14-SNAPSHOT</version>
   <name>versiontracker-enforcerrule</name>
   <dependencies>
     <dependency>
