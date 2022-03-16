@@ -3,10 +3,10 @@
   <parent>
     <groupId>de.codesourcery.versiontracker</groupId>
     <artifactId>versiontracker-parent</artifactId>
-    <version>1.0.11-SNAPSHOT</version>
+    <version>1.0.11</version>
   </parent>
   <artifactId>versiontracker-server</artifactId>
-  <version>1.0.11-SNAPSHOT</version>
+  <version>1.0.11</version>
   <name>versiontracker-server</name>
   <packaging>war</packaging>
   <dependencies>
