@@ -236,7 +236,7 @@
              I suspect the exception is either caused by some JDK17 bug or some bug related to the Maven Plexus classworlds stuff and JDK17 ; the inner class is clearly part of the JAR
              file but for some reason it fails to load.
 -->
-        <version>4.5.10</version>
+        <version>4.5.13</version>
       </dependency>
       <dependency>
         <groupId>javax.servlet</groupId>
