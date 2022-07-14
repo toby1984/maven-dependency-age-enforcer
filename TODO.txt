@@ -1,0 +1,7 @@
+- do not hit Maven Central so hard by changing MavenVersionProvider and
+
+  1.) extend the on-disk data format to store a "release date not determined for version number because it is not the most-recent one"
+  2.) only fetch release dates of the latest snapshots/releases on the initial fetch
+  3.) Do a (slow) synchronous lookup on-demand only when the client currently requesting information has blacklisted the most recent snapshot/release version.
+
+- Upgrade to non-vulnerable dependency versions before release

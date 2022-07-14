@@ -92,24 +92,21 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public static final String DEFAULT_MAVEN_URL = "https://repo1.maven.org/maven2/";
 
-    @FunctionalInterface
-    public interface MyStreamHandler<T>
-    {
-        T process(InputStream stream) throws IOException;
-    }
 
-    private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();    
-    private String serverBase;
-    private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
+    /*
+     * <a href="junit-4.12-javadoc.jar" title="junit-4.12-javadoc.jar">junit-4.12-javadoc.jar</a>
+     *                             2014-12-04 16:17    937942
+     */
+    private static final Pattern LINE_PATTERN = Pattern.compile("<a .*?>(.*?)</a>\\s*(\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2})\\s+(\\d+)");
 
-    private static final class MyExpressions // XPathExpression is NOT thread-safe to we use a ThreadLocal + this wrapper 
+    private static final class MyExpressions // XPathExpression is NOT thread-safe to we use a ThreadLocal + this wrapper
     {
         private final XPathExpression latestSnapshot;
         private final XPathExpression latestRelease;
         private final XPathExpression lastUpdateDate;
         private final XPathExpression versionsXPath;
-        
-        public MyExpressions() 
+
+        public MyExpressions()
         {
             final XPathFactory factory = XPathFactory.newInstance();
             final XPath xpath = factory.newXPath();
@@ -121,11 +118,27 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 versionsXPath = xpath.compile("/metadata/versioning/versions/version");
             } catch (XPathExpressionException e) {
                 throw new RuntimeException(e);
-            }      
+            }
         }
     }
 
-    public MavenCentralVersionProvider() 
+    @FunctionalInterface
+    public interface MyStreamHandler<T>
+    {
+        T process(InputStream stream) throws IOException;
+    }
+
+    private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();    
+    private String serverBase;
+    private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
+    private final Map<URL,HttpClient> clients = new HashMap<>();
+
+    private int maxConcurrentThreads = 10;
+
+    private final Object THREAD_POOL_LOCK=new Object();
+    private ThreadPoolExecutor threadPool;
+
+    public MavenCentralVersionProvider()
     {
         this(DEFAULT_MAVEN_URL);
         connManager.setDefaultMaxPerRoute(10);
@@ -137,18 +150,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
         this.serverBase = serverBase+(serverBase.trim().endsWith("/") ? "" : "/" );
     }
     
-    private MyExpressions expressions() {
-        return expressions.get();
-    }
-
-    private String metaDataPath(Artifact artifact) {
-        return artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/maven-metadata.xml";
-    }
-
-    private String getPathToFolder(Artifact artifact,String versionNumber) {
-        return  artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/"+versionNumber;
-    }
-
     public static void main(String[] args) throws IOException
     {
         final Artifact test = new Artifact();
@@ -168,86 +169,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
         System.out.println("GOT: "+data);
     }
     
-    private final Map<URL,HttpClient> clients = new HashMap<>();
-    
-    private HttpClient getClient(URL url) 
-    {
-        synchronized(clients) {
-            HttpClient client = clients.get(url);
-            if ( client==null ) 
-            {
-                final DefaultConnectionKeepAliveStrategy defaultKeepAlive = new  DefaultConnectionKeepAliveStrategy();
-                client = HttpClients.custom()
-                        .setKeepAliveStrategy(defaultKeepAlive)
-                        .setConnectionManager(connManager)
-                        .setConnectionManagerShared(true).build();
-                clients.put(url, client);
-            }
-            return client;
-        }
-    }
-    
-    private <T> T readPage(URL url,MyStreamHandler<T> handler) throws IOException 
-    {
-        LOG.debug("readPage(): Connecting to "+url);
-        
-        final long start = System.currentTimeMillis();
-        final HttpGet httpget;
-        try {
-            httpget = new HttpGet( url.toURI() );
-        } catch (Exception e1) {
-            LOG.debug("readPage(): Should not happen: '"+url+"'",e1);
-            throw new RuntimeException(e1);
-        }
-        final HttpResponse response = getClient(url).execute(httpget);
-        final HttpEntity entity = response.getEntity();
-        try (InputStream instream = entity.getContent() )
-        {
-            LOG.debug("readPage(): Got Input Stream after "+(System.currentTimeMillis()-start)+" ms");
-            return handler.process( instream );
-        } 
-        finally 
-        {
-            LOG.debug("readPage(): Finished processing after "+(System.currentTimeMillis()-start)+" ms");
-        }
-    }    
-
-    private String readString(XPathExpression expression,Document document) throws IOException 
-    {
-        try {
-            return expression.evaluate( document );
-        } 
-        catch(Exception e) {
-        	if ( LOG.isDebugEnabled() ) {
-        		LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
-        	} else {
-        		LOG.error("parseXML(): Failed to parse document: "+e.getMessage());
-        	}
-            throw new IOException("Failed to parse document: "+e.getMessage(),e);            
-        }
-    }
-
-    private List<String> readStrings(XPathExpression expression,Document document) throws IOException 
-    {
-        try 
-        {
-            final NodeList nodeList = (NodeList) expression.evaluate( document ,  XPathConstants.NODESET );
-            final int len = nodeList.getLength();
-            final List<String> result = new ArrayList<>(len);
-            for ( int i = 0 ; i < len ; i++ ) 
-            {
-                final Node n = nodeList.item( i );
-                final String versionString = n.getTextContent();
-                result.add( versionString );
-            }
-            return result;
-        } 
-        catch(Exception e) {
-            LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
-            throw new IOException("Failed to parse document: "+e.getMessage(),e);            
-        }
-    }    
-
     @Override
     public UpdateResult update(VersionInfo info) throws IOException
     {
@@ -260,31 +181,31 @@ public class MavenCentralVersionProvider implements IVersionProvider
         
         try 
         {
-            return readPage(url, stream -> {
+            return performGET(url, stream -> {
                 final Document document = parseXML( stream );
 
-                final MyExpressions expr = expressions(); // XPath evaluation is not thread-safe to we get a thread-local instance here
-                final Set<String> versions = new HashSet<>( readStrings( expr.versionsXPath , document ) );
-                for ( String version : versions ) {
+                final MyExpressions expr = expressions(); // XPath evaluation is not thread-safe so we get a thread-local instance here
+                final Set<String> versionFromMetaData = new HashSet<>( readStrings( expr.versionsXPath , document ) );
+                for ( String version : versionFromMetaData ) {
                     info.maybeAddVersion( new Version(version,null) );
                 }
 
                 for (Iterator<Version> it = info.versions.iterator(); it.hasNext();) {
                     final Version v = it.next();
-                    if ( ! versions.contains( v.versionString ) ) {
-                        LOG.warn("process(): Version "+v+" is gone from "+info.artifact);
+                    if ( ! versionFromMetaData.contains( v.versionString ) ) {
+                        LOG.warn("update(): Version "+v+" is gone from metadata.xml of "+info.artifact+" ?");
                         it.remove();
                     }
                 }
 
-                // always look for release date of specified version
-                // as we'll need to compare against this later anway
-                final Set<String> versionsToRequest = info.versions.stream().filter( v -> ! v.hasReleaseDate() ).map( x -> x.versionString ).collect(
-                        Collectors.toCollection( HashSet::new ) );
+                // gather version numbers for which we do not know the release date yet
+                final Set<String> versionsToRequest = info.versions.stream()
+                    .filter( v -> ! v.hasReleaseDate() )
+                    .map( x -> x.versionString ).collect( Collectors.toCollection( HashSet::new ) );
 
                 if ( StringUtils.isNotBlank(artifact.version) )
                 {
-                    if ( ! info.getDetails( artifact.version).isPresent() )
+                    if ( info.getDetails( artifact.version).isEmpty() )
                     {
                         info.lastFailureDate = ZonedDateTime.now();
                         LOG.error("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
@@ -292,18 +213,18 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     }
                 }
 
-                // determine latest snapshot version
-                String snapshot = readString(expr.latestSnapshot, document );
-                String release = readString(expr.latestRelease, document );
+                // parse latest snapshot & release versions from metadata
+                String latestSnapshotVersion = readString(expr.latestSnapshot, document );
+                String latestReleaseVersion = readString(expr.latestRelease, document );
 
-                LOG.debug("latest snapshot = "+snapshot);
-                LOG.debug("update(): latest release = "+release);
+                LOG.debug("update(): latest snapshot (metadata) = "+latestSnapshotVersion);
+                LOG.debug("update(): latest release  (metadata) = "+latestReleaseVersion);
 
-                if ( StringUtils.isNotBlank(snapshot) && info.hasVersionWithReleaseDate(snapshot) ) {
-                    versionsToRequest.add(snapshot);
+                if ( StringUtils.isNotBlank(latestSnapshotVersion) && info.hasVersionWithReleaseDate(latestSnapshotVersion) ) {
+                    versionsToRequest.add(latestSnapshotVersion);
                 }
-                if ( StringUtils.isNotBlank(release) && info.hasVersionWithReleaseDate(release) ) {
-                    versionsToRequest.add(release);
+                if ( StringUtils.isNotBlank(latestReleaseVersion) && info.hasVersionWithReleaseDate(latestReleaseVersion) ) {
+                    versionsToRequest.add(latestReleaseVersion);
                 }
 
                 // last repository change date
@@ -316,12 +237,28 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     info.lastSuccessDate = ZonedDateTime.now();
                     return UpdateResult.NO_CHANGES_ON_SERVER;
                 }
-                LOG.debug("update(): Repository changed on server");
-                LOG.debug("update(): Gathering release dates for versions "+versionsToRequest+"...");
+                if ( LOG.isDebugEnabled() ) {
+                    LOG.debug( "update(): Repository changed on server" );
+                    LOG.debug( "update(): Gathering release dates for versions " + versionsToRequest + "..." );
+                }
 
                 if ( ! versionsToRequest.isEmpty() )
                 {
-                    final Map<String,Version> result = readVersions(artifact,versionsToRequest);
+                    /*
+                     * The problem here is that clients may blacklist arbitrary version numbers so
+                     * the "latest" version of a given artifact is actually "the latest version that is not blacklisted
+                     * by the current client".
+                     *
+                     * This in turn makes it necessary to retrieve release dates for ALL version numbers
+                     * and not just the most recent one.
+                     *
+                     * TODO: One *could*
+                     *       1.) extend the on-disk data format to store a "release date not determined because version is
+                     *       not the most-recent one"
+                     *       2.) only fetch release dates of the latest snapshots/releases here
+                     *       3.) Do a (slow) synchronous lookup on-demand when the client has blacklisted the most recent snapshot/release version.
+                     */
+                    final Map<String,Version> result = getReleaseDates(artifact,versionsToRequest);
                     for ( Map.Entry<String,Version> entry : result.entrySet() )
                     {
                         Optional<Version> existing = info.getDetails( entry.getKey() );
@@ -336,11 +273,11 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     }
                 }
                 info.artifact = artifact;
-                if ( StringUtils.isNotBlank( release ) ) {
-                    info.getDetails( release ).ifPresent( x -> info.latestReleaseVersion = x );
+                if ( StringUtils.isNotBlank( latestReleaseVersion ) ) {
+                    info.getDetails( latestReleaseVersion ).ifPresent( x -> info.latestReleaseVersion = x );
                 }
-                if ( StringUtils.isNotBlank( snapshot ) ) {
-                    info.getDetails( snapshot ).ifPresent( x -> info.latestSnapshotVersion = x );
+                if ( StringUtils.isNotBlank( latestSnapshotVersion ) ) {
+                    info.getDetails( latestSnapshotVersion ).ifPresent( x -> info.latestSnapshotVersion = x );
                 }
                 info.lastRepositoryUpdate = lastChangeDate;
                 info.lastSuccessDate = ZonedDateTime.now();
@@ -361,17 +298,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    /*
-     * <a href="junit-4.12-javadoc.jar" title="junit-4.12-javadoc.jar">junit-4.12-javadoc.jar</a>
-     *                             2014-12-04 16:17    937942      
-     */
-    private static final Pattern LINE_PATTERN = Pattern.compile("<a .*?>(.*?)</a>\\s*(\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2})\\s+(\\d+)");
-
-    private int maxConcurrentThreads = 10;
-    
-    private final Object THREAD_POOL_LOCK=new Object();
-    private ThreadPoolExecutor threadPool;
-    
     private final ThreadFactory threadFactory = new ThreadFactory() {
         
         private final ThreadGroup threadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(),"releasedate-request-threads" );
@@ -400,27 +326,27 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
     
-    private Map<String,Version> readVersions(Artifact artifact,Set<String> versions)
+    private Map<String,Version> getReleaseDates(Artifact artifact, Set<String> versionNumbers)
     {
         final Map<String,Version> result = new HashMap<>();
-        if ( versions.isEmpty() ) {
+        if ( versionNumbers.isEmpty() ) {
             return result;
         }
-        final CountDownLatch latch = new CountDownLatch( versions.size() );
-        for ( String version : versions ) 
+        final CountDownLatch latch = new CountDownLatch( versionNumbers.size() );
+        for ( String versionNumber : versionNumbers )
         {
             // to stuff
             final Runnable r = () -> 
             {
                 try {
-                    final Optional<Version> v = readVersion(artifact,version);
+                    final Optional<Version> v = getReleaseDate(artifact,versionNumber);
                     if ( v.isPresent() ) {
                         synchronized(result) {
-                            result.put(version,v.get());
+                            result.put(versionNumber,v.get());
                         }
                     }
                 } catch(Exception e) {
-                    LOG.error("readVersion(): Failed to retrieve version '"+version+"' for "+artifact);
+                    LOG.error("readVersion(): Failed to retrieve version '"+versionNumber+"' for "+artifact);
                 } finally {
                     latch.countDown();
                 }
@@ -434,19 +360,18 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 if ( latch.await(10,TimeUnit.SECONDS) ) {
                     return result;
                 }
-            } catch(InterruptedException e) { /* can't help it */
-            }
+            } catch(InterruptedException e) { /* can't help it */ }
             LOG.debug("readVersions(): Still waiting for "+latch.getCount()+" outstanding requests of artifact "+artifact);
         }
     }
-    private Optional<Version> readVersion(Artifact artifact,String versionString) throws IOException 
+    private Optional<Version> getReleaseDate(Artifact artifact, String versionString) throws IOException
     {
         Validate.notBlank(versionString, "versionString must not be NULL/blank");
 
         final URL url2 = new URL( serverBase+getPathToFolder( artifact, versionString ) );        
         LOG.debug("readVersion(): Looking for release date of version '"+versionString+"' for "+artifact);
         
-        return readPage(url2, stream -> {
+        return performGET(url2, stream -> {
             final String page = String.join( "\n", IOUtils.readLines( stream, StandardCharsets.UTF_8 ) );
             Matcher m = LINE_PATTERN.matcher( page );
 
@@ -535,5 +460,103 @@ public class MavenCentralVersionProvider implements IVersionProvider
             final ByteArrayInputStream dummy = new ByteArrayInputStream(new byte[0]);
             return new InputSource(dummy);
         }
+    }
+
+    private HttpClient getClient(URL url)
+    {
+        synchronized(clients) {
+            HttpClient client = clients.get(url);
+            if ( client==null )
+            {
+                final DefaultConnectionKeepAliveStrategy defaultKeepAlive = new  DefaultConnectionKeepAliveStrategy();
+                client = HttpClients.custom()
+                    .setKeepAliveStrategy(defaultKeepAlive)
+                    .setConnectionManager(connManager)
+                    .setConnectionManagerShared(true).build();
+                clients.put(url, client);
+            }
+            return client;
+        }
+    }
+
+    private <T> T performGET(URL url, MyStreamHandler<T> handler) throws IOException
+    {
+        LOG.debug("performGET(): Connecting to "+url);
+
+        final long start = System.currentTimeMillis();
+        final HttpGet httpget;
+        try {
+            httpget = new HttpGet( url.toURI() );
+        } catch (Exception e1) {
+            LOG.debug("performGET(): Should not happen: '"+url+"'",e1);
+            throw new RuntimeException(e1);
+        }
+        final HttpResponse response = getClient(url).execute(httpget);
+        final int statusCode = response.getStatusLine().getStatusCode();
+        if ( statusCode != 200 ) {
+            LOG.error( "performGET(): HTTP request to " + url + " returned " + response.getStatusLine() );
+            if ( statusCode == 404 ) {
+                throw new FileNotFoundException( "Failed to find " + url );
+            }
+            throw new IOException( "HTTP request to " + url + " returned " + response.getStatusLine() );
+        }
+        final HttpEntity entity = response.getEntity();
+        try (InputStream instream = entity.getContent() )
+        {
+            LOG.debug("performGET(): Got Input Stream after "+(System.currentTimeMillis()-start)+" ms");
+            return handler.process( instream );
+        }
+        finally
+        {
+            LOG.debug("performGET(): Finished processing after "+(System.currentTimeMillis()-start)+" ms");
+        }
+    }
+
+    private String readString(XPathExpression expression,Document document) throws IOException
+    {
+        try {
+            return expression.evaluate( document );
+        }
+        catch(Exception e) {
+            if ( LOG.isDebugEnabled() ) {
+                LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
+            } else {
+                LOG.error("parseXML(): Failed to parse document: "+e.getMessage());
+            }
+            throw new IOException("Failed to parse document: "+e.getMessage(),e);
+        }
+    }
+
+    private List<String> readStrings(XPathExpression expression,Document document) throws IOException
+    {
+        try
+        {
+            final NodeList nodeList = (NodeList) expression.evaluate( document ,  XPathConstants.NODESET );
+            final int len = nodeList.getLength();
+            final List<String> result = new ArrayList<>(len);
+            for ( int i = 0 ; i < len ; i++ )
+            {
+                final Node n = nodeList.item( i );
+                final String versionString = n.getTextContent();
+                result.add( versionString );
+            }
+            return result;
+        }
+        catch(Exception e) {
+            LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
+            throw new IOException("Failed to parse document: "+e.getMessage(),e);
+        }
+    }
+
+    private MyExpressions expressions() {
+        return expressions.get();
+    }
+
+    static String metaDataPath(Artifact artifact) {
+        return artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/maven-metadata.xml";
+    }
+
+    static String getPathToFolder(Artifact artifact,String versionNumber) {
+        return  artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/"+versionNumber;
     }
 }

@@ -79,6 +79,8 @@ public class VersionInfo
     /**
      * The versions (maybe with their upload dates) as contained in the maven-metadata.xml file.
      */
+    // TODO: Performance - look-ups by version number string are O(n) - maybe use a Map or Set instead ? Not sure how often those are actually needed,
+    //                     especially with the blacklisting feature that may need a linear scan of the collection anyway
     public List<Version> versions = new ArrayList<>();
     
     public VersionInfo() {

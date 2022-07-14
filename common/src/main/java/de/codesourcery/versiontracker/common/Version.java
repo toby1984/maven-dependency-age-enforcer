@@ -15,6 +15,8 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import org.apache.commons.lang3.Validate;
+
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -31,7 +33,15 @@ public class Version
     
     public Version() {
     }
-    
+
+    public Version(String version) {
+        Validate.notBlank( version, "version must not be null or blank");
+        this.versionString = version;
+    }
+
+    public static Version of(String s) {
+        return new Version( s );
+    }
     public void serialize(BinarySerializer serializer) throws IOException 
     {
         serializer.writeString( versionString );
@@ -80,7 +90,7 @@ public class Version
         if ( this == v ) {
             return true;
         }
-        return v instanceof Version && Objects.equals( this.versionString , ((Version) v).versionString );
+        return v instanceof Version ver && Objects.equals( this.versionString , ver.versionString );
     }
     
     @Override

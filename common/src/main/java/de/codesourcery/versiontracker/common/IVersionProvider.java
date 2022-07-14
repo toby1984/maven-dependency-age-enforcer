@@ -58,5 +58,6 @@ public interface IVersionProvider
      * @return 
      * @throws IOException 
      */
+    // TODO: Extend method signature to restrict the (very slow) fetching of release dates to specific version numbers only.
     UpdateResult update(VersionInfo info) throws IOException;
 }
