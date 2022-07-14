@@ -42,7 +42,9 @@ Note for JDK17 and upwards: You'll need to set your MAVEN_OPTS to include "---ad
  
 # Installation
 
-## Servlet setup
+## Servlet setup (optional).
+
+### If you don't want to use the servlet, just omit the `<apiEndpoint>` tag inside the rule configuration.
 
 Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file inside the webapps folder of your favorite application server.
 
