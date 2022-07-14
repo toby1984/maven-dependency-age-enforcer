@@ -33,7 +33,53 @@ import java.util.Optional;
 public interface IVersionStorage extends AutoCloseable
 {
     Logger STORAGE_LOG = LogManager.getLogger(IVersionStorage.class);
-    
+
+    final class StorageStatistics
+    {
+        public int totalArtifactCount;
+        public int totalVersionCount;
+
+        public long storageSizeInBytes;
+
+        public final RequestsPerHour reads = new RequestsPerHour();
+        public final RequestsPerHour writes = new RequestsPerHour();
+
+        /** Most recent time a user requested meta-data for an artifact */
+        public ZonedDateTime mostRecentRequested = null;
+        /** Most recent time meta-data for an artifact could not be retrieved from the repository */
+        public ZonedDateTime mostRecentFailure = null;
+        /** Most recent time meta-data for an artifact was retrieved successfully from the repository */
+        public ZonedDateTime mostRecentSuccess = null;
+
+        public StorageStatistics() {
+        }
+
+        public Optional<ZonedDateTime> mostRecentRequested() {
+            return Optional.ofNullable( mostRecentRequested );
+        }
+
+        public Optional<ZonedDateTime> mostRecentFailure() {
+            return Optional.ofNullable( mostRecentFailure );
+        }
+
+        public Optional<ZonedDateTime> mostRecentSuccess() {
+            return Optional.ofNullable( mostRecentSuccess );
+        }
+
+        public StorageStatistics(StorageStatistics other) {
+            this.totalArtifactCount = other.totalArtifactCount;
+            this.totalVersionCount = other.totalVersionCount;
+            this.storageSizeInBytes = other.storageSizeInBytes;
+            this.mostRecentRequested = other.mostRecentRequested;
+            this.mostRecentFailure = other.mostRecentFailure;
+            this.mostRecentSuccess = other.mostRecentSuccess;
+        }
+
+        public StorageStatistics createCopy() {
+            return new StorageStatistics(this);
+        }
+    }
+
     /**
      * Retrieves metadata for all artifacts.
      * 
@@ -41,7 +87,14 @@ public interface IVersionStorage extends AutoCloseable
      * @throws IOException
      */
     List<VersionInfo> getAllVersions() throws IOException;
-    
+
+    /**
+     * Returns statistics about this storage.
+     *
+     * @return
+     */
+    StorageStatistics getStatistics();
+
     /**
      * Returns all artifact metadata that either has never been requested at all
      * <b>or</b> , last successful request happened more than <code>lastSuccessDuration</code>

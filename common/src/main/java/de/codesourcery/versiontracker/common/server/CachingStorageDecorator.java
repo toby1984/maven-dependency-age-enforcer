@@ -183,9 +183,20 @@ public class CachingStorageDecorator implements IVersionStorage
                 }
             }
         }
-    }    
+    }
 
-    public void startThread() 
+    @Override
+    public StorageStatistics getStatistics() {
+        try {
+            maybeInit();
+        }
+        catch ( IOException e ) {
+            throw new RuntimeException( e );
+        }
+        return delegate.getStatistics();
+    }
+
+    public void startThread()
     {
         synchronized( THREAD_LOCK ) 
         {

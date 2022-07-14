@@ -15,25 +15,28 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ArtifactTest {
 
 	@Test
 	public void testVersionDetection() {
 		
-		Assert.assertTrue( Artifact.isReleaseVersion("1") );
-		Assert.assertTrue( Artifact.isReleaseVersion("1.0") );
-		Assert.assertTrue( Artifact.isReleaseVersion("1.0.0") );
-		Assert.assertFalse( Artifact.isReleaseVersion("1.0.0-test1") );
-		Assert.assertFalse( Artifact.isReleaseVersion("1-SNAPSHOT") );
-		Assert.assertFalse( Artifact.isReleaseVersion("1.0-SNAPSHOT") );
-		Assert.assertFalse( Artifact.isReleaseVersion("1.0.0-SNAPSHOT") );
+		assertTrue( Artifact.isReleaseVersion("1") );
+		assertTrue( Artifact.isReleaseVersion("1.0") );
+		assertTrue( Artifact.isReleaseVersion("1.0.0") );
+		assertFalse( Artifact.isReleaseVersion("1.0.0-test1") );
+		assertFalse( Artifact.isReleaseVersion("1-SNAPSHOT") );
+		assertFalse( Artifact.isReleaseVersion("1.0-SNAPSHOT") );
+		assertFalse( Artifact.isReleaseVersion("1.0.0-SNAPSHOT") );
 	}
 	
 	@Test
@@ -66,6 +69,6 @@ public class ArtifactTest {
 				"3.0.0-jdk9"
 				);
 		actual.forEach( System.out::println );
-		Assert.assertEquals(expected,actual);
+		assertEquals(expected,actual);
 	}	
 }

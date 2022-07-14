@@ -320,4 +320,8 @@ public class VersionTracker implements AutoCloseable
             }
         }
     }
+
+    public IVersionStorage getStorage() {
+        return versionStorage;
+    }
 }

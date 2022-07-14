@@ -22,19 +22,18 @@ import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.Map;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 import de.codesourcery.versiontracker.common.server.VersionTracker;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class RetrievalTest
 {
-    @Before
+    @BeforeEach
     public void setup() throws Exception {
         // copy artifacts to temp location
         final File tmpOut = File.createTempFile("unittest", "suffix");
@@ -66,6 +65,6 @@ public class RetrievalTest
         artifact.type= "jar";
         Map<Artifact, VersionInfo> map = tracker.getVersionInfo( Collections.singletonList( artifact ) , info -> true );
         VersionInfo result = map.get( artifact );
-        Assert.assertNotNull("Got no result?",result);
+        Assertions.assertNotNull(result,"Got no result?");
     }
 }

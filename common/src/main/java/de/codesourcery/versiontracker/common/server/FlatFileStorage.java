@@ -37,6 +37,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -61,6 +62,9 @@ public class FlatFileStorage implements IVersionStorage
 	private final Protocol protocol;
 	private File file;
 
+	// @GuardedBy( storageStatistics )
+	private final StorageStatistics storageStatistics = new StorageStatistics();
+
 	public FlatFileStorage(File file) 
 	{
 		this(file,Protocol.JSON);
@@ -72,15 +76,24 @@ public class FlatFileStorage implements IVersionStorage
 	}
 
 	@Override
+	public StorageStatistics getStatistics() {
+		synchronized ( storageStatistics ) {
+			return storageStatistics.createCopy();
+		}
+	}
+
+	@Override
 	public synchronized List<VersionInfo> getAllVersions() throws IOException  
 	{
 		if ( ! file.exists() ) {
 			return new ArrayList<>(0);
 		}
+
+		final List<VersionInfo>  result;
+
 		if ( protocol == Protocol.BINARY ) 
 		{
-			final List<VersionInfo>  result;
-			try ( BufferedInputStream in = new BufferedInputStream( new FileInputStream(file) ) ) 
+			try ( BufferedInputStream in = new BufferedInputStream( new FileInputStream(file) ) )
 			{
 				try ( final BinarySerializer serializer = new BinarySerializer(BinarySerializer.IBuffer.wrap(in ) ) ) 
 				{
@@ -95,14 +108,49 @@ public class FlatFileStorage implements IVersionStorage
 					}
 				}
 			}
-			return result;
-		} 
-		if ( protocol == Protocol.JSON ) {
-			return mapper.readValue(file,new TypeReference<>() {});
-		} 
-		throw new RuntimeException("Unhandled protocol "+protocol);
+		} else if ( protocol == Protocol.JSON ) {
+			result = mapper.readValue(file,new TypeReference<>() {});
+		} else {
+			throw new RuntimeException( "Unhandled protocol " + protocol );
+		}
+
+		ZonedDateTime mostRecentRequested = null;
+		ZonedDateTime mostRecentFailure = null;
+		ZonedDateTime mostRecentSuccess = null;
+		int totalVersionCount = 0;
+		for ( final VersionInfo versionInfo : result ) {
+			totalVersionCount += versionInfo.versions.size();
+			if ( versionInfo.lastRequestDate != null ) {
+				mostRecentRequested = max( versionInfo.lastRequestDate, mostRecentRequested );
+			}
+			if ( versionInfo.lastFailureDate != null ) {
+				mostRecentFailure = max( versionInfo.lastFailureDate, mostRecentFailure );
+			}
+			if ( versionInfo.lastSuccessDate != null ) {
+				mostRecentSuccess = max( versionInfo.lastSuccessDate, mostRecentSuccess );
+			}
+		}
+
+		// update statistics
+		synchronized ( storageStatistics ) {
+			storageStatistics.storageSizeInBytes = file.length();
+			storageStatistics.reads.update( totalVersionCount );
+			storageStatistics.totalArtifactCount = result.size();
+			storageStatistics.totalVersionCount = totalVersionCount;
+			storageStatistics.mostRecentSuccess = mostRecentSuccess;
+			storageStatistics.mostRecentFailure = mostRecentFailure;
+			storageStatistics.mostRecentRequested = mostRecentRequested;
+		}
+
+		return result;
 	}
 
+	private static ZonedDateTime max(ZonedDateTime d1, ZonedDateTime d2) {
+		if ( d1 != null && d2 != null ) {
+			return d1.compareTo(d2) > 0 ? d1 : d2;
+		}
+		return d1 == null ? d2 : d1;
+	}
 	private static String toKey(VersionInfo x) 
 	{
 		return x.artifact.groupId+":"+x.artifact.artifactId;
@@ -150,7 +198,7 @@ public class FlatFileStorage implements IVersionStorage
 			} else {
 				buffer.append("versions:").append("\n");
 				final List<Version> list = new ArrayList<>( i.versions );
-				list.sort( (a,b) -> a.versionString.compareTo( b.versionString ) );
+				list.sort( Comparator.comparing( a -> a.versionString ) );
 				for ( Version v : list ) 
 				{
 					buffer.append("            "+v.versionString+" ("+func.apply( v.releaseDate )+")").append("\n");
@@ -180,41 +228,62 @@ public class FlatFileStorage implements IVersionStorage
             LOG.debug("saveOrUpdate(): Called for "+info);
         }
         
-		List<VersionInfo> all = getAllVersions();
-		all.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
-		all.add( info );
-		saveOrUpdate( all );
+		List<VersionInfo> toUpdate = getAllVersions();
+		toUpdate.removeIf( item -> item.artifact.matchesExcludingVersion( info.artifact) );
+		toUpdate.add( info );
+
+		writeToDisk( toUpdate );
 	}
 
 	@Override
 	public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException 
 	{
 		final Set<String> set = data.stream().map( FlatFileStorage::toKey ).collect( Collectors.toSet() );
-		final List<VersionInfo> mergeTarget = getAllVersions();
-		mergeTarget.removeIf( x -> set.contains( toKey(x) ) );
-		mergeTarget.addAll( data );
-		
-		if ( LOG.isDebugEnabled() ) {
-		    LOG.debug("saveOrUpdate(): Persisting "+mergeTarget.size()+" entries");
-		}
+		final List<VersionInfo> toUpdate = getAllVersions();
+		toUpdate.removeIf( x -> set.contains( toKey(x) ) );
+		toUpdate.addAll( data );
 
-		if ( protocol == Protocol.BINARY ) {
-			try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream(file) ) ) 
-			{
-				try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) ) {
-					serializer.writeLong( MAGIC );
-					serializer.writeInt( mergeTarget.size() );
-					for ( VersionInfo info : mergeTarget ) {
-						info.serialize( serializer );
+		writeToDisk( toUpdate );
+	}
+
+	private void writeToDisk(List<VersionInfo> allItems) throws IOException
+	{
+		// TODO: Add support for only rewriting changed items and not all of them
+		if ( LOG.isDebugEnabled() ) {
+		    LOG.debug("saveOrUpdate(): Persisting "+ allItems.size()+" entries...");
+		}
+		long start = System.nanoTime();
+		try {
+			if ( protocol == Protocol.BINARY ) {
+				try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream( file ) ) ) {
+					try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) ) {
+						serializer.writeLong( MAGIC );
+						serializer.writeInt( allItems.size() );
+						for ( VersionInfo info : allItems ) {
+							info.serialize( serializer );
+						}
 					}
 				}
 			}
-		} else if ( protocol == Protocol.JSON ) {
-			mapper.writeValue(file,mergeTarget);
-		} else {
-			throw new RuntimeException("Unhandled protocol: "+protocol);
+			else if ( protocol == Protocol.JSON ) {
+				mapper.writeValue( file, allItems );
+			}
+			else {
+				throw new RuntimeException( "Unhandled protocol: " + protocol );
+			}
+			// update statistics
+			synchronized ( storageStatistics ) {
+				storageStatistics.writes.update( allItems.size() );
+			}
 		}
-	}    
+		finally {
+			if ( LOG.isDebugEnabled() ) {
+				long end = System.nanoTime();
+				long elapsedMillis = (end-start)/1_000_000;
+				LOG.debug("saveOrUpdate(): Persisted "+ allItems.size()+" entries in "+elapsedMillis+" ms");
+			}
+		}
+	}
 
 	@Override
 	public void close() throws Exception

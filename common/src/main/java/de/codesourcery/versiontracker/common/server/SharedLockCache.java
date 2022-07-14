@@ -24,7 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Shared component that holds a map of {@link ReentrantLock}s for 
  * each {@link Artifact} the application knows about and makes
  * sure that artifact metadata only gets updated by either
- * an incoming API request <b>or</b> by the background updater
+ * an incoming API request <b>or</b> or by the background updater
  * thread but not both at the same time.
  *
  * This class is thread-safe.

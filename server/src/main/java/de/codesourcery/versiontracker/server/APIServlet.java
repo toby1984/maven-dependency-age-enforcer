@@ -23,9 +23,11 @@ import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
 import de.codesourcery.versiontracker.common.BinarySerializer;
 import de.codesourcery.versiontracker.common.BinarySerializer.IBuffer;
+import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
+import de.codesourcery.versiontracker.common.RequestsPerHour;
 import de.codesourcery.versiontracker.common.Utils;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -45,9 +47,20 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Servlet responsible for processing {@link APIRequest}s.
@@ -59,6 +72,12 @@ public class APIServlet extends HttpServlet
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
 
     private static final ObjectMapper JSON_MAPPER =  JSONHelper.newObjectMapper();
+
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern( "yyyy-MM-dd HH:mm:ss" );
+
+    private final RequestsPerHour requestsPerHour = new RequestsPerHour();
+
+    private record StatusInformation(RequestsPerHour httpStats, String applicationVersion, String gitCommit, IVersionStorage.StorageStatistics storageStatistics) {}
 
     private boolean artifactUpdatesEnabled = true;
 
@@ -89,6 +108,91 @@ public class APIServlet extends HttpServlet
         }
     }
 
+    private static String toString(ZonedDateTime dt) {
+        return dt.format( formatter );
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+
+        final APIImpl impl = APIImplHolder.getInstance().getImpl();
+        final IVersionStorage storage = impl.getVersionTracker().getStorage();
+
+        final StatusInformation storageStats = new StatusInformation( requestsPerHour.createCopy(), getApplicationVersion().orElse( null ),
+            getSHA1Hash().orElse(null),
+            storage.getStatistics()
+            );
+
+        final String queryString = req.getQueryString();
+        if ( "json".equalsIgnoreCase( queryString ) ) {
+            // JSON response
+            final String json = JSON_MAPPER.writeValueAsString( storageStats );
+            resp.getWriter().write( json );
+        } else {
+            // HTML response
+                final String rowFragment = """
+                <div class="row">
+                  <div class="cellName">%s</div><div class="cellValue">%s</div>
+                </div>
+                    """;
+
+            final StringBuilder fragments = new StringBuilder();
+            final Consumer<Object> appender = toAppend -> fragments.append( toAppend ).append( "\n" );
+            final BiConsumer<String, Object> keyValue = (k, v) -> appender.accept( rowFragment.formatted( k, Objects.toString( v ) ) );
+
+            keyValue.accept( "Total artifacts",storageStats.storageStatistics.totalArtifactCount );
+            keyValue.accept( "Total versions", storageStats.storageStatistics.totalVersionCount );
+
+            float sizeInMB = storageStats.storageStatistics.storageSizeInBytes/(1024*1024.0f);
+            keyValue.accept( "On-disk storage (MB)", new DecimalFormat("######0.0#").format( sizeInMB ) );
+
+            keyValue.accept( "HTTP POST requests (current hour)", storageStats.httpStats.getCountForCurrentHour() );
+            keyValue.accept( "HTTP POST requests (last 24 hours)", storageStats.httpStats.getCountForLast24Hours() );
+
+            keyValue.accept( "Last meta-data fetch success", storageStats.storageStatistics().mostRecentSuccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Last meta-data fetch failure", storageStats.storageStatistics().mostRecentFailure().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Last meta-data fetch requested", storageStats.storageStatistics().mostRecentRequested().map( APIServlet::toString).orElse("n/a"));
+
+            keyValue.accept( "Storage reads (most recent)", storageStats.storageStatistics().reads.getMostRecentAccess().map( APIServlet::toString ).orElse( "n/a" ) );
+            keyValue.accept( "Storage reads (current hour)", storageStats.storageStatistics().reads.getCountForCurrentHour());
+            keyValue.accept( "Storage reads (last 24h)", storageStats.storageStatistics().reads.getCountForLast24Hours());
+
+            keyValue.accept( "Storage writes (most recent)", storageStats.storageStatistics().writes.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Storage writes (current hour)", storageStats.storageStatistics().writes.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Storage writes (last 24h)", storageStats.storageStatistics().writes.getCountForLast24Hours()+"\n");
+
+            final String html = """
+                <html>
+                <head>
+                  <style>
+                    div.row {
+                      border: 1px solid black;
+                    }
+                    div.cellName {
+                      display:inline-block;
+                      width:300px;
+                    }
+                    div.cellValue {
+                      display:inline-block;
+                    }
+                    div.table {
+                      border: 1px solid black;
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div class="table">
+                  %s
+                  </div>
+                </body>
+                </html>
+                """.formatted(fragments);
+
+            resp.getWriter().write( html );
+        }
+        resp.getWriter().flush();
+    }
+
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException
     {
@@ -107,6 +211,7 @@ public class APIServlet extends HttpServlet
             final byte[] binaryResponse = processRequest(in, reqData, protocol);
 			resp.getOutputStream().write( binaryResponse );            
             resp.setStatus(200);
+            requestsPerHour.update();
         } 
         catch(Exception e) 
         {
@@ -117,14 +222,10 @@ public class APIServlet extends HttpServlet
             } 
             else 
             {
-                switch( protocol ) 
-                {
-                    case JSON:
-                        body = reqData.toString( StandardCharsets.UTF_8 );
-                        break;
-                    default:
-                        body = Utils.toHex( reqData.toByteArray() );
-                }
+                body = switch ( protocol ) {
+                    case JSON -> reqData.toString( StandardCharsets.UTF_8 );
+                    case BINARY -> Utils.toHex( reqData.toByteArray() );
+                };
             }
             if ( LOG.isDebugEnabled() ) {
                 LOG.error("doPost(): Caught ",e);
@@ -139,22 +240,20 @@ public class APIServlet extends HttpServlet
 	public byte[] processRequest(final InputStream in, final ByteArrayOutputStream reqData, Protocol protocol)
 			throws Exception {
 		final byte[] buffer = new byte[10*1024];
-		int len=0;
+		int len;
 		while ( ( len = in.read( buffer ) ) > 0 ) {
 		    reqData.write(buffer,0,len);
 		}            
 		
-		switch( protocol ) 
+		return switch( protocol )
 		{
-		    case BINARY:
-		    	return processRequest( reqData.toByteArray() );
-		    case JSON:
-		        final String body = new String( reqData.toByteArray() , "UTF8" );
-		        final String responseJSON = processRequest(body);
-		        return responseJSON.getBytes("UTF8");
-		    default:
-		}
-		throw new RuntimeException("Internal error,unhandled protocol "+protocol);
+		    case BINARY -> processRequest( reqData.toByteArray() );
+		    case JSON -> {
+                final String body = reqData.toString( StandardCharsets.UTF_8 );
+                final String responseJSON = processRequest( body );
+                yield responseJSON.getBytes( StandardCharsets.UTF_8 );
+            }
+		};
 	}
     
     public byte[] processRequest(byte[] requestData) throws Exception {
@@ -162,45 +261,36 @@ public class APIServlet extends HttpServlet
         final IBuffer inBuffer = IBuffer.wrap( requestData );
         final BinarySerializer inSerializer = new BinarySerializer(inBuffer);
         final APIRequest apiRequest = APIRequest.deserialize( inSerializer );
-        switch(apiRequest.command) 
-        {
-            case QUERY:
+        return switch ( apiRequest.command ) {
+            case QUERY -> {
                 final QueryRequest query = (QueryRequest) apiRequest;
                 final QueryResponse response = processQuery( query );
-                
                 final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
                 final IBuffer outBuffer = IBuffer.wrap( byteArrayOutputStream );
-                final BinarySerializer outSerializer = new BinarySerializer(outBuffer);
+                final BinarySerializer outSerializer = new BinarySerializer( outBuffer );
                 response.serialize( outSerializer );
-                return byteArrayOutputStream.toByteArray();
-            default:
-                throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
-        }        
+                yield byteArrayOutputStream.toByteArray();
+            }
+        };
     }    
     
     public String processRequest(String jsonRequest) throws Exception {
 
         final APIRequest apiRequest = parse(jsonRequest, JSON_MAPPER );
-        switch(apiRequest.command) 
-        {
-            case QUERY:
+        return switch ( apiRequest.command ) {
+            case QUERY -> {
                 final QueryResponse response = processQuery( (QueryRequest) apiRequest );
-                return JSON_MAPPER.writeValueAsString(response);
-            default:
-                throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
-        }        
+                yield JSON_MAPPER.writeValueAsString( response );
+            }
+        };
     }
     
     public static APIRequest parse(String json,ObjectMapper mapper) throws Exception 
     {
         final APIRequest apiRequest = JSONHelper.parseAPIRequest( json, mapper );
-        switch(apiRequest.command) 
-        {
-            case QUERY:
-                return mapper.readValue(json,QueryRequest.class);     
-            default:
-                throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
-        } 
+        return switch ( apiRequest.command ) {
+            case QUERY -> mapper.readValue( json, QueryRequest.class );
+        };
     }
 
     private QueryResponse processQuery(QueryRequest request) throws InterruptedException
@@ -271,5 +361,38 @@ public class APIServlet extends HttpServlet
  
     public void setArtifactUpdatesEnabled(boolean artifactUpdatesEnabled) {
         this.artifactUpdatesEnabled = artifactUpdatesEnabled;
+    }
+
+    private Optional<String> getApplicationVersion() {
+        return readKeyValue( "/META-INF/maven/de.codesourcery.versiontracker/versiontracker-server/pom.properties",'=',"version");
+    }
+
+    private Optional<String> getSHA1Hash() {
+        return readKeyValue( "/META-INF/MANIFEST.MF",':',"git-SHA-1");
+    }
+
+    private Optional<String> readKeyValue(String classpathLocation,char separator, String key) {
+        try {
+            return readLines( classpathLocation )
+                .map( line -> {
+                    final String[] parts = line.split( Pattern.quote(Character.toString(separator)) );
+                    return Optional.ofNullable( parts.length > 1 && key.equals( parts[0] ) ? parts[1] : null );
+                })
+                .flatMap( Optional::stream ).findFirst();
+        }
+        catch ( Exception e ) {
+            LOG.error( "getSHA1Hash(): Failed to get '"+key+"' from "+classpathLocation, LOG.isDebugEnabled() ? e : null );
+        }
+        return Optional.empty();
+    }
+
+    private Stream<String>  readLines(String classpathLocation) throws IOException {
+        try ( InputStream inStream = getServletContext().getResourceAsStream(classpathLocation) ) {
+            if ( inStream != null ) {
+                final String s = new String( inStream.readAllBytes(), StandardCharsets.UTF_8 );
+                return Arrays.stream( s.split( "\n" ) );
+            }
+        }
+        return Stream.empty();
     }
 }

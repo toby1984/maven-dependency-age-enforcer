@@ -15,20 +15,7 @@
  */
 package de.codesourcery.versiontracker.server;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.Objects;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
 import de.codesourcery.versiontracker.common.APIResponse;
@@ -40,6 +27,20 @@ import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.Objects;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class APIServletTest {
 
@@ -183,11 +184,11 @@ public class APIServletTest {
 			expected.serialize( new BinarySerializer( dataOut ) );
 			QueryRequest actual = (QueryRequest) APIRequest.deserialize( new BinarySerializer( IBuffer.wrap( byteOut.toByteArray() ) ) );
 			
-			Assert.assertEquals(expected,actual);
+			assertEquals(expected,actual);
 		}
     }
     
-    @Before
+    @BeforeEach
     public void setup() throws Exception
     {
         // copy artifacts to temp location
@@ -207,7 +208,8 @@ public class APIServletTest {
         servlet = new APIServlet();
         servlet.setArtifactUpdatesEnabled( false );
     }
-    
+
+	@AfterEach
     public void tearDown() throws Exception 
     {
         APIImplHolder.getInstance().getImpl().close();
@@ -217,25 +219,24 @@ public class APIServletTest {
     public void testResponseRoundtrip() throws Exception 
     {
     	final ObjectMapper mapper = JSONHelper.newObjectMapper();
-		for (int i = 0; i < SOURCE_RESPONSES.length; i++) {
-			
-			final String response = SOURCE_RESPONSES[i];
-            final QueryResponse expected = mapper.readValue(response,QueryResponse.class);	
-            
-		    final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+		for ( String response : SOURCE_RESPONSES )
+		{
+			final QueryResponse expected = mapper.readValue( response, QueryResponse.class );
+
+			final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 			final IBuffer dataOut = IBuffer.wrap( byteOut );
 			expected.serialize( new BinarySerializer( dataOut ) );
 			QueryResponse actual = (QueryResponse) APIResponse.deserialize( new BinarySerializer( IBuffer.wrap( byteOut.toByteArray() ) ) );
-			
-			if ( ! Objects.equals(expected,actual) ) {
+
+			if ( !Objects.equals( expected, actual ) ) {
 				for ( ArtifactResponse r : expected.artifacts ) {
 					System.out.println( r );
 				}
-				System.out.println("====================== ACTUAL ============");
+				System.out.println( "====================== ACTUAL ============" );
 				for ( ArtifactResponse r : actual.artifacts ) {
 					System.out.println( r );
 				}
-				Assert.fail("Mismatch");
+				fail( "Mismatch" );
 			}
 		}
     }
@@ -248,11 +249,11 @@ public class APIServletTest {
         for ( int i = 0 ; i < TOTAL_TEST_ITERATIONS ; i++ ) {
             final long start = System.currentTimeMillis();
 
-            for (int j = 0; j < jsonQueries.length; j++) {
-            	
-            	final ByteArrayOutputStream out = new ByteArrayOutputStream();
-            	servlet.processRequest( new ByteArrayInputStream(jsonQueries[j]),out,Protocol.JSON );
-            }
+			for ( byte[] jsonQuery : jsonQueries ) {
+
+				final ByteArrayOutputStream out = new ByteArrayOutputStream();
+				servlet.processRequest( new ByteArrayInputStream( jsonQuery ), out, Protocol.JSON );
+			}
             
             final long end = System.currentTimeMillis();
             if ( i >= WARMUP_ITERATIONS ) {
@@ -274,11 +275,10 @@ public class APIServletTest {
         for ( int i = 0 ; i < TOTAL_TEST_ITERATIONS ; i++ ) {
             final long start = System.currentTimeMillis();
 
-            for (int j = 0; j < binaryQueries.length; j++) 
-            {
-            	final ByteArrayOutputStream out = new ByteArrayOutputStream();
-            	servlet.processRequest( new ByteArrayInputStream(binaryQueries[j]),out,Protocol.BINARY  );
-            }
+			for ( final byte[] binaryQuery : binaryQueries ) {
+				final ByteArrayOutputStream out = new ByteArrayOutputStream();
+				servlet.processRequest( new ByteArrayInputStream( binaryQuery ), out, Protocol.BINARY );
+			}
             
             final long end = System.currentTimeMillis();
             if ( i >= WARMUP_ITERATIONS ) {

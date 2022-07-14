@@ -26,15 +26,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactMap;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.CachingStorageDecorator;
 import de.codesourcery.versiontracker.common.server.FlatFileStorage;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CachingStorageDecoratorTest 
 {
@@ -71,7 +72,7 @@ public class CachingStorageDecoratorTest
         return result;
     }
     
-    @Before
+    @BeforeEach
     public void setup() {
         rnd = new Random(0xdeadbeef);
     }
@@ -200,8 +201,8 @@ public class CachingStorageDecoratorTest
             storage.saveOrUpdate( info.copy() );
             
             final Optional<VersionInfo> read = storage.getVersionInfo( info.artifact );
-            Assert.assertTrue( read.isPresent() );
-            Assert.assertEquals(now, read.get().lastRequestDate );
+            assertTrue( read.isPresent() );
+            assertEquals(now, read.get().lastRequestDate );
         }
     }
     

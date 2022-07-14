@@ -48,7 +48,9 @@ Note for JDK17 and upwards: You'll need to set your MAVEN_OPTS to include "---ad
 
 Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file inside the webapps folder of your favorite application server.
 
-By default the servlet will store all retrieved artifact metadata as a binary file in ${user.home}/artifacts.json.binary unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the application.
+By default the servlet will store all retrieved artifact metadata as a binary file in ${user.home}/artifacts.json.binary unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the JVM.
+
+You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
 ## Add the custom rule to your enforcer plugin configuration
 

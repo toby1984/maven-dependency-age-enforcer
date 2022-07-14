@@ -15,7 +15,16 @@
  */
 package de.codesourcery.versiontracker.server;
 
-import java.io.IOException;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.IVersionProvider;
+import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.SharedLockCache;
+import de.codesourcery.versiontracker.common.server.VersionTracker;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,18 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.IVersionStorage;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
-import de.codesourcery.versiontracker.common.server.SharedLockCache;
-import de.codesourcery.versiontracker.common.server.VersionTracker;
 
 public class VersionTrackerTest
 {
@@ -46,13 +43,18 @@ public class VersionTrackerTest
         public final List<VersionInfo> stored = new ArrayList<>();
         
         @Override
-        public synchronized List<VersionInfo> getAllVersions() throws IOException
+        public synchronized List<VersionInfo> getAllVersions()
         {
-            return stored.stream().map( x -> x.copy() ).collect( Collectors.toCollection( ArrayList::new ) );
+            return stored.stream().map( VersionInfo::copy ).collect( Collectors.toCollection( ArrayList::new ) );
         }
 
         @Override
-        public synchronized void saveOrUpdate(VersionInfo info) throws IOException
+        public StorageStatistics getStatistics() {
+            return new StorageStatistics();
+        }
+
+        @Override
+        public synchronized void saveOrUpdate(VersionInfo info)
         {
             if ( ! stored.contains( info ) ) {
                 stored.add( info.copy() );
@@ -60,30 +62,30 @@ public class VersionTrackerTest
         }
 
         @Override
-        public synchronized Optional<VersionInfo> getVersionInfo(Artifact artifact) throws IOException
+        public synchronized Optional<VersionInfo> getVersionInfo(Artifact artifact)
         {
             return stored.stream().filter( x -> x.artifact.matchesExcludingVersion( artifact ) ).findFirst();
         }
 
         @Override
-        public synchronized void saveOrUpdate(List<VersionInfo> data) throws IOException
+        public synchronized void saveOrUpdate(List<VersionInfo> data)
         {
             this.stored.clear();
-            this.stored.addAll( data.stream().map(x->x.copy()).collect(Collectors.toList() ) );
+            this.stored.addAll( data.stream().map( VersionInfo::copy ).toList() );
         }
 
         @Override
-        public void close() throws Exception
+        public void close()
         {
         }
     }
     
-    @Before
+    @BeforeEach
     public void setup() {
         this.storage = new MockStorage();
     }
     
-    @After
+    @AfterEach
     public void tearDown() {
         if ( tracker != null ) 
         {
@@ -98,14 +100,9 @@ public class VersionTrackerTest
     @Test
     public void test() throws InterruptedException {
 
-        final IVersionProvider provider = new IVersionProvider() {
-
-            @Override
-            public UpdateResult update(VersionInfo info) throws IOException
-            {
-                info.lastFailureDate = ZonedDateTime.now();
-                return UpdateResult.BLACKLISTED;
-            }
+        final IVersionProvider provider = info -> {
+            info.lastFailureDate = ZonedDateTime.now();
+            return IVersionProvider.UpdateResult.BLACKLISTED;
         };
         
         final SharedLockCache locks = new SharedLockCache();

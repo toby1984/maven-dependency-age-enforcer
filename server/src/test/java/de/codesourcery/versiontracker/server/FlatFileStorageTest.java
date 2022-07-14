@@ -15,6 +15,16 @@
  */
 package de.codesourcery.versiontracker.server;
 
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.Version;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.FlatFileStorage;
+import org.apache.commons.io.IOUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -27,29 +37,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.commons.io.IOUtils;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.Version;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.FlatFileStorage;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class FlatFileStorageTest
 {
 	private File file;
 
-	@Before
+	@BeforeEach
 	public void setup() throws IOException {
 		file = File.createTempFile("versiontracktest",".json");
 		file.delete();
 	}
 
-	@After
+	@AfterEach
 	public void tearDown() {
 		if ( file != null ) 
 		{
@@ -71,7 +71,7 @@ public class FlatFileStorageTest
 
 		storage = new FlatFileStorage(file);
 		List<VersionInfo> loaded = storage.getAllVersions();
-		Assert.assertEquals(0,loaded.size());
+		assertEquals(0,loaded.size());
 	}
 
 	private VersionInfo createData() {
@@ -109,8 +109,8 @@ public class FlatFileStorageTest
 
 		storage = new FlatFileStorage(file);
 		final List<VersionInfo> loaded = storage.getAllVersions();
-		Assert.assertEquals(1,loaded.size());
-		Assert.assertEquals( copy , loaded.get(0) );
+		assertEquals(1,loaded.size());
+		assertEquals( copy , loaded.get(0) );
 	} 
 
 	@Test
@@ -124,8 +124,8 @@ public class FlatFileStorageTest
 
 		storage = new FlatFileStorage(file);
 		final List<VersionInfo> loaded = storage.getAllVersions();
-		Assert.assertEquals(1,loaded.size());
-		Assert.assertEquals( copy , loaded.get(0) );
+		assertEquals(1,loaded.size());
+		assertEquals( copy , loaded.get(0) );
 	}     
 
 	@Test
@@ -175,7 +175,7 @@ public class FlatFileStorageTest
 		FlatFileStorage storage1 = new FlatFileStorage(tmp,Protocol.JSON);
 		FlatFileStorage storage2 = new FlatFileStorage(binaryFile,Protocol.BINARY);
 		
-		Assert.assertEquals( storage1.getAllVersions() , storage2.getAllVersions() );
+		assertEquals( storage1.getAllVersions() , storage2.getAllVersions() );
 	}
 	
 	@Test
