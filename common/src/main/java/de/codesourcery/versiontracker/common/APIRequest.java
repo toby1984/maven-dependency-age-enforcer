@@ -15,11 +15,10 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import java.io.IOException;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import de.codesourcery.versiontracker.client.IAPIClient;
+
+import java.io.IOException;
 
 /**
  * Abstract base-class for all API requests.
@@ -33,7 +32,7 @@ public abstract class APIRequest
      *
      * @author tobias.gierke@code-sourcery.de
      */
-	public static enum Command 
+	public enum Command
 	{
 	    /**
 	     * 
@@ -43,7 +42,7 @@ public abstract class APIRequest
 		
 	    public final String text;
 	    
-		private Command(String text) {
+		Command(String text) {
 			this.text = text;
 		}
 		
@@ -81,12 +80,8 @@ public abstract class APIRequest
         }
         
 	    Command cmd = APIRequest.Command.fromString( serializer.readString() );
-	    switch(cmd) 
-	    {
-            case QUERY:
-                return QueryRequest.doDeserialize(serializer);
-            default:
-                throw new IOException("Unsupported command '"+cmd+"'");
-	    }
+		return switch ( cmd ) {
+			case QUERY -> QueryRequest.doDeserialize( serializer );
+		};
 	}
 }

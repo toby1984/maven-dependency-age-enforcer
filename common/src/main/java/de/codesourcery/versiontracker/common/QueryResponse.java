@@ -15,12 +15,11 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import de.codesourcery.versiontracker.common.APIRequest.Command;
+
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-
-import de.codesourcery.versiontracker.common.APIRequest.Command;
 
 /**
  * API response in reply to {@link QueryRequest}.
@@ -37,15 +36,14 @@ public class QueryResponse extends APIResponse
 	
 	public boolean equals(Object obj) 
 	{
-		if ( obj instanceof QueryResponse) {
-			final QueryResponse o = (QueryResponse) obj;
+		if ( obj instanceof final QueryResponse o ) {
 			if ( this.artifacts.size() != o.artifacts.size() ) {
 				System.out.println(">>>>>>>> Artifact size mismatch");
 				return false;
 			}
 			for (ArtifactResponse a1 : artifacts) 
 			{
-				if ( ! o.artifacts.stream().anyMatch( x -> x.equals(a1 ) ) ) {
+				if ( o.artifacts.stream().noneMatch( x -> x.equals(a1 ) ) ) {
 					System.out.println(">>>>>>>> Artifact not found: "+a1);
 					return false;
 				}

@@ -15,20 +15,20 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.apache.logging.log4j.Logger;
+
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Date;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-import org.apache.logging.log4j.Logger;
 
 /**
  * A very simple serializer that knows how to convert some basic Java types into a byte stream and back.
@@ -47,34 +47,32 @@ public class BinarySerializer implements AutoCloseable,Closeable
     
     public interface IBuffer extends AutoCloseable,Closeable
     {
-        public byte read() throws IOException;
+        byte read() throws IOException;
         
-        public void read(byte[] destination) throws IOException;
+        void read(byte[] destination) throws IOException;
 
-        public boolean isEOF() throws IOException;
+        boolean isEOF() throws IOException;
         
-        public void write(byte value) throws IOException;
+        void write(byte value) throws IOException;
         
-        public void write(byte[] array) throws IOException;
+        void write(byte[] array) throws IOException;
         
         @Override
-        public void close() throws IOException;
+        void close() throws IOException;
         
-        public static IBuffer wrap(byte[] data) throws IOException {
+        static IBuffer wrap(byte[] data) throws IOException {
             return wrap( new ByteArrayInputStream(data) );
         }
         
-        public static IBuffer wrap(InputStream in) throws IOException 
+        static IBuffer wrap(InputStream in) throws IOException
         {
             return new InBuffer( in );
         }
         
-        public static IBuffer wrap(OutputStream out) throws IOException 
+        static IBuffer wrap(OutputStream out)
         {
             return new OutBuffer(out);
-        }        
-        
-        public int currentOffset();
+        }
     }
     
     protected static final class InBuffer implements IBuffer
@@ -137,11 +135,11 @@ public class BinarySerializer implements AutoCloseable,Closeable
             return "0x"+s;
         }
 
-        @Override public boolean isEOF() throws IOException { return next == -1; }
+        @Override public boolean isEOF() { return next == -1; }
 
-        @Override public void write(byte value) throws IOException { throw new UnsupportedOperationException("not supported: write()"); }
+        @Override public void write(byte value) { throw new UnsupportedOperationException("not supported: write()"); }
         
-        @Override public void write(byte[] value) throws IOException { throw new UnsupportedOperationException("not supported: write()"); }
+        @Override public void write(byte[] value) { throw new UnsupportedOperationException("not supported: write()"); }
 
         @Override public void close() throws IOException { in.close(); }
         
@@ -151,11 +149,6 @@ public class BinarySerializer implements AutoCloseable,Closeable
             return "InBuffer @ 0x"+Integer.toHexString( offset );
         }
 
-        @Override
-        public int currentOffset()
-        {
-            return offset;
-        }
     }
     
     protected static final class OutBuffer implements IBuffer 
@@ -169,17 +162,17 @@ public class BinarySerializer implements AutoCloseable,Closeable
         }
         
         @Override
-        public byte read() throws IOException {
+        public byte read() {
             throw new UnsupportedOperationException("method not supported: read()");
         }
         
         @Override
-        public void read(byte[] destination) throws IOException {
+        public void read(byte[] destination) {
         	throw new UnsupportedOperationException("method not supported: read()");
         }
 
         @Override
-        public boolean isEOF() throws IOException {
+        public boolean isEOF() {
             throw new UnsupportedOperationException("method not supported: isEOF()");
         }
 
@@ -210,11 +203,6 @@ public class BinarySerializer implements AutoCloseable,Closeable
             return TRACK_OFFSET ? "OutBuffer @ 0x"+Integer.toHexString( offset ) : "OutBuffer";
         }
 
-        @Override
-        public int currentOffset()
-        {
-            return offset;
-        }        
     }
     
     public BinarySerializer(IBuffer buffer) 
@@ -244,10 +232,6 @@ public class BinarySerializer implements AutoCloseable,Closeable
         return result;
     }
     
-    public int currentOffset() {
-        return buffer.currentOffset();
-    }
-
     public void writeByte(byte value) throws IOException {
         buffer.write( (byte) (value & 0xff ));
     }
@@ -256,22 +240,6 @@ public class BinarySerializer implements AutoCloseable,Closeable
         return buffer.read();
     }
     
-    public void readBytes(byte[] destination,int count) throws IOException 
-    {
-        for ( int i = 0 ; i < count ; i++ ) 
-        {
-            destination[i] = readByte();
-        }
-    }    
-    
-    public void writeBytes(byte[] src,int count) throws IOException 
-    {
-        for ( int i = 0 ; i < count ; i++ ) 
-        {
-            writeByte( src[i] );
-        }
-    }
-
     public void writeBoolean(boolean value) throws IOException {
         writeByte( (byte) (value ? 0x12 : 0x34 ) );
     }
@@ -321,21 +289,13 @@ public class BinarySerializer implements AutoCloseable,Closeable
         return hi|lo;
     }
     
-    public void writeDouble(double value) throws IOException {
-        writeLong( Double.doubleToRawLongBits( value ) );
-    }
-    
-    public double readDouble() throws IOException {
-        return Double.longBitsToDouble( readLong() );
-    }
-
     public void writeString(String s) throws IOException {
         if ( s == null ) {
             writeByte( (byte) 0 );
             return;
         }
         writeByte( (byte) 1 );
-        writeArray( s.getBytes("UTF8") );
+        writeArray( s.getBytes( StandardCharsets.UTF_8 ) );
     }
 
     public String readString() throws IOException 
@@ -343,7 +303,7 @@ public class BinarySerializer implements AutoCloseable,Closeable
         if ( readByte() == 0 ) {
             return null;
         }
-        return new String( readArray() , "UTF8" );
+        return new String( readArray() , StandardCharsets.UTF_8 );
     }        
     
     public void writeZonedDateTime(ZonedDateTime dt) throws IOException 
@@ -364,23 +324,5 @@ public class BinarySerializer implements AutoCloseable,Closeable
         }
         final Instant instant = Instant.ofEpochMilli( readLong() );
         return ZonedDateTime.ofInstant(instant,UTC);
-    }
-
-    public void writeDate(Date d) throws IOException 
-    {
-        if ( d == null ) {
-            writeByte( (byte) 0 );
-            return;
-        }
-        writeByte( (byte) 1 );
-        writeLong( d.getTime() );
-    }
-
-    public Date readDate() throws IOException 
-    {
-        if ( readByte() == 0 ) {
-            return null;
-        }
-        return new Date( readLong() );
     }
 }

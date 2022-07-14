@@ -28,7 +28,7 @@ public interface IBlacklistCheck
      * @param artifact
      * @return
      */    
-    public boolean isArtifactBlacklisted(Artifact artifact);
+    boolean isArtifactBlacklisted(Artifact artifact);
     
     /**
      * Check whether a given artifact version is blacklisted.
@@ -37,5 +37,5 @@ public interface IBlacklistCheck
      * @param version
      * @return 
      */    
-    public boolean isVersionBlacklisted(String groupId,String artifactId,String version);
+    boolean isVersionBlacklisted(String groupId,String artifactId,String version);
 }

@@ -15,13 +15,12 @@
  */
 package de.codesourcery.versiontracker.client;
 
-import java.io.IOException;
-import java.util.List;
-
-import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.Blacklist;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * Client interface for communicating with the endpoint responsible for 
@@ -34,15 +33,15 @@ public interface IAPIClient extends AutoCloseable
     /**
      * Client protocol version.
      */
-    public static final String CLIENT_VERSION = "1.0";
+    String CLIENT_VERSION = "1.0";
     
-    public static enum Protocol {
+    enum Protocol {
         JSON((byte) 0xab),
         BINARY((byte) 0xba);
         
         public final byte id;
 
-        private Protocol(byte id) {
+        Protocol(byte id) {
             this.id = id;
         }
         
@@ -57,7 +56,7 @@ public interface IAPIClient extends AutoCloseable
         }
     }
     
-    public static byte[] toWireFormat(byte[] input,Protocol protocol) 
+    static byte[] toWireFormat(byte[] input,Protocol protocol)
     {
         final byte[] tmp = new byte[ input.length+1 ];
         tmp[0] = protocol.id;
@@ -75,7 +74,7 @@ public interface IAPIClient extends AutoCloseable
      * @return
      * @throws IOException
      */
-	public List<ArtifactResponse> query(List<Artifact> artifacts,Blacklist blacklist) throws IOException;
+	List<ArtifactResponse> query(List<Artifact> artifacts,Blacklist blacklist) throws IOException;
 	
 	/**
 	 * Enable/disable debug output.
@@ -83,7 +82,6 @@ public interface IAPIClient extends AutoCloseable
 	 * This setting overrides verbose mode.
 	 * 
 	 * @param yes
-	 * @see #setVerboseMode(boolean)
 	 */
-	public void setDebugMode(boolean yes);
+	void setDebugMode(boolean yes);
 }

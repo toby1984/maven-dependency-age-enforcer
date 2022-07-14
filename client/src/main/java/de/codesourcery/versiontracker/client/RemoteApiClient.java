@@ -15,23 +15,7 @@
  */
 package de.codesourcery.versiontracker.client;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.logging.log4j.LogManager;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.BinarySerializer;
@@ -41,6 +25,20 @@ import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Utils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.logging.log4j.LogManager;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * API client that talks to the endpoint using HTTP + JSON.
@@ -105,7 +103,7 @@ public class RemoteApiClient extends AbstractAPIClient
         return response.artifacts;
     }
 
-    private String doPost(String json) throws ClientProtocolException, IOException 
+    private String doPost(String json) throws IOException
     {
         if ( debugMode ) {
             System.out.println("REQUEST: \n"+json+"\n");
@@ -115,8 +113,8 @@ public class RemoteApiClient extends AbstractAPIClient
             LOG.debug("doPost(): REQUEST: \n=====\n"+json+"\n=======");
         }
 
-        final byte[] data = doPost( json.getBytes("UTF8"), true );
-        final String resp = new String(data,"UTF8");
+        final byte[] data = doPost( json.getBytes( StandardCharsets.UTF_8 ), true );
+        final String resp = new String(data, StandardCharsets.UTF_8 );
         if ( debugMode ) {
             System.out.println("RESPONSE: \n"+resp+"\n");
         }
@@ -127,11 +125,11 @@ public class RemoteApiClient extends AbstractAPIClient
         return resp;
     }
 
-    private byte[] doPost(byte[] input) throws ClientProtocolException, IOException {
+    private byte[] doPost(byte[] input) throws IOException {
         return doPost(input,false);
     }
 
-    private byte[] doPost(byte[] input,boolean debugPrinted) throws ClientProtocolException, IOException 
+    private byte[] doPost(byte[] input,boolean debugPrinted) throws IOException
     {
         final HttpPost httppost = new HttpPost( endpointUrl );
 
@@ -156,7 +154,7 @@ public class RemoteApiClient extends AbstractAPIClient
         try ( InputStream instream = entity.getContent() ) 
         {
             final byte[] buffer = new byte[10*1024];
-            int len = 0 ;
+            int len;
             while ( ( len = instream.read(buffer) ) > 0 ) {
                 byteOut.write(buffer,0,len);
             }

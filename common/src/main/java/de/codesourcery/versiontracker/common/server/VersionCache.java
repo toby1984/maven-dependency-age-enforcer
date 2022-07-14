@@ -15,20 +15,12 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-
-import org.apache.commons.lang3.Validate;
-
-import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactMap;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.VersionInfo;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * In-memory list of all {@link VersionInfo} instances
@@ -68,84 +60,6 @@ public class VersionCache
         {
             return trackedVersions.size();
         }
-    }
-
-    /**
-     * Adds a set of version information to the cache.
-     * 
-     * @param infos
-     */
-    public void addAll(Collection<VersionInfo> infos) 
-    {
-        Validate.notNull(infos,"infos must not be NULL");
-        for ( VersionInfo i : infos ) {
-            trackedVersions.put(i.artifact.groupId,i.artifact.artifactId,i);
-        }
-    }
-
-    /**
-     * Flushes the cache.
-     */
-    public void clear() {
-        synchronized(VERSIONS_LOCK) 
-        {
-            trackedVersions.clear();
-        }
-    }
-
-    /**
-     * Searches this cache for a set of artifacts and invokes a callback
-     * for each of them, indicating whether they were found in the cache.
-     * 
-     * @param toSearch
-     * @param callback
-     */
-    public void visitMatches(List<Artifact> toSearch,BiConsumer<Artifact,Boolean> callback) 
-    {
-        synchronized(VERSIONS_LOCK) 
-        {
-            for ( Artifact a : toSearch ) 
-            {
-                final VersionInfo match = trackedVersions.get( a.groupId , a.artifactId );
-                callback.accept(a , match == null ? Boolean.FALSE : Boolean.TRUE );                        
-            }
-        }
-    }
-
-    /**
-     * Traverses all cache entries and returns <b>copies</b> of all entries that match a given predicate.
-     * 
-     * @param predicate
-     * @return
-     */
-    public List<VersionInfo> getCopies(Predicate<VersionInfo> predicate) 
-    {
-        final List<VersionInfo> outdated = new ArrayList<>();
-        synchronized(VERSIONS_LOCK) 
-        {
-            trackedVersions.visitValues( info -> {
-                if ( predicate.test( info ) ) {
-                    outdated.add( info.copy() );
-                }
-            });
-        }        
-        return outdated;
-    }
-
-    /**
-     * Searches the cache for a given artifact and invokes a callback with the results.
-     * 
-     * @param artifact
-     * @param callback
-     * @return
-     */
-    public <T> T doWithVersion(Artifact artifact,Function<Optional<VersionInfo>,T> callback) 
-    {
-        synchronized( VERSIONS_LOCK ) 
-        {
-            final VersionInfo result = trackedVersions.get( artifact.groupId, artifact.artifactId );
-            return callback.apply( Optional.ofNullable( result ) );
-        }        
     }
 
     /**

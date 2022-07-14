@@ -15,15 +15,15 @@
  */
 package de.codesourcery.versiontracker.client;
 
-import java.io.IOException;
-import java.util.List;
-
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
+
+import java.io.IOException;
+import java.util.List;
 
 public class LocalAPIClient extends AbstractAPIClient
 {

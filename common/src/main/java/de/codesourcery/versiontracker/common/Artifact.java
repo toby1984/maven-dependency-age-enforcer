@@ -100,11 +100,6 @@ public class Artifact
         this.type = artifact.type;
     }
     
-    public boolean matchesGroupIdAndArtifactId(Artifact other) 
-    {
-        return this.groupId.equals( other.groupId ) && this.artifactId.equals( other.artifactId );
-    }
-
     @Override
     public int hashCode()
     {
@@ -121,9 +116,8 @@ public class Artifact
         if (this == obj) {
             return true;
         }
-        if ( obj instanceof Artifact) 
+        if ( obj instanceof final Artifact a )
         {
-            final Artifact a = (Artifact) obj;
             return Objects.equals( this.groupId, a.groupId ) &&
                     Objects.equals( this.artifactId, a.artifactId ) &&
                     Objects.equals( this.classifier, a.classifier ) &&
@@ -167,7 +161,7 @@ public class Artifact
     	        	buffer.setLength(0);
     	        }
     	        if ( c != '.' ) {
-    	        	parts.add( number.substring(i, number.length()));
+    	        	parts.add( number.substring(i));
     	        	break;
     	        }
     		}

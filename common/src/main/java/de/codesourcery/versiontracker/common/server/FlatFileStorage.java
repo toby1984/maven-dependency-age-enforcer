@@ -15,6 +15,17 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.common.BinarySerializer;
+import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.JSONHelper;
+import de.codesourcery.versiontracker.common.Version;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -30,19 +41,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
-import de.codesourcery.versiontracker.common.BinarySerializer;
-import de.codesourcery.versiontracker.common.IVersionStorage;
-import de.codesourcery.versiontracker.common.JSONHelper;
-import de.codesourcery.versiontracker.common.Version;
-import de.codesourcery.versiontracker.common.VersionInfo;
 
 /**
  * Simple {@link IVersionStorage} implementation that just stores everything as JSON
@@ -100,7 +98,7 @@ public class FlatFileStorage implements IVersionStorage
 			return result;
 		} 
 		if ( protocol == Protocol.JSON ) {
-			return mapper.readValue(file,new TypeReference<List<VersionInfo>>() {});
+			return mapper.readValue(file,new TypeReference<>() {});
 		} 
 		throw new RuntimeException("Unhandled protocol "+protocol);
 	}
@@ -126,9 +124,7 @@ public class FlatFileStorage implements IVersionStorage
 
 	public static String dumpToString(File file) throws IOException 
 	{
-		final Function<ZonedDateTime,String> func = time -> {
-			return time == null ? "n/a" : format.format(time);
-		};
+		final Function<ZonedDateTime,String> func = time -> time == null ? "n/a" : format.format(time);
 		final StringBuilder buffer = new StringBuilder();
 
 		final FlatFileStorage storage = new FlatFileStorage(file);

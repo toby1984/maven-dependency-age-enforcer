@@ -36,13 +36,12 @@ public class QueryRequest extends APIRequest
 	
 	public boolean equals(Object obj) 
 	{
-		if ( obj instanceof QueryRequest ) {
-			QueryRequest o = (QueryRequest) obj;
+		if ( obj instanceof QueryRequest o ) {
 			if ( this.artifacts.size() != o.artifacts.size() ) {
 				return false;
 			}
 			for ( Artifact a1 : this.artifacts ) {
-				if ( ! o.artifacts.stream().anyMatch( x -> x.equals(a1) ) ) {
+				if ( o.artifacts.stream().noneMatch( x -> x.equals(a1) ) ) {
 					return false;
 				}
 			}

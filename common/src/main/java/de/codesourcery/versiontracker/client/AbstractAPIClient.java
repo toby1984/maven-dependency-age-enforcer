@@ -15,11 +15,11 @@
  */
 package de.codesourcery.versiontracker.client;
 
-import java.util.List;
-
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.QueryRequest;
+
+import java.util.List;
 
 public abstract class AbstractAPIClient implements IAPIClient
 {

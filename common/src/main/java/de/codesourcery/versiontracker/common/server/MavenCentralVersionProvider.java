@@ -15,7 +15,42 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.io.*;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.IVersionProvider;
+import de.codesourcery.versiontracker.common.Version;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.EntityResolver;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
@@ -40,40 +75,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpression;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.EntityResolver;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.Version;
-import de.codesourcery.versiontracker.common.VersionInfo;
-
 /**
  * Version provider that retrieves artifact metadata from Maven central.
  * 
@@ -94,17 +95,12 @@ public class MavenCentralVersionProvider implements IVersionProvider
     @FunctionalInterface
     public interface MyStreamHandler<T>
     {
-        public T process(InputStream stream) throws IOException;
+        T process(InputStream stream) throws IOException;
     }
 
     private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();    
     private String serverBase;
-    private final ThreadLocal<MyExpressions> expressions = new ThreadLocal<MyExpressions>() 
-    {
-        protected MyExpressions initialValue() {
-         return new MyExpressions();   
-        }
-    };
+    private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
 
     private static final class MyExpressions // XPathExpression is NOT thread-safe to we use a ThreadLocal + this wrapper 
     {
@@ -205,19 +201,14 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
         final HttpResponse response = getClient(url).execute(httpget);
         final HttpEntity entity = response.getEntity();
-        InputStream instream = null;
-        try 
+        try (InputStream instream = entity.getContent() )
         {
-            instream = entity.getContent();             
             LOG.debug("readPage(): Got Input Stream after "+(System.currentTimeMillis()-start)+" ms");
             return handler.process( instream );
         } 
         finally 
         {
             LOG.debug("readPage(): Finished processing after "+(System.currentTimeMillis()-start)+" ms");
-            if ( instream != null ) {
-                try { instream.close(); } catch(IOException e) { /* ok */ }
-            }
         }
     }    
 
@@ -246,7 +237,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             for ( int i = 0 ; i < len ; i++ ) 
             {
                 final Node n = nodeList.item( i );
-                final String versionString = ((Element) n).getTextContent();
+                final String versionString = n.getTextContent();
                 result.add( versionString );
             }
             return result;
@@ -269,96 +260,92 @@ public class MavenCentralVersionProvider implements IVersionProvider
         
         try 
         {
-            return readPage(url, new MyStreamHandler<UpdateResult>() 
-            {
-                public UpdateResult process(InputStream stream) throws IOException 
-                {
-                    final Document document = parseXML( stream );
+            return readPage(url, stream -> {
+                final Document document = parseXML( stream );
 
-                    final MyExpressions expr = expressions(); // XPath evaluation is not thread-safe to we get a thread-local instance here
-                    final Set<String> versions = new HashSet<>( readStrings( expr.versionsXPath , document ) );
-                    for ( String version : versions ) {
-                        info.maybeAddVersion( new Version(version,null) );
-                    }
-                    
-                    for (Iterator<Version> it = info.versions.iterator(); it.hasNext();) {
-						final Version v = it.next();
-						if ( ! versions.contains( v.versionString ) ) {
-							LOG.warn("process(): Version "+v+" is gone from "+info.artifact);
-							it.remove();
-						}
-					}
-                    
-                    // always look for release date of specified version
-                    // as we'll need to compare against this later anway
-                    final Set<String> versionsToRequest = info.versions.stream().filter( v -> ! v.hasReleaseDate() ).map( x -> x.versionString ).collect( 
-                            Collectors.toCollection( HashSet::new ) );
-                            
-                    if ( StringUtils.isNotBlank(artifact.version) ) 
-                    {
-                        if ( ! info.getDetails( artifact.version).isPresent() ) 
-                        {
-                        	info.lastFailureDate = ZonedDateTime.now();
-                            LOG.error("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
-                            return UpdateResult.ARTIFACT_NOT_FOUND;
-                        }
-                    }
-                    
-                    // determine latest snapshot version 
-                    String snapshot = readString(expr.latestSnapshot, document );
-                    String release = readString(expr.latestRelease, document );
-                    
-                    LOG.debug("latest snapshot = "+snapshot);
-                    LOG.debug("update(): latest release = "+release);                    
-                    
-                    if ( StringUtils.isNotBlank(snapshot) && info.hasVersionWithReleaseDate(snapshot) ) {
-                        versionsToRequest.add(snapshot);
-                    }
-                    if ( StringUtils.isNotBlank(release) && info.hasVersionWithReleaseDate(release) ) {
-                        versionsToRequest.add(release);
-                    }                
-                    
-                    // last repository change date
-                    final String lastChangeString = readString(expr.lastUpdateDate, document );
-                    LOG.debug("update(): last repository change = "+lastChangeString);
-                    
-                    final ZonedDateTime lastChangeDate = ZonedDateTime.parse( lastChangeString, DATE_FORMATTER);
-                    if ( info.lastRepositoryUpdate != null && info.lastRepositoryUpdate.equals( lastChangeDate ) ) 
-                    {
-                        info.lastSuccessDate = ZonedDateTime.now();
-                        return UpdateResult.NO_CHANGES_ON_SERVER;
-                    }
-                    LOG.debug("update(): Repository changed on server");
-                    LOG.debug("update(): Gathering release dates for versions "+versionsToRequest+"...");
-                    
-                    if ( ! versionsToRequest.isEmpty() ) 
-                    {
-                        final Map<String,Version> result = readVersions(artifact,versionsToRequest);
-                        for ( Map.Entry<String,Version> entry : result.entrySet() ) 
-                        {
-                            Optional<Version> existing = info.getDetails( entry.getKey() );
-                            if ( existing.isPresent() ) 
-                            {
-                                existing.get().releaseDate = entry.getValue().releaseDate; 
-                                LOG.debug("update(): Updated existing version to "+existing.get());                                
-                            } else {
-                            	info.versions.add( entry.getValue() );
-                            	LOG.debug("update(): Adding NEW version "+entry.getValue());                                
-                            }
-                        }
-                    }
-                    info.artifact = artifact;
-                    if ( StringUtils.isNotBlank( release ) ) {
-                        info.getDetails( release ).ifPresent( x -> info.latestReleaseVersion = x );
-                    }
-                    if ( StringUtils.isNotBlank( snapshot ) ) {
-                        info.getDetails( snapshot ).ifPresent( x -> info.latestSnapshotVersion = x );
-                    }
-                    info.lastRepositoryUpdate = lastChangeDate;
-                    info.lastSuccessDate = ZonedDateTime.now();
-                    return UpdateResult.UPDATED;
+                final MyExpressions expr = expressions(); // XPath evaluation is not thread-safe to we get a thread-local instance here
+                final Set<String> versions = new HashSet<>( readStrings( expr.versionsXPath , document ) );
+                for ( String version : versions ) {
+                    info.maybeAddVersion( new Version(version,null) );
                 }
-            });
+
+                for (Iterator<Version> it = info.versions.iterator(); it.hasNext();) {
+                    final Version v = it.next();
+                    if ( ! versions.contains( v.versionString ) ) {
+                        LOG.warn("process(): Version "+v+" is gone from "+info.artifact);
+                        it.remove();
+                    }
+                }
+
+                // always look for release date of specified version
+                // as we'll need to compare against this later anway
+                final Set<String> versionsToRequest = info.versions.stream().filter( v -> ! v.hasReleaseDate() ).map( x -> x.versionString ).collect(
+                        Collectors.toCollection( HashSet::new ) );
+
+                if ( StringUtils.isNotBlank(artifact.version) )
+                {
+                    if ( ! info.getDetails( artifact.version).isPresent() )
+                    {
+                        info.lastFailureDate = ZonedDateTime.now();
+                        LOG.error("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
+                        return UpdateResult.ARTIFACT_NOT_FOUND;
+                    }
+                }
+
+                // determine latest snapshot version
+                String snapshot = readString(expr.latestSnapshot, document );
+                String release = readString(expr.latestRelease, document );
+
+                LOG.debug("latest snapshot = "+snapshot);
+                LOG.debug("update(): latest release = "+release);
+
+                if ( StringUtils.isNotBlank(snapshot) && info.hasVersionWithReleaseDate(snapshot) ) {
+                    versionsToRequest.add(snapshot);
+                }
+                if ( StringUtils.isNotBlank(release) && info.hasVersionWithReleaseDate(release) ) {
+                    versionsToRequest.add(release);
+                }
+
+                // last repository change date
+                final String lastChangeString = readString(expr.lastUpdateDate, document );
+                LOG.debug("update(): last repository change = "+lastChangeString);
+
+                final ZonedDateTime lastChangeDate = ZonedDateTime.parse( lastChangeString, DATE_FORMATTER);
+                if ( info.lastRepositoryUpdate != null && info.lastRepositoryUpdate.equals( lastChangeDate ) )
+                {
+                    info.lastSuccessDate = ZonedDateTime.now();
+                    return UpdateResult.NO_CHANGES_ON_SERVER;
+                }
+                LOG.debug("update(): Repository changed on server");
+                LOG.debug("update(): Gathering release dates for versions "+versionsToRequest+"...");
+
+                if ( ! versionsToRequest.isEmpty() )
+                {
+                    final Map<String,Version> result = readVersions(artifact,versionsToRequest);
+                    for ( Map.Entry<String,Version> entry : result.entrySet() )
+                    {
+                        Optional<Version> existing = info.getDetails( entry.getKey() );
+                        if ( existing.isPresent() )
+                        {
+                            existing.get().releaseDate = entry.getValue().releaseDate;
+                            LOG.debug("update(): Updated existing version to "+existing.get());
+                        } else {
+                            info.versions.add( entry.getValue() );
+                            LOG.debug("update(): Adding NEW version "+entry.getValue());
+                        }
+                    }
+                }
+                info.artifact = artifact;
+                if ( StringUtils.isNotBlank( release ) ) {
+                    info.getDetails( release ).ifPresent( x -> info.latestReleaseVersion = x );
+                }
+                if ( StringUtils.isNotBlank( snapshot ) ) {
+                    info.getDetails( snapshot ).ifPresent( x -> info.latestSnapshotVersion = x );
+                }
+                info.lastRepositoryUpdate = lastChangeDate;
+                info.lastSuccessDate = ZonedDateTime.now();
+                return UpdateResult.UPDATED;
+            } );
         } 
         catch(Exception e) 
         {
@@ -405,7 +392,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             if ( threadPool == null ) 
             {
                 LOG.info("setMaxConcurrentThreads(): Using "+maxConcurrentThreads+" threads to retrieve artifact metadata.");                
-                final BlockingQueue<Runnable> workingQueue = new ArrayBlockingQueue<Runnable>(200);
+                final BlockingQueue<Runnable> workingQueue = new ArrayBlockingQueue<>(200);
                 threadPool = new ThreadPoolExecutor( maxConcurrentThreads, maxConcurrentThreads, 60 , TimeUnit.SECONDS,
                         workingQueue,threadFactory, new ThreadPoolExecutor.CallerRunsPolicy() );
             }
@@ -413,7 +400,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
     
-    private Map<String,Version> readVersions(Artifact artifact,Set<String> versions) throws IOException 
+    private Map<String,Version> readVersions(Artifact artifact,Set<String> versions)
     {
         final Map<String,Version> result = new HashMap<>();
         if ( versions.isEmpty() ) {
@@ -447,7 +434,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 if ( latch.await(10,TimeUnit.SECONDS) ) {
                     return result;
                 }
-            } catch(InterruptedException e) {
+            } catch(InterruptedException e) { /* can't help it */
             }
             LOG.debug("readVersions(): Still waiting for "+latch.getCount()+" outstanding requests of artifact "+artifact);
         }
@@ -459,38 +446,34 @@ public class MavenCentralVersionProvider implements IVersionProvider
         final URL url2 = new URL( serverBase+getPathToFolder( artifact, versionString ) );        
         LOG.debug("readVersion(): Looking for release date of version '"+versionString+"' for "+artifact);
         
-        return readPage(url2,new MyStreamHandler<Optional<Version>>() 
-        {
-            public Optional<Version> process(InputStream stream) throws IOException 
-            {
-                final String page = IOUtils.readLines(stream,"UTF8").stream().collect(Collectors.joining("\n"));
-                Matcher m = LINE_PATTERN.matcher( page );
+        return readPage(url2, stream -> {
+            final String page = String.join( "\n", IOUtils.readLines( stream, StandardCharsets.UTF_8 ) );
+            Matcher m = LINE_PATTERN.matcher( page );
 
-                ZonedDateTime latest = null;
-                final boolean trace = LOG.isTraceEnabled();
-                while ( m.find() ) 
+            ZonedDateTime latest = null;
+            final boolean trace = LOG.isTraceEnabled();
+            while ( m.find() )
+            {
+                final String filename = m.group(1);
+                final String uploadDate = m.group(2);
+                final String size = m.group(3);
+                if ( filename.trim().endsWith(".jar" ) )
                 {
-                    final String filename = m.group(1);
-                    final String uploadDate = m.group(2);
-                    final String size = m.group(3);
-                    if ( filename.trim().endsWith(".jar" ) ) 
-                    {
-                        final ZonedDateTime date = ZonedDateTime.parse( uploadDate, MAVEN_REPO_INDEX_DATE_FORMATTER );
-                        if( latest == null || latest.compareTo( date ) < 0 ) {
-                            latest = date;
-                        }
-                        if ( trace ) {
-                            LOG.trace( "readVersion(): (*) FOUND: "+filename + " | " + uploadDate + " | " + size);
-                        }
-                    } else {
-                        if ( trace ) {
-                            LOG.trace( "readVersion(): FOUND: "+filename + " | " + uploadDate + " | " + size);
-                        }
+                    final ZonedDateTime date = ZonedDateTime.parse( uploadDate, MAVEN_REPO_INDEX_DATE_FORMATTER );
+                    if( latest == null || latest.compareTo( date ) < 0 ) {
+                        latest = date;
+                    }
+                    if ( trace ) {
+                        LOG.trace( "readVersion(): (*) FOUND: "+filename + " | " + uploadDate + " | " + size);
+                    }
+                } else {
+                    if ( trace ) {
+                        LOG.trace( "readVersion(): FOUND: "+filename + " | " + uploadDate + " | " + size);
                     }
                 }
-                return latest == null ? Optional.empty() : Optional.of( new Version(versionString,latest) );
             }
-        });
+            return latest == null ? Optional.empty() : Optional.of( new Version(versionString,latest) );
+        } );
     }
 
     public static Document parseXML(InputStream inputStream) throws IOException
@@ -547,7 +530,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private static final class DummyResolver implements EntityResolver {
 
         @Override
-        public InputSource resolveEntity(String publicId, String systemId) throws SAXException, IOException
+        public InputSource resolveEntity(String publicId, String systemId)
         {
             final ByteArrayInputStream dummy = new ByteArrayInputStream(new byte[0]);
             return new InputSource(dummy);

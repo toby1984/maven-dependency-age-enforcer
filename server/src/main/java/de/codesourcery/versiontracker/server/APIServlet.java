@@ -15,28 +15,7 @@
  */
 package de.codesourcery.versiontracker.server;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Predicate;
-
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
 import de.codesourcery.versiontracker.common.Artifact;
@@ -44,7 +23,6 @@ import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
 import de.codesourcery.versiontracker.common.BinarySerializer;
 import de.codesourcery.versiontracker.common.BinarySerializer.IBuffer;
-import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
@@ -53,6 +31,23 @@ import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Servlet responsible for processing {@link APIRequest}s.
@@ -63,20 +58,10 @@ public class APIServlet extends HttpServlet
 {
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
 
-    public interface IUpdateCallback 
-    {
-        public void received(IVersionProvider.UpdateResult updateResult,VersionInfo info,Exception exception);
-    }
+    private static final ObjectMapper JSON_MAPPER =  JSONHelper.newObjectMapper();
 
-    private ThreadLocal<ObjectMapper> mapper = new ThreadLocal<ObjectMapper>() 
-    {
-     protected ObjectMapper initialValue() {
-         return JSONHelper.newObjectMapper();
-     }
-    };
-    
-    private boolean artifactUpdatesEnabled = false; // FIXME: Debug, change to TRUE!!
-    
+    private boolean artifactUpdatesEnabled = true;
+
     public APIServlet() {
         LOG.info("APIServlet(): Instance created");
     }
@@ -85,7 +70,7 @@ public class APIServlet extends HttpServlet
     public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException
     {
         if ( LOG.isInfoEnabled() ) {
-            LOG.debug("service(): Incoming request from "+((HttpServletRequest) req).getRemoteAddr());
+            LOG.debug("service(): Incoming request from "+ req.getRemoteAddr());
         }
         final long start = System.currentTimeMillis();
         try {
@@ -105,7 +90,7 @@ public class APIServlet extends HttpServlet
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException
     {
         final InputStream in = req.getInputStream();
         final ByteArrayOutputStream reqData = new ByteArrayOutputStream();
@@ -135,7 +120,7 @@ public class APIServlet extends HttpServlet
                 switch( protocol ) 
                 {
                     case JSON:
-                        body = new String( reqData.toByteArray(), "UTF8" );
+                        body = reqData.toString( StandardCharsets.UTF_8 );
                         break;
                     default:
                         body = Utils.toHex( reqData.toByteArray() );
@@ -148,13 +133,11 @@ public class APIServlet extends HttpServlet
                 LOG.error("doPost(): Caught "+e.getMessage()+" from "+req.getRemoteAddr(),e);
             }
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Internal error: "+e.getMessage());            
-            return;
         }
     }
 
 	public byte[] processRequest(final InputStream in, final ByteArrayOutputStream reqData, Protocol protocol)
-			throws IOException, Exception, UnsupportedEncodingException 
-	{
+			throws Exception {
 		final byte[] buffer = new byte[10*1024];
 		int len=0;
 		while ( ( len = in.read( buffer ) ) > 0 ) {
@@ -196,14 +179,13 @@ public class APIServlet extends HttpServlet
     }    
     
     public String processRequest(String jsonRequest) throws Exception {
-        
-        final ObjectMapper jsonMapper = mapper.get();
-        final APIRequest apiRequest = parse(jsonRequest,jsonMapper);
+
+        final APIRequest apiRequest = parse(jsonRequest, JSON_MAPPER );
         switch(apiRequest.command) 
         {
             case QUERY:
                 final QueryResponse response = processQuery( (QueryRequest) apiRequest );
-                return jsonMapper.writeValueAsString(response);
+                return JSON_MAPPER.writeValueAsString(response);
             default:
                 throw new RuntimeException("Internal error,unhandled command "+apiRequest.command);
         }        
@@ -275,7 +257,7 @@ public class APIServlet extends HttpServlet
                     int cmp = Artifact.VERSION_COMPARATOR.compare( artifact.version, x.latestVersion.versionString);
                     if ( cmp >= 0 ) {                    	
                         x.updateAvailable = UpdateAvailable.NO;
-                    } else if ( cmp < 0 ) {
+                    } else {
                         x.updateAvailable = UpdateAvailable.YES;                    	
                     }                     
                 }

@@ -15,16 +15,10 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,8 +26,12 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * JSON serialization helper.
@@ -51,15 +49,9 @@ public class JSONHelper
 	    final String clientVersion = tree.get( "clientVersion").asText();
 		final APIRequest.Command command = APIRequest.Command.fromString(cmd);
 
-		APIRequest result;
-		switch( command ) 
-		{
-			case QUERY:
-				result = mapper.readValue(jsonString, QueryRequest.class );
-				break;
-			default:
-				throw new RuntimeException("Unreachable code reached");
-		}
+		final APIRequest result = switch ( command ) {
+			case QUERY -> mapper.readValue( jsonString, QueryRequest.class );
+		};
 		result.clientVersion = clientVersion;
 		return result;
 	}
@@ -94,7 +86,7 @@ public class JSONHelper
 	    }
 	   
 	    @Override
-	    public void serialize(ZonedDateTime value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonProcessingException 
+	    public void serialize(ZonedDateTime value, JsonGenerator jgen, SerializerProvider provider) throws IOException
 	    {
 	        jgen.writeString( DATE_FORMATTER.format( value.withZoneSameInstant( UTC ) ) );
 	    }
@@ -107,10 +99,10 @@ public class JSONHelper
         }
        
         @Override
-        public ZonedDateTime deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException, JsonProcessingException 
+        public ZonedDateTime deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException
         {
-            final JsonNode node =  (JsonNode) jp.getCodec().readTree(jp);
-            final String text = ((TextNode) node).textValue();
+            final JsonNode node = jp.getCodec().readTree(jp);
+            final String text = node.textValue();
             return ZonedDateTime.parse( text, DATE_FORMATTER );
         }
     }   	

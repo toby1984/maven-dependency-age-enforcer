@@ -15,6 +15,13 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.ArtifactMap;
+import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import org.apache.commons.lang3.Validate;
+import org.apache.logging.log4j.LogManager;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -22,14 +29,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
-
-import org.apache.commons.lang3.Validate;
-import org.apache.logging.log4j.LogManager;
-
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.ArtifactMap;
-import de.codesourcery.versiontracker.common.IVersionStorage;
-import de.codesourcery.versiontracker.common.VersionInfo;
 
 /**
  * A decorator that wraps a {@link IVersionStorage} and 
@@ -77,9 +76,6 @@ public class CachingStorageDecorator implements IVersionStorage
 
     // @GuardedBy( cleanCache )
     private final ArtifactMap<VersionInfo> cleanCache = new ArtifactMap<>();
-    
-    // @GuardedBy( cleanCache )
-    private long forcedFlushes = 0;
     
     // @GuardedBy( cleanCache )
     private long lazyFlushes = 0;
@@ -176,14 +172,14 @@ public class CachingStorageDecorator implements IVersionStorage
                 final long start = System.currentTimeMillis();
                 final CollectingVisitor v = new CollectingVisitor(false);
                 dirtyCache.visitValues( v );
-                delegate.saveOrUpdate( v.list);
+                delegate.saveOrUpdate( v.list );
                 cleanCache.putAll( dirtyCache );
                 dirtyCache.clear();
                 
                 lazyFlushes += v.list.size();
                 if ( LOG.isDebugEnabled() ) {
                     final long elapsed = System.currentTimeMillis() - start;
-                    LOG.debug("flushCache(): Flushed "+v.list.size()+" items in "+elapsed+" ms (lazy: "+lazyFlushes+" / forced: "+forcedFlushes+")");
+                    LOG.debug("flushCache(): Flushed "+v.list.size()+" items in "+elapsed+" ms (total flushed items is now: "+lazyFlushes+")");
                 }
             }
         }
@@ -207,7 +203,7 @@ public class CachingStorageDecorator implements IVersionStorage
         {
             if ( ! initialized ) {
                 cleanCache.clear();
-                delegate.getAllVersions().forEach( v -> 
+                delegate.getAllVersions().forEach( v ->
                 {
                     cleanCache.put( v.artifact.groupId, v.artifact.artifactId, v );
                 });
@@ -223,7 +219,7 @@ public class CachingStorageDecorator implements IVersionStorage
         synchronized(cleanCache) 
         {
             maybeInit();
-            final ArtifactMap<VersionInfo> uniqueSet = new ArtifactMap<VersionInfo>( cleanCache );
+            final ArtifactMap<VersionInfo> uniqueSet = new ArtifactMap<>( cleanCache );
             uniqueSet.putAll( dirtyCache );
             final CollectingVisitor collector = new CollectingVisitor(true);
             uniqueSet.visitValues( collector);
@@ -246,8 +242,7 @@ public class CachingStorageDecorator implements IVersionStorage
     }
 
     @Override
-    public void saveOrUpdate(VersionInfo info) throws IOException 
-    {
+    public void saveOrUpdate(VersionInfo info) {
         synchronized(cleanCache) 
         {
             dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, info );
@@ -255,8 +250,7 @@ public class CachingStorageDecorator implements IVersionStorage
     }    
 
     @Override
-    public void saveOrUpdate(List<VersionInfo> data) throws IOException 
-    {
+    public void saveOrUpdate(List<VersionInfo> data) {
         synchronized(cleanCache) 
         {
             for ( VersionInfo info : data ) 

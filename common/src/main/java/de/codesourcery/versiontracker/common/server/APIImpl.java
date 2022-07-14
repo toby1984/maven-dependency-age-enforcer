@@ -15,18 +15,6 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.io.File;
-import java.util.Map;
-import java.util.Optional;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
-
 import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
@@ -37,6 +25,17 @@ import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
+
+import java.io.File;
+import java.util.Map;
+import java.util.Optional;
 
 public class APIImpl implements AutoCloseable
 {
@@ -58,7 +57,7 @@ public class APIImpl implements AutoCloseable
 
     private String mavenRepository = MavenCentralVersionProvider.DEFAULT_MAVEN_URL;
 
-    public static enum Mode 
+    public enum Mode
     {
         /**
          * Client mode - does not use a background thread to periodically check registered artifacts for newer releases.
@@ -144,7 +143,7 @@ public class APIImpl implements AutoCloseable
         {
             if ( debugMode ) {
                 setLogLevel( Level.DEBUG );
-            } else if ( verboseMode ) {
+            } else {
                 setLogLevel( Level.INFO);
             }
         }
@@ -254,7 +253,7 @@ public class APIImpl implements AutoCloseable
             x.artifact = artifact;
             x.updateAvailable = UpdateAvailable.NOT_FOUND; 
 
-            if ( info != null && info.hasVersions() ) 
+            if ( info.hasVersions() )
             {
                 if ( artifact.hasReleaseVersion() ) {
                     x.latestVersion = info.findLatestReleaseVersion( request.blacklist ).orElse( null );
@@ -284,7 +283,7 @@ public class APIImpl implements AutoCloseable
                     int cmp = Artifact.VERSION_COMPARATOR.compare( artifact.version, x.latestVersion.versionString);
                     if ( cmp >= 0 ) {                       
                         x.updateAvailable = UpdateAvailable.NO;
-                    } else if ( cmp < 0 ) {
+                    } else {
                         x.updateAvailable = UpdateAvailable.YES;                        
                     }                     
                 }
@@ -337,7 +336,6 @@ public class APIImpl implements AutoCloseable
                 }
             }
         } 
-
     }
 
     public void setRegisterShutdownHook(boolean registerShutdownHook)

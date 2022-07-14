@@ -51,12 +51,8 @@ public abstract class APIResponse
             throw new IOException("Unknown server version: '"+serverVersion+"'");
         }
         final APIRequest.Command  cmd = APIRequest.Command.fromString( serializer.readString() );
-        switch(cmd) 
-        {
-            case QUERY:
-                return QueryResponse.doDeserialize( serializer );
-            default:
-                throw new RuntimeException("Internal error,unhandled command "+cmd);
-        }
+        return switch ( cmd ) {
+            case QUERY -> QueryResponse.doDeserialize( serializer );
+        };
     }
 }

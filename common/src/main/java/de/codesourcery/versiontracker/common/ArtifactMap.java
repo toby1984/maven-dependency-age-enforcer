@@ -15,6 +15,8 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import org.apache.commons.lang3.Validate;
+
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -24,15 +26,12 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import org.apache.commons.lang3.Validate;
-
 /**
  * A container that stores values indexed by artifact group ID and artifact ID.
  *
  * <b>This class is NOT thread-safe.</b>
  * 
  * @author tobias.gierke@code-sourcery.de
- * @param T type of values stored in this container
  */
 public class ArtifactMap<T> 
 {
@@ -61,7 +60,8 @@ public class ArtifactMap<T>
     
     public ArtifactMap(ArtifactMap<T> other) 
     {
-        data = new HashMap<>( other.data );
+        this.data = new HashMap<>( other.data );
+        this.size = other.size;
     }
     
     /**
@@ -240,7 +240,7 @@ public class ArtifactMap<T>
         {
             Map<String, T> existing = this.data.get( entry.getKey() );
             if ( existing == null ) {
-                existing = new HashMap<String,T>( entry.getValue().size() );
+                existing = new HashMap<>( entry.getValue().size() );
                 this.data.put( entry.getKey(), existing );
             }
             existing.putAll( entry.getValue() );

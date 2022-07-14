@@ -15,7 +15,13 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.io.IOException;
+import de.codesourcery.versiontracker.common.IVersionProvider;
+import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
+import org.apache.commons.lang3.Validate;
+import org.apache.logging.log4j.LogManager;
+
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -27,14 +33,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.lang3.Validate;
-import org.apache.logging.log4j.LogManager;
-
-import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.IVersionStorage;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
 
 /**
  * Background process that periodically wakes up and initiates 
@@ -199,8 +197,7 @@ public class BackgroundUpdater implements AutoCloseable {
         return false;
     }
     
-    public void doUpdate(VersionInfo info) throws IOException 
-    {
+    public void doUpdate(VersionInfo info) {
         submit( () -> 
         {
             artifactLocks.doWhileLocked( info.artifact, () -> 

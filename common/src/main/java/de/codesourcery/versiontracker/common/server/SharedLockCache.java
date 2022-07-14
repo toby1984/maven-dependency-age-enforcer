@@ -15,10 +15,10 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.util.concurrent.locks.ReentrantLock;
-
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactMap;
+
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Shared component that holds a map of {@link ReentrantLock}s for 
@@ -36,9 +36,9 @@ public class SharedLockCache
     // @GuaredBy( locks )
     private static final ArtifactMap<ReentrantLock> locks = new ArtifactMap<>();
     
-    public static interface ThrowingRunnable 
+    public interface ThrowingRunnable
     {
-        public void run() throws Exception,InterruptedException;
+        void run() throws Exception;
     }
     
     public SharedLockCache() {

@@ -15,15 +15,15 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Responsible for handling persistence of artifact metadata.
@@ -32,7 +32,7 @@ import org.apache.logging.log4j.Logger;
  */
 public interface IVersionStorage extends AutoCloseable
 {
-    static final Logger STORAGE_LOG = LogManager.getLogger(IVersionStorage.class);
+    Logger STORAGE_LOG = LogManager.getLogger(IVersionStorage.class);
     
     /**
      * Retrieves metadata for all artifacts.
@@ -40,7 +40,7 @@ public interface IVersionStorage extends AutoCloseable
      * @return
      * @throws IOException
      */
-    public List<VersionInfo> getAllVersions() throws IOException;
+    List<VersionInfo> getAllVersions() throws IOException;
     
     /**
      * Returns all artifact metadata that either has never been requested at all
@@ -53,7 +53,7 @@ public interface IVersionStorage extends AutoCloseable
      * @return
      * @throws IOException
      */
-    public default List<VersionInfo> getAllStaleVersions(Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now) throws IOException 
+    default List<VersionInfo> getAllStaleVersions(Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now) throws IOException
     {
         final List<VersionInfo> result = new ArrayList<>();
         for ( VersionInfo info : getAllVersions() )
@@ -65,9 +65,9 @@ public interface IVersionStorage extends AutoCloseable
         return result;
     }    
     
-    public static boolean isStaleVersion(VersionInfo info,Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now) 
+    static boolean isStaleVersion(VersionInfo info,Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now)
     {
-        boolean add = false;
+        boolean add;
         if ( info.lastPolledDate() == null ) { // lastSuccessDate AND  lastFailureDate are NULL
             add = true;
             if ( STORAGE_LOG.isDebugEnabled() ) {
@@ -113,7 +113,7 @@ public interface IVersionStorage extends AutoCloseable
      * @throws IOException
      * @see #saveOrUpdate(List)
      */
-    public void saveOrUpdate(VersionInfo info) throws IOException;
+    void saveOrUpdate(VersionInfo info) throws IOException;
     
     /**
      * Tries to load metadata for a given artifact.
@@ -122,12 +122,12 @@ public interface IVersionStorage extends AutoCloseable
      * @return
      * @throws IOException
      */
-    public default Optional<VersionInfo> getVersionInfo(Artifact artifact) throws IOException
+    default Optional<VersionInfo> getVersionInfo(Artifact artifact) throws IOException
     {
         return getAllVersions().stream().filter( item -> item.artifact.matchesExcludingVersion( artifact ) ).findFirst();
     }    
     
-    public default void updateLastRequestDate(Artifact artifact, ZonedDateTime date) throws IOException 
+    default void updateLastRequestDate(Artifact artifact, ZonedDateTime date) throws IOException
     {
         final Optional<VersionInfo> existing = getVersionInfo(artifact);
         if ( existing.isPresent() ) {
@@ -144,5 +144,5 @@ public interface IVersionStorage extends AutoCloseable
      * 
      * @see #saveOrUpdate(VersionInfo)
      */
-    public void saveOrUpdate(List<VersionInfo> data) throws IOException;    
+    void saveOrUpdate(List<VersionInfo> data) throws IOException;
 }

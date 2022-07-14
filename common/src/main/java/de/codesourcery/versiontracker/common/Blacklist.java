@@ -15,6 +15,11 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,13 +29,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Blacklist implements IBlacklistCheck 
 {
@@ -43,19 +41,17 @@ public class Blacklist implements IBlacklistCheck
         
         public final String text;
         
-        private VersionMatcher(String text) {
+        VersionMatcher(String text) {
             this.text = text;
         }
         
         public static VersionMatcher fromString(String s) 
         {
-            switch( s.toLowerCase() ) 
-            {
-                case "exact":  return VersionMatcher.EXACT;
-                case "regex":  return VersionMatcher.REGEX;
-                default:
-                    throw new IllegalArgumentException("Unsupported version matcher type: '"+s+"'");
-            }
+            return switch ( s.toLowerCase() ) {
+                case "exact" -> VersionMatcher.EXACT;
+                case "regex" -> VersionMatcher.REGEX;
+                default -> throw new IllegalArgumentException( "Unsupported version matcher type: '" + s + "'" );
+            };
         }
     }
     
@@ -68,9 +64,8 @@ public class Blacklist implements IBlacklistCheck
     @Override
     public boolean equals(Object other) 
     {
-    	if ( other instanceof Blacklist) {
-    		Blacklist o = (Blacklist) other;
-    		if ( ! equals(this.globalIgnores, o.globalIgnores ) ) {
+    	if ( other instanceof Blacklist o ) {
+            if ( ! equals(this.globalIgnores, o.globalIgnores ) ) {
     			return false;
     		}
     		if ( ! equals(this.groupIdIgnores,o.groupIdIgnores) ) {
@@ -270,7 +265,8 @@ public class Blacklist implements IBlacklistCheck
             this.pattern = pattern;
             this.type = type;
             if ( type == VersionMatcher.REGEX ) {
-                Pattern.compile(pattern);
+                @SuppressWarnings("unused") // validate pattern has valid syntax
+                final Pattern tmp = Pattern.compile( pattern );
             } 
         }
         
@@ -331,11 +327,7 @@ public class Blacklist implements IBlacklistCheck
     public void addIgnoredVersion(String groupId,String pattern,VersionMatcher matcher) 
     {
         Validate.notBlank( groupId , "groupId must not be NULL or blank");
-        List<VersionStringMatcher> existing = groupIdIgnores.get( groupId );
-        if ( existing == null ) {
-            existing = new ArrayList<>();
-            groupIdIgnores.put( groupId, existing );
-        }
+        List<VersionStringMatcher> existing = groupIdIgnores.computeIfAbsent( groupId, k -> new ArrayList<>() );
         VersionStringMatcher newMatcher = VersionStringMatcher.createMatcher(pattern,matcher);
         if ( ! existing.contains( newMatcher ) ) {
             existing.add( newMatcher);
@@ -356,16 +348,8 @@ public class Blacklist implements IBlacklistCheck
         Validate.notBlank( groupId , "groupId must not be NULL or blank");
         Validate.notBlank( artifactId , "artifactId must not be NULL or blank");
 
-        Map<String, List<VersionStringMatcher>> existing = artifactIgnores.get( groupId );
-        if ( existing == null ) {
-            existing = new HashMap<>();
-            artifactIgnores.put( groupId, existing );
-        }
-        List<VersionStringMatcher> existingSet = existing.get(artifactId);
-        if ( existingSet == null ) {
-            existingSet = new ArrayList<>();
-            existing.put( artifactId, existingSet );
-        }
+        Map<String, List<VersionStringMatcher>> existing = artifactIgnores.computeIfAbsent( groupId, k -> new HashMap<>() );
+        List<VersionStringMatcher> existingSet = existing.computeIfAbsent( artifactId, k -> new ArrayList<>() );
         final VersionStringMatcher newMatcher = VersionStringMatcher.createMatcher(pattern,matcher );
         if ( ! existingSet.contains( newMatcher ) ) {
             existingSet.add( newMatcher );

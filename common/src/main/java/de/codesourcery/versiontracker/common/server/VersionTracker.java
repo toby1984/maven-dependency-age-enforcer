@@ -15,7 +15,14 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import java.io.IOException;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.IVersionProvider;
+import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import org.apache.commons.lang3.Validate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -28,16 +35,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-
-import org.apache.commons.lang3.Validate;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.IVersionStorage;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
 
 /**
  * This class is responsible for requesting and periodically refreshing artifact metadata as well
@@ -115,7 +112,7 @@ public class VersionTracker implements AutoCloseable
                     if( ! result.isPresent() || isOutdated.test( result ) ) 
                     {
                         LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
-                        updateArtifact(artifact, result, resultMap, stopLatch, now, isOutdated);                    
+                        updateArtifact(artifact, result, resultMap, stopLatch, now );
                     } else {
                         LOG.debug("getVersionInfo(): [from storage] "+result.get());
 
@@ -140,9 +137,7 @@ public class VersionTracker implements AutoCloseable
             Optional<VersionInfo> existing,
             Map<Artifact, VersionInfo> resultMap,
             DynamicLatch stopLatch, 
-            ZonedDateTime now, 
-            Predicate<Optional<VersionInfo>> isOutdated) throws IOException 
-    {
+            ZonedDateTime now) {
         stopLatch.inc();
         boolean submitted = false;
         try 

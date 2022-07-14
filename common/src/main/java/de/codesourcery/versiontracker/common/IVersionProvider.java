@@ -24,7 +24,7 @@ import java.io.IOException;
  */
 public interface IVersionProvider
 {
-    public static enum UpdateResult 
+    enum UpdateResult
     {
         /**
          * Artifact was not found.
@@ -58,5 +58,5 @@ public interface IVersionProvider
      * @return 
      * @throws IOException 
      */
-    public UpdateResult update(VersionInfo info) throws IOException;
+    UpdateResult update(VersionInfo info) throws IOException;
 }

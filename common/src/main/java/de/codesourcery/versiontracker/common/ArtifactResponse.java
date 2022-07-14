@@ -30,7 +30,7 @@ public class ArtifactResponse
      *
      * @author tobias.gierke@code-sourcery.de
      */
-	public static enum UpdateAvailable 
+	public enum UpdateAvailable
 	{
 	    /**
 	     * A later version of the queried artifact is available.
@@ -53,7 +53,7 @@ public class ArtifactResponse
 		
 		public final String text;
 
-		private UpdateAvailable(String text) {
+		UpdateAvailable(String text) {
 			this.text = text;
 		}
 		
@@ -75,8 +75,7 @@ public class ArtifactResponse
 
 	@Override
 	public boolean equals(Object obj) {
-		if ( obj instanceof ArtifactResponse) {
-			ArtifactResponse o = (ArtifactResponse) obj;
+		if ( obj instanceof ArtifactResponse o ) {
 			if ( ! Objects.equals(this.artifact,o.artifact) ) {
 				return false;
 			}

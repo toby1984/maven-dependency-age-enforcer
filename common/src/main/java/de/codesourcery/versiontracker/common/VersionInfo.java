@@ -15,18 +15,17 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Artifact metadata.
@@ -115,48 +114,6 @@ public class VersionInfo
     	}
     }
     
-    public boolean hasSameFields(VersionInfo other) {
-    	if ( this.artifact == null || other.artifact == null ) {
-    		if ( this.artifact != other.artifact ) {
-    			return false;
-    		}
-    	} else {
-    		if ( ! this.artifact.equals( other.artifact ) ) {
-    			return false;
-    		}
-    	}
-    	if ( ! Objects.equals( this.lastRequestDate , other.lastRequestDate ) ) {
-    		return false;
-    	}
-    	if ( ! Objects.equals( this.creationDate , other.creationDate ) ) {
-    		return false;
-    	}
-    	if ( ! Objects.equals( this.lastSuccessDate , other.lastSuccessDate ) ) {
-    		return false;
-    	}
-    	if ( ! Objects.equals( this.lastFailureDate , other.lastFailureDate ) ) {
-    		return false;
-    	} 
-    	if ( ! Objects.equals( this.lastRepositoryUpdate , other.lastRepositoryUpdate ) ) {
-    		return false;
-    	}     	
-    	if ( ! Version.sameFields( this.latestReleaseVersion ,  other.latestReleaseVersion ) ) {
-    		return false;
-    	}
-    	if ( ! Version.sameFields( this.latestSnapshotVersion ,  other.latestSnapshotVersion ) ) {
-    		return false;
-    	}
-    	if ( this.versions.size() != other.versions.size() ) {
-    		return false;
-    	}
-    	for ( Version v : this.versions ) {
-    		if ( other.versions.stream().noneMatch( x -> Version.sameFields( x , v ) ) ) {
-    			return false;
-    		}
-    	}
-    	return true;
-    }
-    
     public static VersionInfo deserialize(BinarySerializer serializer) throws IOException {
 
     	final VersionInfo  result = new VersionInfo();
@@ -204,8 +161,8 @@ public class VersionInfo
     		if ( versionPredicate.test( v.versionString ) ) 
     		{ 
     			if ( ! isBlacklisted.test( v ) ) {
-    				if ( ! latest.isPresent() || versionComparator.compare(v.versionString,latest.get().versionString) > 0 ) {
-    					latest = Optional.ofNullable( v );
+    				if ( latest.isEmpty() || versionComparator.compare(v.versionString,latest.get().versionString) > 0 ) {
+    					latest = Optional.of( v );
     				}
     			} else {
     				LOG.debug("findLatestVersion(): [BLACKLISTED] "+artifact.groupId+":"+artifact.artifactId+":"+v.versionString);
@@ -226,27 +183,18 @@ public class VersionInfo
         this.versions.add( v );
     }
     
-    public boolean hasSameValues(VersionInfo other) 
-    {
-        return Objects.equals(this.artifact,other.artifact) &&
-                Objects.equals( this.lastRequestDate, other.lastRequestDate ) &&
-                Objects.equals( this.creationDate, other.creationDate ) &&
-                Objects.equals( this.lastSuccessDate, other.lastSuccessDate ) &&
-                Objects.equals( this.lastFailureDate, other.lastFailureDate ) &&
-                Objects.equals( this.latestReleaseVersion, other.latestReleaseVersion ) &&
-                Objects.equals( this.latestSnapshotVersion, other.latestSnapshotVersion ) &&
-                Objects.equals( this.lastRepositoryUpdate, other.lastRepositoryUpdate ) &&
-                Objects.equals( this.versions, other.versions );
-    }
-    
     public VersionInfo(VersionInfo other)
     {
-       this.artifact = other.artifact == null ? null : other.artifact.copy();
+        //noinspection IncompleteCopyConstructor
+        this.artifact = other.artifact == null ? null : other.artifact.copy();
        this.creationDate = other.creationDate;
        this.lastSuccessDate = other.lastSuccessDate;
        this.lastFailureDate = other.lastFailureDate;
-       this.versions = other.versions.stream().map( x->x.copy()).collect( Collectors.toCollection( ArrayList::new ) );
+        //noinspection IncompleteCopyConstructor
+       this.versions = other.versions.stream().map( Version::copy ).collect( Collectors.toCollection( ArrayList::new ) );
+        //noinspection IncompleteCopyConstructor
        this.latestReleaseVersion = other.latestReleaseVersion == null ? null : other.latestReleaseVersion.copy();
+        //noinspection IncompleteCopyConstructor
        this.latestSnapshotVersion = other.latestSnapshotVersion == null ? null : other.latestSnapshotVersion.copy();
        this.lastRepositoryUpdate  = other.lastRepositoryUpdate;
        this.lastRequestDate = other.lastRequestDate;
@@ -262,14 +210,6 @@ public class VersionInfo
         return Optional.empty();
     }
     
-    public boolean hasVersion(String versionNumber) {
-        for ( Version v : versions ) {
-            if ( v.versionString.equals( versionNumber ) ) {
-                return true;
-            }
-        }
-        return false;
-    }
     public boolean hasVersionWithReleaseDate(String versionNumber) {
         for ( Version v : versions ) {
             if ( v.versionString.equals( versionNumber ) ) {
@@ -279,11 +219,7 @@ public class VersionInfo
         return false;
     }
     
-    public boolean isNewItem() {
-        return lastSuccessDate == null && lastFailureDate == null;
-    }
-
-    public ZonedDateTime lastPolledDate() 
+    public ZonedDateTime lastPolledDate()
     {
         if ( lastSuccessDate != null && lastFailureDate == null ) {
             return lastSuccessDate;

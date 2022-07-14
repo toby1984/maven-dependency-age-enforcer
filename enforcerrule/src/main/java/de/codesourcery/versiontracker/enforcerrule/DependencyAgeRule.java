@@ -15,6 +15,30 @@
  */
 package de.codesourcery.versiontracker.enforcerrule;
 
+import de.codesourcery.versiontracker.client.IAPIClient;
+import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.client.LocalAPIClient;
+import de.codesourcery.versiontracker.client.RemoteApiClient;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.ArtifactResponse;
+import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
+import de.codesourcery.versiontracker.common.Blacklist;
+import de.codesourcery.versiontracker.common.Blacklist.VersionMatcher;
+import de.codesourcery.versiontracker.xsd.IgnoreVersion;
+import de.codesourcery.versiontracker.xsd.Rule;
+import de.codesourcery.versiontracker.xsd.Ruleset;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.apache.maven.enforcer.rule.api.EnforcerRule;
+import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
+import org.apache.maven.enforcer.rule.api.EnforcerRuleHelper;
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Unmarshaller;
 import java.io.File;
 import java.text.MessageFormat;
 import java.text.ParseException;
@@ -32,32 +56,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.time.DurationFormatUtils;
-import org.apache.maven.enforcer.rule.api.EnforcerRule;
-import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
-import org.apache.maven.enforcer.rule.api.EnforcerRuleHelper;
-import org.apache.maven.plugin.logging.Log;
-import org.apache.maven.project.MavenProject;
-import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
-
-import de.codesourcery.versiontracker.client.IAPIClient;
-import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
-import de.codesourcery.versiontracker.client.LocalAPIClient;
-import de.codesourcery.versiontracker.client.RemoteApiClient;
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.ArtifactResponse;
-import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
-import de.codesourcery.versiontracker.common.Blacklist;
-import de.codesourcery.versiontracker.common.Blacklist.VersionMatcher;
-import de.codesourcery.versiontracker.xsd.IgnoreVersion;
-import de.codesourcery.versiontracker.xsd.Rule;
-import de.codesourcery.versiontracker.xsd.Ruleset;
 
 /**
  * A custom rule for the 
@@ -81,7 +79,7 @@ public class DependencyAgeRule implements EnforcerRule
     // @GuardedBy(CLIENTS)
     private static final Map<String,RemoteApiClient> CLIENTS = new HashMap<>();
     
-    private static Object LOCAL_API_CLIENT_LOCK = new Object();
+    private static final Object LOCAL_API_CLIENT_LOCK = new Object();
     
     // @GuardedBy(LOCAL_API_CLIENT_LOCK)
     private static LocalAPIClient LOCAL_API_CLIENT;
@@ -113,6 +111,7 @@ public class DependencyAgeRule implements EnforcerRule
      * 
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */
+    @SuppressWarnings("unused")
     private String warnAge;
 
     /**
@@ -122,22 +121,26 @@ public class DependencyAgeRule implements EnforcerRule
      * is older than <code>maxAge</code>.
      * 
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
-     */    
+     */
+    @SuppressWarnings("unused")
     private String maxAge;
 
     /**
      * API endpoint to contact for fetching artifact version metadata.  
      */
+    @SuppressWarnings("unused")
     private String apiEndpoint;
 
     /**
      * Enable verbose output.
      */
+    @SuppressWarnings("unused")
     private boolean verbose;
 
     /**
      * Enable debug (very verbose) output.
      */
+    @SuppressWarnings("unused")
     private boolean debug;
 
     /**
@@ -156,9 +159,10 @@ public class DependencyAgeRule implements EnforcerRule
      * Whether to look for the rules XML file in parent directories
      * if the file is not found in the specified location.
      */
+    @SuppressWarnings("unused")
     private boolean searchRulesInParentDirectories;
 
-    private static enum AgeUnit 
+    private enum AgeUnit
     {
         DAYS,WEEKS,MONTHS,YEARS;
 
@@ -183,57 +187,34 @@ public class DependencyAgeRule implements EnforcerRule
         }
     }
 
-    private static final class Age {
+    private record Age(int value, AgeUnit unit) {
 
-        public final int value;
-        public final AgeUnit unit;
-
-        public Age(int value, AgeUnit unit)
-        {
-            this.value = value;
-            this.unit = unit;
-        }
-
-        public Period toPeriod() 
-        {
-            switch(unit) {
-                case DAYS:
-                    return Period.ofDays( value );
-                case MONTHS:
-                    return Period.ofMonths( value );
-                case WEEKS:
-                    return Period.ofWeeks( value );
-                case YEARS:
-                    return Period.ofYears( value );
+        public Period toPeriod() {
+                return switch ( unit ) {
+                    case DAYS -> Period.ofDays( value );
+                    case MONTHS -> Period.ofMonths( value );
+                    case WEEKS -> Period.ofWeeks( value );
+                    case YEARS -> Period.ofYears( value );
+                };
             }
-            throw new RuntimeException("Unreachable code reached");
-        }
 
-        @Override
-        public String toString()
-        {
-            final boolean plural = value > 1;
-            switch( unit ) {
-                case DAYS:
-                    return value+" "+(plural?"days":"day");
-                case MONTHS:
-                    return value+" "+(plural?"months":"month");
-                case WEEKS:
-                    return value+" "+(plural?"weeks":"week");
-                case YEARS:
-                    return value+" "+(plural?"years":"year");                    
-                default:
-                    throw new RuntimeException("Internal error, unhandled switch/case: "+unit);                    
+            @Override
+            public String toString() {
+                final boolean plural = value > 1;
+                return switch ( unit ) {
+                    case DAYS -> value + " " + (plural ? "days" : "day");
+                    case MONTHS -> value + " " + (plural ? "months" : "month");
+                    case WEEKS -> value + " " + (plural ? "weeks" : "week");
+                    case YEARS -> value + " " + (plural ? "years" : "year");
+                };
+            }
+
+            public boolean isExceeded(Duration duration) {
+                final ZonedDateTime now = ZonedDateTime.now();
+                final Duration thisDuration = Duration.between( now, now.plus( toPeriod() ) );
+                return duration.compareTo( thisDuration ) > 0;
             }
         }
-
-        public boolean isExceeded(Duration duration)
-        {
-            final ZonedDateTime now = ZonedDateTime.now();
-            final Duration thisDuration = Duration.between( now , now.plus( toPeriod() ) );
-            return duration.compareTo( thisDuration ) > 0;
-        }
-    }
     
     private static <T> T eval(String expression,EnforcerRuleHelper helper,Log log) throws EnforcerRuleException {
 
@@ -306,10 +287,10 @@ public class DependencyAgeRule implements EnforcerRule
         {
             synchronized( GLOBAL_LOCK ) 
             {
-                doExecute(helper);
+                doExecute();
             }
         } else {
-            doExecute(helper);
+            doExecute();
         }
     }
     
@@ -345,7 +326,7 @@ public class DependencyAgeRule implements EnforcerRule
         }        
     }    
 
-    private void doExecute(EnforcerRuleHelper helper) throws EnforcerRuleException
+    private void doExecute() throws EnforcerRuleException
     {
         final Set<org.apache.maven.artifact.Artifact> mavenArtifacts = project.getDependencyArtifacts();
 
@@ -563,7 +544,7 @@ public class DependencyAgeRule implements EnforcerRule
                 log.info("Rules file "+rulesFile.getAbsolutePath()+" does not exist, searching parent folders");
             }
             String fileName = rulesFile.getName();
-            File folder = getParent( rulesFile.getParentFile() );
+            File folder;
             do 
             {
                 folder = getParent( rulesFile.getParentFile() );                    
@@ -589,7 +570,7 @@ public class DependencyAgeRule implements EnforcerRule
         final Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
         final Ruleset result = (Ruleset) jaxbUnmarshaller.unmarshal(rulesFile);
         assertSupportedComparisonMethod(result.getComparisonMethod());
-        List<Rule> rules = null;
+        List<Rule> rules;
         rules = result.getRules() != null ? result.getRules().getRule() : null;
         if ( rules != null ) {
             for ( Rule r : rules ) 
