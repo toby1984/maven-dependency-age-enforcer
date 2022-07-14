@@ -2,7 +2,7 @@
 
 # What's this?
 
-A custom rule implementation for the maven-enforcer plugin that enforces 3rd party dependencies used by a project to not have been released longer than X days/weeks/months/years after the most recent version. Certain artifacts/group IDs/version numbers can be excluded using the same configuration that the ![maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
+A custom rule implementation for the maven-enforcer plugin that enforces 3rd party dependencies used by a project to not have been released longer than X days/weeks/months/years after the most recent version. Certain artifacts/group IDs/version numbers can be excluded using the same configuration that the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
 
 Artifact age information can either be retrieved & stored locally on client maches or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this rule as it otherwise creates a lot of unnecessary load on Maven Central).
 
