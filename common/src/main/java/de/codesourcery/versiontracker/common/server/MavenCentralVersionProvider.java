@@ -57,6 +57,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -162,15 +163,15 @@ public class MavenCentralVersionProvider implements IVersionProvider
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
-        final UpdateResult result = new MavenCentralVersionProvider().update( data );
+        final UpdateResult result = new MavenCentralVersionProvider().update( data, Collections.emptySet() );
         long end = System.currentTimeMillis();
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);
         System.out.println("GOT: "+data);
     }
-    
+
     @Override
-    public UpdateResult update(VersionInfo info) throws IOException
+    public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException
     {
         final Artifact artifact = info.artifact;
         final URL url = new URL( serverBase+metaDataPath( artifact ) );
@@ -200,8 +201,11 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
                 // gather version numbers for which we do not know the release date yet
                 final Set<String> versionsToRequest = info.versions.stream()
-                    .filter( v -> ! v.hasReleaseDate() )
+                    .filter( v -> ! v.hasReleaseDate() && v.releaseDateRequested )
                     .map( x -> x.versionString ).collect( Collectors.toCollection( HashSet::new ) );
+
+                additionalVersionsToFetchReleaseDatesFor.stream()
+                    .filter( x -> info.getDetails( x ).isPresent() ).forEach( versionsToRequest::add );
 
                 if ( StringUtils.isNotBlank(artifact.version) )
                 {
@@ -209,7 +213,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     {
                         info.lastFailureDate = ZonedDateTime.now();
                         LOG.error("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
-                        return UpdateResult.ARTIFACT_NOT_FOUND;
+                        return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
                     }
                 }
 
@@ -220,10 +224,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 LOG.debug("update(): latest snapshot (metadata) = "+latestSnapshotVersion);
                 LOG.debug("update(): latest release  (metadata) = "+latestReleaseVersion);
 
-                if ( StringUtils.isNotBlank(latestSnapshotVersion) && info.hasVersionWithReleaseDate(latestSnapshotVersion) ) {
+                if ( StringUtils.isNotBlank(latestSnapshotVersion) ) {
                     versionsToRequest.add(latestSnapshotVersion);
                 }
-                if ( StringUtils.isNotBlank(latestReleaseVersion) && info.hasVersionWithReleaseDate(latestReleaseVersion) ) {
+                if ( StringUtils.isNotBlank(latestReleaseVersion) ) {
                     versionsToRequest.add(latestReleaseVersion);
                 }
 
@@ -261,14 +265,17 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     final Map<String,Version> result = getReleaseDates(artifact,versionsToRequest);
                     for ( Map.Entry<String,Version> entry : result.entrySet() )
                     {
-                        Optional<Version> existing = info.getDetails( entry.getKey() );
+                        final Optional<Version> existing = info.getDetails( entry.getKey() );
                         if ( existing.isPresent() )
                         {
                             existing.get().releaseDate = entry.getValue().releaseDate;
+                            existing.get().releaseDateRequested = true;
                             LOG.debug("update(): Updated existing version to "+existing.get());
                         } else {
-                            info.versions.add( entry.getValue() );
-                            LOG.debug("update(): Adding NEW version "+entry.getValue());
+                            final Version newVersion = entry.getValue();
+                            newVersion.releaseDateRequested = true;
+                            info.versions.add( newVersion );
+                            LOG.debug("update(): Adding NEW version "+ newVersion );
                         }
                     }
                 }
@@ -289,7 +296,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             info.lastFailureDate = ZonedDateTime.now();
             if ( e instanceof FileNotFoundException) {
                 LOG.warn("getLatestVersion(): Failed to find artifact on server: "+info);
-                return UpdateResult.ARTIFACT_NOT_FOUND;
+                return UpdateResult.ARTIFACT_UNKNOWN;
             }
             LOG.error("getLatestVersion(): Error while retrieving artifact metadata from server: "+info+": "+e.getMessage(), LOG.isDebugEnabled() ? e : null);
             throw new IOException(e);
@@ -557,6 +564,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     static String getPathToFolder(Artifact artifact,String versionNumber) {
-        return  artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/"+versionNumber;
+        return  artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/"+versionNumber+"/";
     }
 }

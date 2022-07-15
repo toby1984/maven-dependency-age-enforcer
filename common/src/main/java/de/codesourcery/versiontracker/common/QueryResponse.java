@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import de.codesourcery.versiontracker.common.APIRequest.Command;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class QueryResponse extends APIResponse
     {
         serializer.writeInt( artifacts.size() );
         for ( ArtifactResponse resp : artifacts ) {
-            resp.serialize(serializer);
+            resp.serialize(serializer, SerializationFormat.V1 );
         }
     }
 
@@ -66,7 +67,7 @@ public class QueryResponse extends APIResponse
         final QueryResponse result = new QueryResponse();
         for ( int count = serializer.readInt() ; count > 0 ; count-- ) 
         {
-            result.artifacts.add( ArtifactResponse.deserialize( serializer ) );
+            result.artifacts.add( ArtifactResponse.deserialize( serializer, SerializationFormat.V1 ) );
         }
         return result;
     }

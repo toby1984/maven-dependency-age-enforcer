@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -109,7 +110,7 @@ public class VersionTracker implements AutoCloseable
                         LOG.debug("getVersionInfo(): Looking for "+artifact+" in version storage");
                     }
                     final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-                    if( ! result.isPresent() || isOutdated.test( result ) ) 
+                    if( result.isEmpty() || isOutdated.test( result ) )
                     {
                         LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
                         updateArtifact(artifact, result, resultMap, stopLatch, now );
@@ -137,7 +138,8 @@ public class VersionTracker implements AutoCloseable
             Optional<VersionInfo> existing,
             Map<Artifact, VersionInfo> resultMap,
             DynamicLatch stopLatch, 
-            ZonedDateTime now) {
+            ZonedDateTime now)
+    {
         stopLatch.inc();
         boolean submitted = false;
         try 
@@ -183,7 +185,7 @@ public class VersionTracker implements AutoCloseable
 
                         try 
                         {
-                            versionProvider.update( newInfo );
+                            versionProvider.update( newInfo, Set.of( artifact.version ) );
                         }
                         catch (Exception e) 
                         {

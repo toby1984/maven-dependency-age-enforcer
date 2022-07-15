@@ -293,6 +293,7 @@ public class APIServlet extends HttpServlet
         };
     }
 
+    // TODO: Code almost duplicated in APIImpl#processQuery(QueryRequest) - remove duplication !
     private QueryResponse processQuery(QueryRequest request) throws InterruptedException
     {
         QueryResponse result = new QueryResponse();

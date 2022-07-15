@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -86,7 +87,7 @@ public class VersionInfo
     public VersionInfo() {
     }
     
-    public void serialize(BinarySerializer serializer) throws IOException 
+    public void serialize(BinarySerializer serializer, SerializationFormat format) throws IOException
     {
     	artifact.serialize( serializer );
     	serializer.writeZonedDateTime( lastRequestDate );
@@ -96,27 +97,26 @@ public class VersionInfo
     	serializer.writeZonedDateTime( lastRepositoryUpdate );
     	if ( latestReleaseVersion != null ) {
     		serializer.writeBoolean( true);
-    		latestReleaseVersion.serialize( serializer );
-    		
+    		latestReleaseVersion.serialize( serializer, format );
     	} else {
     		serializer.writeBoolean( false );
     	}
     	
     	if ( latestSnapshotVersion != null ) {
     		serializer.writeBoolean( true);
-    		latestSnapshotVersion.serialize( serializer );
+    		latestSnapshotVersion.serialize( serializer, format );
     		
     	} else {
     		serializer.writeBoolean( false );
     	}
-    	
     	serializer.writeInt( versions.size() );
+
     	for ( Version v : versions ) {
-    		v.serialize( serializer );
-    	}
+            v.serialize( serializer, format);
+        }
     }
-    
-    public static VersionInfo deserialize(BinarySerializer serializer) throws IOException {
+
+    public static VersionInfo deserialize(BinarySerializer serializer, SerializationFormat fileFormatVersion) throws IOException {
 
     	final VersionInfo  result = new VersionInfo();
     	result.artifact = Artifact.deserialize( serializer );
@@ -126,17 +126,16 @@ public class VersionInfo
     	result.lastFailureDate = serializer.readZonedDateTime();
     	result.lastRepositoryUpdate = serializer.readZonedDateTime();
     	if ( serializer.readBoolean() ) {
-    		result.latestReleaseVersion = Version.deserialize( serializer );
+    		result.latestReleaseVersion = Version.deserialize( serializer, fileFormatVersion);
     	}
-    	
     	if ( serializer.readBoolean() ) {
-    		result.latestSnapshotVersion = Version.deserialize( serializer );
+    		result.latestSnapshotVersion = Version.deserialize( serializer, fileFormatVersion);
     	}
     	final int size = serializer.readInt();
     	result.versions = new ArrayList<>(size);
     	for ( int i = 0 ; i < size ; i++) {
-    		result.versions.add( Version.deserialize( serializer ) );
-    	}
+            result.versions.add( Version.deserialize( serializer, fileFormatVersion) );
+        }
     	return result;
     }
     
@@ -176,6 +175,7 @@ public class VersionInfo
     
     public void maybeAddVersion( Version v ) 
     {
+        // TODO: O(n) performance
         for ( Version existing : versions ) 
         {
             if ( existing.versionString.equals( v.versionString ) ) {
@@ -204,6 +204,7 @@ public class VersionInfo
     
     public Optional<Version> getDetails(String versionNumber) 
     {
+        // TODO: O(n) performance
         for ( Version v : versions ) {
             if ( v.versionString.equals( versionNumber ) ) {
                 return Optional.of(v);
@@ -211,8 +212,10 @@ public class VersionInfo
         }
         return Optional.empty();
     }
-    
-    public boolean hasVersionWithReleaseDate(String versionNumber) {
+
+    public boolean hasVersionWithReleaseDate(String versionNumber)
+    {
+        // TODO: O(n) performance
         for ( Version v : versions ) {
             if ( v.versionString.equals( versionNumber ) ) {
                 return v.hasReleaseDate();

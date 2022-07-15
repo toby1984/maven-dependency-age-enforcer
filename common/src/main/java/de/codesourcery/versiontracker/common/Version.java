@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
@@ -30,6 +31,11 @@ public class Version
 {
     public String versionString;
     public ZonedDateTime releaseDate;
+
+    // indicates that we've actually attempted to
+    // scrape the release date for this version from the Maven central web page
+    // at least once
+    public boolean releaseDateRequested;
     
     public Version() {
     }
@@ -42,20 +48,31 @@ public class Version
     public static Version of(String s) {
         return new Version( s );
     }
-    public void serialize(BinarySerializer serializer) throws IOException 
+
+    public void serialize(BinarySerializer serializer, SerializationFormat fileFormat) throws IOException
     {
         serializer.writeString( versionString );
         serializer.writeZonedDateTime(releaseDate);
+        switch( fileFormat ) {
+            case V1 -> {
+                // do nothing
+            }
+            default -> serializer.writeBoolean( releaseDateRequested );
+        }
     }
-    
-    public static Version deserialize(BinarySerializer serializer) throws IOException {
+
+    public static Version deserialize(BinarySerializer serializer, SerializationFormat fileFormatVersion) throws IOException {
         final Version result = new Version();
         result.versionString = serializer.readString();
         result.releaseDate = serializer.readZonedDateTime();
+        switch( fileFormatVersion ) {
+            case V1 -> result.releaseDateRequested = result.releaseDate != null;
+            case V2 -> result.releaseDateRequested = serializer.readBoolean();
+        };
         return result;
     }
-    
-    public static boolean sameFields(Version a,Version b) 
+
+    public static boolean sameFields(Version a,Version b)
     {
     	if ( a == null ||b == null ) {
     		return a == b;
@@ -66,6 +83,10 @@ public class Version
     	if ( a.releaseDate == null || b.releaseDate == null ) {
     		return a.releaseDate == b.releaseDate;
     	}
+        // 'releaseDateRequested' field is INTENTIONALLY not checked
+        // because this field is actually technical information that
+        // is only used internally
+        // TODO: Feels dirty ... maybe put 'releaseDateRequested' somewhere else or remove it again ?
     	return a.releaseDate.toInstant().equals( b.releaseDate.toInstant() );
     }
     
@@ -79,6 +100,7 @@ public class Version
     {
         this.versionString = other.versionString;
         this.releaseDate = other.releaseDate;
+        this.releaseDateRequested = other.releaseDateRequested;
     }
     
     public boolean hasReleaseDate() {

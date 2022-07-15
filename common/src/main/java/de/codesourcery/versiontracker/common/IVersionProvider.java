@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Responsible for retrieving artifact metadata and applying it to a {@link VersionInfo} instance.
@@ -27,9 +28,13 @@ public interface IVersionProvider
     enum UpdateResult
     {
         /**
-         * Artifact was not found.
+         * No artifact with the given groupID and artifactID could be found.
          */
-        ARTIFACT_NOT_FOUND,
+        ARTIFACT_UNKNOWN,
+        /**
+         * Artifact was found but the requested version does not exist.
+         */
+        ARTIFACT_VERSION_NOT_FOUND,
         /**
          * Nothing changed on the server.
          */
@@ -55,9 +60,10 @@ public interface IVersionProvider
      * This method must be <b>thread-safe</b>.
      * 
      * @param info
+     * @param additionalVersionsToFetchReleaseDatesFor versions on top of latest snapshot/latest release version for which
+     *                                                 the release date should be scraped
      * @return 
      * @throws IOException 
      */
-    // TODO: Extend method signature to restrict the (very slow) fetching of release dates to specific version numbers only.
-    UpdateResult update(VersionInfo info) throws IOException;
+    UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException;
 }

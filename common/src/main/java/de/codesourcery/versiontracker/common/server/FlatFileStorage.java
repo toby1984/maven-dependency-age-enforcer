@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -55,7 +56,13 @@ public class FlatFileStorage implements IVersionStorage
     
 	private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
-	private static final long MAGIC = 0xdeadbeef;
+	// magic: file format v1
+	private static final long MAGIC_V1 = 0xdeadbeef;
+
+	// magic: file format v2
+	private static final long MAGIC_V2 = 0xdeadface;
+
+	private static final SerializationFormat CURRENT_FILE_FORMAT = SerializationFormat.V2;
 
 	private static final ObjectMapper mapper = JSONHelper.newObjectMapper();
 
@@ -90,21 +97,43 @@ public class FlatFileStorage implements IVersionStorage
 		}
 
 		final List<VersionInfo>  result;
-
-		if ( protocol == Protocol.BINARY ) 
+		if ( protocol == Protocol.BINARY )
 		{
 			try ( BufferedInputStream in = new BufferedInputStream( new FileInputStream(file) ) )
 			{
 				try ( final BinarySerializer serializer = new BinarySerializer(BinarySerializer.IBuffer.wrap(in ) ) ) 
 				{
 					long magic = serializer.readLong();
-					if ( magic != MAGIC ) {
+					if ( magic == MAGIC_V1 ) {
+						final int count = serializer.readInt();
+						result = new ArrayList<>(count);
+						for ( int i = 0 ; i < count ; i++ ) {
+							result.add( VersionInfo.deserialize( serializer, SerializationFormat.V1 ) );
+						}
+					} else if ( magic == MAGIC_V2 ) {
+						final short version = serializer.readShort();
+						if ( version != CURRENT_FILE_FORMAT.version ) {
+							throw new IOException( "Unsupported file format version: " + version+", expected "+ CURRENT_FILE_FORMAT );
+						}
+						byte tag;
+						result = new ArrayList<>();
+						while ( ( tag = serializer.readByte()) != TaggedRecord.RecordType.END_OF_FILE.tag )  {
+							final int recordLength = serializer.readInt();
+							if ( tag == TaggedRecord.RecordType.VERSION_DATA.tag )
+							{
+								final byte[] payload = new byte[recordLength];
+								serializer.readBytes( payload );
+								final BinarySerializer tmp = new BinarySerializer( BinarySerializer.IBuffer.wrap( payload ) );
+								while ( ! tmp.isEOF() ) {
+									result.add( VersionInfo.deserialize( tmp, SerializationFormat.V2 ) );
+								}
+							} else if ( recordLength > 0 ){
+								// skip record
+								serializer.buffer.skip( recordLength );
+							}
+						}
+					} else {
 						throw new IOException("Invalid file magic "+Long.toHexString( magic ) );
-					}
-					final int count = serializer.readInt();
-					result = new ArrayList<>(count);
-					for ( int i = 0 ; i < count ; i++ ) {
-						result.add( VersionInfo.deserialize( serializer ) );
 					}
 				}
 			}
@@ -256,12 +285,25 @@ public class FlatFileStorage implements IVersionStorage
 		try {
 			if ( protocol == Protocol.BINARY ) {
 				try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream( file ) ) ) {
-					try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) ) {
-						serializer.writeLong( MAGIC );
-						serializer.writeInt( allItems.size() );
-						for ( VersionInfo info : allItems ) {
-							info.serialize( serializer );
+					try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) )
+					{
+						serializer.writeLong( MAGIC_V2 );
+						serializer.writeShort( CURRENT_FILE_FORMAT.version );
+
+						// write
+						if ( ! allItems.isEmpty() ) {
+							serializer.writeByte( TaggedRecord.RecordType.VERSION_DATA.tag );
+							final ByteArrayOutputStream tmpOut = new ByteArrayOutputStream();
+							try ( BinarySerializer serializer2 = new BinarySerializer( BinarySerializer.IBuffer.wrap( tmpOut ) ) ) {
+								for ( VersionInfo info : allItems ) {
+									info.serialize( serializer2, CURRENT_FILE_FORMAT );
+								}
+							}
+							final byte[] payload = tmpOut.toByteArray();
+							serializer.writeInt( payload.length );
+							serializer.writeBytes( payload );
 						}
+						serializer.writeByte( TaggedRecord.RecordType.END_OF_FILE.tag );
 					}
 				}
 			}

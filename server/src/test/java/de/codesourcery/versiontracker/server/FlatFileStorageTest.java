@@ -99,6 +99,7 @@ public class FlatFileStorageTest
 		return info;
 	}
 
+	@Test
 	public void testStoreAndLoadOne() throws IOException 
 	{
 		final VersionInfo info = createData();

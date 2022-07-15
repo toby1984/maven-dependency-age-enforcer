@@ -24,8 +24,10 @@ import org.apache.logging.log4j.LogManager;
 
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -209,7 +211,7 @@ public class BackgroundUpdater implements AutoCloseable {
                     LOG.debug("doUpdate(): Refreshing "+info.artifact);
                     try
                     {
-                        provider.update(info);
+                        provider.update(info, Collections.emptySet());
                     }
                     finally
                     {

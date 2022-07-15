@@ -15,6 +15,8 @@
  */
 package de.codesourcery.versiontracker.common;
 
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -102,20 +104,20 @@ public class ArtifactResponse
 		return false;
 	}
 	
-    public void serialize(BinarySerializer serializer) throws IOException 
+    public void serialize(BinarySerializer serializer, SerializationFormat fileFormat) throws IOException
     {
         artifact.serialize( serializer );
         
         if ( currentVersion != null ) {
             serializer.writeBoolean( true );
-            currentVersion.serialize( serializer );
+            currentVersion.serialize( serializer, fileFormat);
         } else {
             serializer.writeBoolean( false );
         }
         
         if ( latestVersion != null ) {
             serializer.writeBoolean( true );
-            latestVersion.serialize( serializer );
+            latestVersion.serialize( serializer, fileFormat );
         } else {
             serializer.writeBoolean( false );
         }
@@ -123,17 +125,18 @@ public class ArtifactResponse
         serializer.writeString( updateAvailable == null ? null : updateAvailable.text );
     }
     
-    public static ArtifactResponse deserialize(BinarySerializer serializer) throws IOException {
+    public static ArtifactResponse deserialize(BinarySerializer serializer, SerializationFormat fileFormat) throws IOException
+	{
         final ArtifactResponse response = new ArtifactResponse();
         response.artifact = Artifact.deserialize(serializer);
         
         boolean isPresent = serializer.readBoolean();
         if ( isPresent ) {
-            response.currentVersion = Version.deserialize(serializer);
+            response.currentVersion = Version.deserialize(serializer, fileFormat);
         }
         isPresent = serializer.readBoolean();
         if ( isPresent ) {
-            response.latestVersion = Version.deserialize(serializer);
+            response.latestVersion = Version.deserialize(serializer, fileFormat);
         }
         final String updAvailable = serializer.readString();
         response.updateAvailable = updAvailable == null ? null : UpdateAvailable.fromString( updAvailable );

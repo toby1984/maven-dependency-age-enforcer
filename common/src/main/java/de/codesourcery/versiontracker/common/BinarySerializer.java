@@ -43,10 +43,12 @@ public class BinarySerializer implements AutoCloseable,Closeable
     
     static final boolean TRACK_OFFSET = false;
     
-    private final IBuffer buffer;
+    public final IBuffer buffer;
     
     public interface IBuffer extends AutoCloseable,Closeable
     {
+        int maybeReadByte() throws IOException;
+        
         byte read() throws IOException;
         
         void read(byte[] destination) throws IOException;
@@ -55,7 +57,11 @@ public class BinarySerializer implements AutoCloseable,Closeable
         
         void write(byte value) throws IOException;
         
+        void write(byte[] data, int offset, int length) throws IOException;
+        
         void write(byte[] array) throws IOException;
+
+        void skip(int bytesToSkip) throws IOException;
         
         @Override
         void close() throws IOException;
@@ -87,20 +93,42 @@ public class BinarySerializer implements AutoCloseable,Closeable
             this.in = in;
             this.next = in.read();
         }
-        
+
+        @Override
+        public void skip(int bytesToSkip) throws IOException {
+            if ( bytesToSkip == 0 ) {
+                return;
+            }
+            if ( bytesToSkip < 0 ) {
+                throw new IllegalArgumentException( "A negative offset is not allowed : " + bytesToSkip );
+            }
+            if ( this.next == -1 ) {
+                throw new EOFException( "Premature end of input, expected " + bytesToSkip + " more bytes" );
+            }
+            in.skipNBytes( bytesToSkip - 1 );
+        }
+
+        @Override
+        public int maybeReadByte() throws IOException {
+            int result = this.next;
+            if ( result != -1 ) {
+                if (TRACK_OFFSET) {
+                    offset++;
+                }
+                this.next = in.read();
+                if ( TRACK_OFFSET && LOG.isTraceEnabled() ) {
+                    LOG.trace("read(): "+asHex(offset,8)+" => "+asHex( result & 0xff, 2 ) );
+                }                
+            }
+            return result;
+        }
+
         @Override
         public byte read() throws IOException 
         {
-            int result = this.next;
+            int result = maybeReadByte();
             if ( result == -1 ) {
                 throw new EOFException();
-            }
-            if (TRACK_OFFSET) {
-                offset++;
-            }
-            this.next = in.read();
-            if ( TRACK_OFFSET && LOG.isTraceEnabled() ) {
-                LOG.trace("read(): "+asHex(offset,8)+" => "+asHex( result & 0xff, 2 ) );
             }
             return (byte) result;
         }
@@ -137,9 +165,14 @@ public class BinarySerializer implements AutoCloseable,Closeable
 
         @Override public boolean isEOF() { return next == -1; }
 
-        @Override public void write(byte value) { throw new UnsupportedOperationException("not supported: write()"); }
+        @Override
+        public void write(byte[] data, int offset, int length) throws IOException {
+            throw new UnsupportedOperationException( "not supported: write(byte[],int,int)");
+        }
+
+        @Override public void write(byte value) { throw new UnsupportedOperationException("not supported: write(byte)"); }
         
-        @Override public void write(byte[] value) { throw new UnsupportedOperationException("not supported: write()"); }
+        @Override public void write(byte[] value) { throw new UnsupportedOperationException("not supported: write(byte[])"); }
 
         @Override public void close() throws IOException { in.close(); }
         
@@ -160,7 +193,13 @@ public class BinarySerializer implements AutoCloseable,Closeable
             Validate.notNull(out, "out must not be NULL");
             this.out = out;
         }
-        
+
+        @Override
+        public void skip(int bytesToSkip) { throw new UnsupportedOperationException( "method not supported: skip(int)"); }
+
+        @Override
+        public int maybeReadByte() {throw new UnsupportedOperationException( "method not supported: maybeReadByte()");}
+
         @Override
         public byte read() {
             throw new UnsupportedOperationException("method not supported: read()");
@@ -168,12 +207,20 @@ public class BinarySerializer implements AutoCloseable,Closeable
         
         @Override
         public void read(byte[] destination) {
-        	throw new UnsupportedOperationException("method not supported: read()");
+        	throw new UnsupportedOperationException("method not supported: read(byte[])");
         }
 
         @Override
         public boolean isEOF() {
             throw new UnsupportedOperationException("method not supported: isEOF()");
+        }
+
+        @Override
+        public void write(byte[] data, int offset, int length) throws IOException {
+            out.write( data, offset, length );
+            if ( TRACK_OFFSET ) {
+                offset += length;
+            }
         }
 
         @Override
@@ -232,8 +279,20 @@ public class BinarySerializer implements AutoCloseable,Closeable
         return result;
     }
     
+    public void writeBytes(byte[] buffer) throws IOException {
+        writeBytes( buffer, 0, buffer.length );
+    }
+    
+    public void writeBytes(byte[] data, int offset, int length) throws IOException {
+        buffer.write( data, offset ,length );
+    }
+    
     public void writeByte(byte value) throws IOException {
         buffer.write( (byte) (value & 0xff ));
+    }
+
+    public void readBytes(byte[] destination) throws IOException {
+        buffer.read(destination);
     }
 
     public byte readByte() throws IOException {

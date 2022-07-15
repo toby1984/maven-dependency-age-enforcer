@@ -236,6 +236,7 @@ public class APIImpl implements AutoCloseable
         throw new RuntimeException(msg);
     }      
 
+    // TODO: Code almost duplicated in APIServlet#processQuery(QueryRequest) - remove duplication !
     public QueryResponse processQuery(QueryRequest request) throws InterruptedException
     {
         QueryResponse result = new QueryResponse();

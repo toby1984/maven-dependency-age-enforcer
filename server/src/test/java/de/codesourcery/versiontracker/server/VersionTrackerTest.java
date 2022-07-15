@@ -100,7 +100,7 @@ public class VersionTrackerTest
     @Test
     public void test() throws InterruptedException {
 
-        final IVersionProvider provider = info -> {
+        final IVersionProvider provider = (info,additionalVersions) -> {
             info.lastFailureDate = ZonedDateTime.now();
             return IVersionProvider.UpdateResult.BLACKLISTED;
         };

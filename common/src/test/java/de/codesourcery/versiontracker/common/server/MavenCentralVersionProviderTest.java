@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.Set;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.ok;
@@ -25,7 +27,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class MavenCentralVersionProviderTest {
 
     @Test
-    public void test(WireMockRuntimeInfo webServer) throws IOException {
+    public void testScrapingOnlyLatestVersions(WireMockRuntimeInfo webServer) throws IOException {
+        doTest(webServer, false );
+    }
+
+    @Test
+    public void testScrapeAdditional(WireMockRuntimeInfo webServer) throws IOException {
+        doTest(webServer, true );
+    }
+
+    private void doTest(WireMockRuntimeInfo webServer, boolean scrapeAdditionalReleaseDates) throws IOException {
 
         final MavenCentralVersionProvider provider = new MavenCentralVersionProvider("http://localhost:"+webServer.getHttpPort());
 
@@ -57,21 +68,29 @@ public class MavenCentralVersionProviderTest {
 
         final String scapingURL1 = "/" + MavenCentralVersionProvider.getPathToFolder( info.artifact, "3.11" );
         final ZonedDateTime releaseDate1 = date( "2021-07-11 11:12" );
-        stubFor(get( scapingURL1 ).willReturn( ok( createMarkupForScraping( info.artifact,"3.11", releaseDate1 ) ) ) );
+        if ( scrapeAdditionalReleaseDates ) {
+            stubFor( get( scapingURL1 ).willReturn( ok( createMarkupForScraping( info.artifact, "3.11", releaseDate1 ) ) ) );
+        }
 
         final String scapingURL2 = "/" + MavenCentralVersionProvider.getPathToFolder( info.artifact, "3.12.0" );
         final ZonedDateTime releaseDate2 = date( "2021-07-12 12:13" );
         stubFor(get( scapingURL2 ).willReturn( ok( createMarkupForScraping( info.artifact,"3.12.0", releaseDate2 ) ) ) );
 
-        final IVersionProvider.UpdateResult result = provider.update( info );
+        final IVersionProvider.UpdateResult result = provider.update( info, scrapeAdditionalReleaseDates ? Set.of( "3.11" ) : Collections.emptySet() );
         assertThat(result).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
         assertThat(info.versions).isNotEmpty();
         assertThat(info.versions).hasSize( 2 );
         assertThat(info.versions).containsExactlyInAnyOrder( Version.of("3.11"), Version.of("3.12.0") );
-        assertThat( info.getDetails( "3.11" ) ).map( x -> x.releaseDate ).hasValue( releaseDate1 );
+        if ( scrapeAdditionalReleaseDates ) {
+            assertThat( info.getDetails( "3.11" ) ).map( x -> x.releaseDate ).hasValue( releaseDate1 );
+        } else {
+            assertThat( info.getDetails( "3.11" ) ).isPresent();
+        }
         assertThat( info.getDetails( "3.12.0" ) ).map( x -> x.releaseDate ).hasValue( releaseDate2 );
 
-        verify( getRequestedFor( urlEqualTo( scapingURL1 ) ) );
+        if ( scrapeAdditionalReleaseDates ) {
+            verify( getRequestedFor( urlEqualTo( scapingURL1 ) ) );
+        }
         verify( getRequestedFor( urlEqualTo( scapingURL2 ) ) );
         verify( getRequestedFor( urlEqualTo( metaDataURL ) ) );
     }
