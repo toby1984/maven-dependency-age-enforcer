@@ -1,3 +1,6 @@
+- add unit test to make sure what happens if the latest version is blacklisted
+  -> server would need to know about the client's blacklist to decide whether to fetch release dates of other versions as well...
+  -> would need to know how to compare version numbers so we only have to scrape release dates for versions that are AFTER the current version used by the client 
 - investigate why both the .json and .json.binary files sometimes get created
 - make file storage more robust and double-check why after a fresh install, artifact data is only written to disk once the JVM receives a SIGINT
 - Upgrade to non-vulnerable dependency versions before release
