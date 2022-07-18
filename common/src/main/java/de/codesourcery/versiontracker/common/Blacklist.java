@@ -186,7 +186,7 @@ public class Blacklist implements IBlacklistCheck
     }
     
     public boolean isAllVersionsBlacklisted(String groupId,String artifactId) {
-    	if ( containsNeverMatcher(globalIgnores ) ) {
+    	if ( containsNeverMatcher(globalIgnores) ) {
     		return true;
     	}
     	if ( containsNeverMatcher( groupIdIgnores.get( groupId ) ) ) {
