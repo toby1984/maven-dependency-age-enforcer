@@ -57,7 +57,6 @@ class APIImplTest
         replay( bgUpdater );
 
         // mock version provider
-
         final IVersionProvider versionProvider = createMock( IVersionProvider.class );
         expect( versionProvider.update( isA( VersionInfo.class ), isA( Set.class ) ) ).andAnswer( () -> {
 

@@ -23,6 +23,7 @@ import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
 import de.codesourcery.versiontracker.common.BinarySerializer;
 import de.codesourcery.versiontracker.common.BinarySerializer.IBuffer;
+import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
@@ -50,7 +51,11 @@ import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -58,6 +63,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -116,6 +122,33 @@ public class APIServlet extends HttpServlet
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         final IVersionStorage storage = impl.getVersionTracker().getStorage();
 
+        if ( req.getRequestURI().endsWith("/simplequery") )
+        {
+            final Artifact a = new Artifact();
+            a.artifactId = req.getParameter( "artifactId" );
+            a.groupId = req.getParameter( "groupId" );
+            a.setClassifier( req.getParameter( "classifier" ) );
+            a.type = req.getParameter( "type" );
+            if ( a.type == null) {
+                a.type = "jar";
+            }
+            final List<VersionInfo> result = new ArrayList<>();
+            if ( req.getParameter( "regex" ) != null ) {
+                result.addAll( storage.getAllVersions( a.groupId, a.artifactId ) );
+                result.removeIf( toCheck -> {
+                   if ( ! Objects.equals( toCheck.artifact.type, a.type ) ) {
+                       return true;
+                   }
+                    return a.getClassifier() != null && !Objects.equals( toCheck.artifact.getClassifier(), a.getClassifier() );
+                });
+            } else {
+                storage.getVersionInfo( a ).ifPresent( result::add );
+            }
+            resp.setContentType( "application/json" );
+            resp.getWriter().write( JSON_MAPPER.writeValueAsString( result ) );
+            return;
+        }
+
         final StatusInformation storageStats = new StatusInformation( requestsPerHour.createCopy(), getApplicationVersion().orElse( null ),
             getSHA1Hash().orElse(null),
             storage.getStatistics()
@@ -125,6 +158,7 @@ public class APIServlet extends HttpServlet
         if ( "json".equalsIgnoreCase( queryString ) ) {
             // JSON response
             final String json = JSON_MAPPER.writeValueAsString( storageStats );
+            resp.setContentType( "application/json" );
             resp.getWriter().write( json );
         } else {
             // HTML response
@@ -151,13 +185,23 @@ public class APIServlet extends HttpServlet
             keyValue.accept( "Last meta-data fetch failure", storageStats.storageStatistics().mostRecentFailure().map( APIServlet::toString).orElse("n/a"));
             keyValue.accept( "Last meta-data fetch requested", storageStats.storageStatistics().mostRecentRequested().map( APIServlet::toString).orElse("n/a"));
 
-            keyValue.accept( "Storage reads (most recent)", storageStats.storageStatistics().reads.getMostRecentAccess().map( APIServlet::toString ).orElse( "n/a" ) );
-            keyValue.accept( "Storage reads (current hour)", storageStats.storageStatistics().reads.getCountForCurrentHour());
-            keyValue.accept( "Storage reads (last 24h)", storageStats.storageStatistics().reads.getCountForLast24Hours());
+            keyValue.accept( "Storage item reads (most recent)", storageStats.storageStatistics().reads.getMostRecentAccess().map( APIServlet::toString ).orElse( "n/a" ) );
+            keyValue.accept( "Storage item reads (current hour)", storageStats.storageStatistics().reads.getCountForCurrentHour());
+            keyValue.accept( "Storage item reads (last 24h)", storageStats.storageStatistics().reads.getCountForLast24Hours());
 
-            keyValue.accept( "Storage writes (most recent)", storageStats.storageStatistics().writes.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
-            keyValue.accept( "Storage writes (current hour)", storageStats.storageStatistics().writes.getCountForCurrentHour()+"\n");
-            keyValue.accept( "Storage writes (last 24h)", storageStats.storageStatistics().writes.getCountForLast24Hours()+"\n");
+            keyValue.accept( "Storage item writes (most recent)", storageStats.storageStatistics().writes.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Storage item writes (current hour)", storageStats.storageStatistics().writes.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Storage item writes (last 24h)", storageStats.storageStatistics().writes.getCountForLast24Hours()+"\n");
+
+            final IVersionProvider.Statistics repoStats = impl.getVersionTracker().getVersionProvider().getStatistics();
+
+            keyValue.accept( "Repo metadata fetch (most recent)", repoStats.metaDataRequests.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Repo metadata fetches (current hour)", repoStats.metaDataRequests.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Repo metadata fetches (last 24h)", repoStats.metaDataRequests.getCountForLast24Hours()+"\n");
+
+            keyValue.accept( "Repo release date fetch (most recent)", repoStats.releaseDateRequests.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Repo release date fetches (current hour)", repoStats.releaseDateRequests.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Repo release date fetches (last 24h)", repoStats.releaseDateRequests.getCountForLast24Hours()+"\n");
 
             final String html = """
                 <html>
@@ -168,7 +212,7 @@ public class APIServlet extends HttpServlet
                     }
                     div.cellName {
                       display:inline-block;
-                      width:300px;
+                      width:400px;
                     }
                     div.cellValue {
                       display:inline-block;

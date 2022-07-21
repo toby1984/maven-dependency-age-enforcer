@@ -220,9 +220,6 @@ public class Artifact
 
     public void setClassifier(String classifier)
     {
-        if ("null".equals( classifier ) ) {
-            throw new IllegalArgumentException("GOT YOU ,offender: "+this);
-        }
         this.classifier = classifier;
     }         
 }

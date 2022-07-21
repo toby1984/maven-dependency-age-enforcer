@@ -19,18 +19,21 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.MavenCentralVersionProvider;
 import de.codesourcery.versiontracker.common.server.SharedLockCache;
 import de.codesourcery.versiontracker.common.server.VersionTracker;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class VersionTrackerTest
@@ -100,11 +103,22 @@ public class VersionTrackerTest
     @Test
     public void test() throws InterruptedException {
 
-        final IVersionProvider provider = (info,additionalVersions) -> {
-            info.lastFailureDate = ZonedDateTime.now();
-            return IVersionProvider.UpdateResult.BLACKLISTED;
+        final IVersionProvider provider = new IVersionProvider() {
+
+            private final Statistics stats = new Statistics();
+
+            @Override
+            public Statistics getStatistics() {
+                return stats;
+            }
+
+            @Override
+            public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException {
+                info.lastFailureDate = ZonedDateTime.now();
+                return IVersionProvider.UpdateResult.BLACKLISTED;
+            }
         };
-        
+
         final SharedLockCache locks = new SharedLockCache();
         tracker = new VersionTracker(storage,provider,locks);
         

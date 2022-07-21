@@ -95,6 +95,7 @@ public class CachingStorageDecorator implements IVersionStorage
         private final CountDownLatch stopLatch = new CountDownLatch(1);
 
         public CacheFlushThread() {
+            setName( "cache-flush-thread" );
         }
 
         @Override
@@ -200,7 +201,7 @@ public class CachingStorageDecorator implements IVersionStorage
     {
         synchronized( THREAD_LOCK ) 
         {
-            if ( ! shutdown ) 
+            if ( ! shutdown && thread == null )
             {
                 thread = new CacheFlushThread();
                 thread.start();
@@ -254,6 +255,7 @@ public class CachingStorageDecorator implements IVersionStorage
 
     @Override
     public void saveOrUpdate(VersionInfo info) {
+        startThread();
         synchronized(cleanCache) 
         {
             dirtyCache.put( info.artifact.groupId, info.artifact.artifactId, info );
@@ -262,6 +264,7 @@ public class CachingStorageDecorator implements IVersionStorage
 
     @Override
     public void saveOrUpdate(List<VersionInfo> data) {
+        startThread();
         synchronized(cleanCache) 
         {
             for ( VersionInfo info : data ) 

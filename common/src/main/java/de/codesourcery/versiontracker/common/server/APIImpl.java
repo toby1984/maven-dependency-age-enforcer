@@ -102,20 +102,17 @@ public class APIImpl implements AutoCloseable
         if ( versionFile.getName().endsWith(".json") )
         {
             final File binaryFile = new File( versionFile.getAbsolutePath()+".binary");
-            boolean useBinaryFile = binaryFile.exists();
-            if ( ! binaryFile.exists() )
-            {
-                if ( versionFile.exists() )
-                {
-                    try {
-                        // only JSON file exists -> migrate JSON storage to binary format
-                        FlatFileStorage.convert(versionFile, Protocol.JSON, binaryFile, Protocol.BINARY);
-                        LOG.info("init(): Converted "+versionFile.getAbsolutePath()+" -> "+binaryFile.getAbsolutePath());
-                        useBinaryFile = true;
-                    } catch (Exception e) {
-                        LOG.error("init(): Using JSON file , failed to convert "+versionFile.getAbsolutePath()+" -> "
-                            + binaryFile.getAbsolutePath(),e);
-                    }
+            boolean useBinaryFile = true;
+            if ( ! binaryFile.exists() && versionFile.exists() ) {
+                try {
+                    // only JSON file exists -> migrate JSON storage to binary format
+                    FlatFileStorage.convert( versionFile, Protocol.JSON, binaryFile, Protocol.BINARY );
+                    LOG.info( "init(): Converted " + versionFile.getAbsolutePath() + " -> " + binaryFile.getAbsolutePath() );
+                }
+                catch ( Exception e ) {
+                    LOG.error( "init(): Using JSON file , failed to convert " + versionFile.getAbsolutePath() + " -> "
+                        + binaryFile.getAbsolutePath(), e );
+                    useBinaryFile = false;
                 }
             }
             if ( useBinaryFile ) {

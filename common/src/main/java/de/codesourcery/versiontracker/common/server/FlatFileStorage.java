@@ -170,7 +170,7 @@ public class FlatFileStorage implements IVersionStorage
 		// update statistics
 		synchronized ( storageStatistics ) {
 			storageStatistics.storageSizeInBytes = file.length();
-			storageStatistics.reads.update( totalVersionCount );
+			storageStatistics.reads.update( result.size() );
 			storageStatistics.totalArtifactCount = result.size();
 			storageStatistics.totalVersionCount = totalVersionCount;
 			storageStatistics.mostRecentSuccess = mostRecentSuccess;
@@ -329,6 +329,9 @@ public class FlatFileStorage implements IVersionStorage
 
 			// update statistics
 			synchronized ( storageStatistics ) {
+				storageStatistics.storageSizeInBytes = file.length();
+				storageStatistics.totalArtifactCount = allItems.size();
+				storageStatistics.totalVersionCount = allItems.stream().mapToInt( x -> x.versions.size() ).sum();
 				storageStatistics.writes.update( allItems.size() );
 			}
 		}

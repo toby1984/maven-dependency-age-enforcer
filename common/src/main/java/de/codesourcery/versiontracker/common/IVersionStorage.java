@@ -24,6 +24,8 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * Responsible for handling persistence of artifact metadata.
@@ -41,8 +43,8 @@ public interface IVersionStorage extends AutoCloseable
 
         public long storageSizeInBytes;
 
-        public final RequestsPerHour reads = new RequestsPerHour();
-        public final RequestsPerHour writes = new RequestsPerHour();
+        public RequestsPerHour reads = new RequestsPerHour();
+        public RequestsPerHour writes = new RequestsPerHour();
 
         /** Most recent time a user requested meta-data for an artifact */
         public ZonedDateTime mostRecentRequested = null;
@@ -73,6 +75,8 @@ public interface IVersionStorage extends AutoCloseable
             this.mostRecentRequested = other.mostRecentRequested;
             this.mostRecentFailure = other.mostRecentFailure;
             this.mostRecentSuccess = other.mostRecentSuccess;
+            this.reads = other.reads.createCopy();
+            this.writes = other.writes.createCopy();
         }
 
         public StorageStatistics createCopy() {
@@ -87,6 +91,21 @@ public interface IVersionStorage extends AutoCloseable
      * @throws IOException
      */
     List<VersionInfo> getAllVersions() throws IOException;
+
+    /**
+     * Retrieves metadata for all artifacts.
+     *
+     * @return
+     * @throws IOException
+     */
+    default List<VersionInfo> getAllVersions(String groupRegEx, String artifactRegEx) throws IOException {
+
+        final Pattern groupPattern = Pattern.compile( groupRegEx );
+        final Pattern artifactPattern = Pattern.compile( artifactRegEx );
+        return getAllVersions().stream().filter( v -> groupPattern.matcher( v.artifact.groupId ).matches() &&
+                artifactPattern.matcher( v.artifact.artifactId ).matches() )
+            .toList();
+    }
 
     /**
      * Returns statistics about this storage.

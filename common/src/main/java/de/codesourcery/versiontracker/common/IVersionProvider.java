@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Set;
 
 /**
@@ -53,7 +54,34 @@ public interface IVersionProvider
          */
         ERROR
     }
-    
+
+    final class Statistics
+    {
+        public final RequestsPerHour metaDataRequests;
+        public final RequestsPerHour releaseDateRequests;
+
+        public Statistics() {
+            this.metaDataRequests = new RequestsPerHour();
+            this.releaseDateRequests = new RequestsPerHour();
+        }
+
+        public Statistics(Statistics other) {
+            this.metaDataRequests = new RequestsPerHour(other.metaDataRequests);
+            this.releaseDateRequests = new RequestsPerHour(other.releaseDateRequests);
+        }
+
+        public Statistics createCopy() {
+            return new Statistics( this );
+        }
+    }
+
+    /**
+     * Returns usage statistics.
+     *
+     * @return
+     */
+    Statistics getStatistics();
+
     /**
      * Try to update version information.
      * 

@@ -332,4 +332,9 @@ public class VersionTracker implements IVersionTracker
     public IVersionStorage getStorage() {
         return versionStorage;
     }
+
+    @Override
+    public IVersionProvider getVersionProvider() {
+        return versionProvider;
+    }
 }

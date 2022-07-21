@@ -135,6 +135,9 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     private int maxConcurrentThreads = 10;
 
+    // @GuardedBy( statistics )
+    private final Statistics statistics = new Statistics();
+
     private final Object THREAD_POOL_LOCK=new Object();
     private ThreadPoolExecutor threadPool;
 
@@ -179,6 +182,9 @@ public class MavenCentralVersionProvider implements IVersionProvider
         try 
         {
             return performGET(url, stream -> {
+                synchronized ( statistics ) {
+                    statistics.metaDataRequests.update();
+                }
                 final Document document = parseXML( stream );
 
                 // note: XPath evaluation is not thread-safe so we have to use a ThreadLocal here
@@ -349,6 +355,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             LOG.debug("readVersions(): Still waiting for "+latch.getCount()+" outstanding requests of artifact "+artifact);
         }
     }
+
     private Optional<Version> getReleaseDate(Artifact artifact, String versionString) throws IOException
     {
         Validate.notBlank(versionString, "versionString must not be NULL/blank");
@@ -357,6 +364,11 @@ public class MavenCentralVersionProvider implements IVersionProvider
         LOG.debug("readVersion(): Looking for release date of version '"+versionString+"' for "+artifact);
         
         return performGET(url2, stream -> {
+
+            synchronized ( statistics ) {
+                statistics.releaseDateRequests.update();
+            }
+
             final String page = String.join( "\n", IOUtils.readLines( stream, StandardCharsets.UTF_8 ) );
             Matcher m = LINE_PATTERN.matcher( page );
 
@@ -539,5 +551,12 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     static String getPathToFolder(Artifact artifact,String versionNumber) {
         return  artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/"+versionNumber+"/";
+    }
+
+    @Override
+    public Statistics getStatistics() {
+        synchronized ( statistics ) {
+            return statistics.createCopy();
+        }
     }
 }

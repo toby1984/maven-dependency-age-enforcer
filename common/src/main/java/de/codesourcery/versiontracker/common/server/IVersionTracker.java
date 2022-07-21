@@ -1,6 +1,7 @@
 package de.codesourcery.versiontracker.common.server;
 
 import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
 
@@ -15,6 +16,8 @@ public interface IVersionTracker extends AutoCloseable, Closeable  {
     Map<Artifact, VersionInfo> getVersionInfo(List<Artifact> artifacts, Predicate<Optional<VersionInfo>> isOutdated) throws InterruptedException;
 
     IVersionStorage getStorage();
+
+    IVersionProvider getVersionProvider();
 
     int getMaxConcurrentThreads();
 

@@ -39,6 +39,7 @@ public class RequestsPerHour {
 
     public RequestsPerHour(RequestsPerHour other) {
         this.counts.putAll( other.counts );
+        this.mostRecentAccess = other.mostRecentAccess;
     }
 
     public RequestsPerHour createCopy() {
