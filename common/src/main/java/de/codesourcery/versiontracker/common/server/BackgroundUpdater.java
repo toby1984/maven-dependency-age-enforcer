@@ -22,6 +22,8 @@ import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunn
 import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 
+import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -43,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 
  * @see IVersionStorage#isStaleVersion(VersionInfo, Duration, Duration, ZonedDateTime)
  */
-public class BackgroundUpdater implements AutoCloseable {
+public class BackgroundUpdater implements IBackgroundUpdater {
 
     private static final org.apache.logging.log4j.Logger LOG = LogManager.getLogger( BackgroundUpdater.class );
     
@@ -181,7 +183,8 @@ public class BackgroundUpdater implements AutoCloseable {
             doUpdate(info);
         }
     }
-    
+
+    @Override
     public boolean requiresUpdate(Optional<VersionInfo> info) 
     {
         if ( info.isPresent() ) {
@@ -240,7 +243,7 @@ public class BackgroundUpdater implements AutoCloseable {
         });
     }
     
-    
+    @Override
     public void startThread() 
     {
         synchronized( THREAD_LOCK ) 
@@ -254,7 +257,7 @@ public class BackgroundUpdater implements AutoCloseable {
     }
     
     @Override
-    public void close() throws Exception 
+    public void close() throws IOException
     {
         shutdown = true;
         synchronized( THREAD_LOCK ) 
@@ -263,7 +266,11 @@ public class BackgroundUpdater implements AutoCloseable {
             {
                 try {
                     thread.shutdown();
-                } finally {
+                }
+                catch ( InterruptedException e ) {
+                    throw new InterruptedIOException( e.getMessage() );
+                }
+                finally {
                     thread = null;
                 }
             }

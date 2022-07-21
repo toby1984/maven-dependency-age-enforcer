@@ -26,6 +26,7 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
+import de.codesourcery.versiontracker.common.server.IVersionTracker;
 import de.codesourcery.versiontracker.common.server.VersionTracker;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +56,7 @@ public class RetrievalTest
     public void test() throws Exception {
         
         APIImpl impl = APIImplHolder.getInstance().getImpl(); 
-        final VersionTracker tracker = impl.getVersionTracker();
+        final IVersionTracker tracker = impl.getVersionTracker();
         
         final Artifact artifact = new Artifact();
         // net.ftlines.wicket-source:wicket-source:7.0.0:jar

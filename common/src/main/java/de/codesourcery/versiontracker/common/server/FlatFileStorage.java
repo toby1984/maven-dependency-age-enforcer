@@ -75,9 +75,14 @@ public class FlatFileStorage implements IVersionStorage
 	public FlatFileStorage(File file) 
 	{
 		this(file,Protocol.JSON);
-	}    
+	}
 
-	public FlatFileStorage(File file,Protocol protocol) {
+	@Override
+	public String toString() {
+		return "FlatFileStorage[ " + file.getAbsolutePath() + " ]";
+	}
+
+	public FlatFileStorage(File file, Protocol protocol) {
 		this.file = file;
 		this.protocol = protocol;
 	}

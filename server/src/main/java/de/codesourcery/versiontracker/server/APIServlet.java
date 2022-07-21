@@ -33,6 +33,7 @@ import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
+import de.codesourcery.versiontracker.common.server.IBackgroundUpdater;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -303,7 +304,7 @@ public class APIServlet extends HttpServlet
         
         final Predicate<Optional<VersionInfo>> requiresUpdate;
         if ( artifactUpdatesEnabled ) {
-            final BackgroundUpdater updater = impl.getBackgroundUpdater();
+            final IBackgroundUpdater updater = impl.getBackgroundUpdater();
             requiresUpdate = updater::requiresUpdate;
         } else {
             requiresUpdate = optVersionInfo -> false;

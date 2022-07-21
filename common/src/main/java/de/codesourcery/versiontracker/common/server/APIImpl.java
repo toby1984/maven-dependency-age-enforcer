@@ -47,11 +47,11 @@ public class APIImpl implements AutoCloseable
      */
     public static final String SYSTEM_PROPERTY_ARTIFACT_FILE = "versiontracker.artifact.file";    
 
-    private VersionTracker versionTracker;
+    private IVersionTracker versionTracker;
     private IVersionStorage versionStorage;
     private IVersionProvider versionProvider;
 
-    private BackgroundUpdater updater;
+    private IBackgroundUpdater updater;
     
     private boolean registerShutdownHook = true;
 
@@ -94,7 +94,59 @@ public class APIImpl implements AutoCloseable
         loggerConfig.setLevel(level);
         ctx.updateLoggers();
         System.out.println("Log level is now "+level);
-    }    
+    }
+
+    protected IVersionStorage createVersionStorage()
+    {
+        final File versionFile = getArtifactFileLocation();
+
+        final IVersionStorage fileStorage;
+        if ( versionFile.getName().endsWith(".json") )
+        {
+            final File binaryFile = new File( versionFile.getAbsolutePath()+".binary");
+            boolean useBinaryFile = binaryFile.exists();
+            if ( ! binaryFile.exists() )
+            {
+                if ( versionFile.exists() )
+                {
+                    try {
+                        // only JSON file exists -> migrate JSON storage to binary format
+                        FlatFileStorage.convert(versionFile, Protocol.JSON, binaryFile, Protocol.BINARY);
+                        LOG.info("init(): Converted "+versionFile.getAbsolutePath()+" -> "+binaryFile.getAbsolutePath());
+                        useBinaryFile = true;
+                    } catch (Exception e) {
+                        LOG.error("init(): Using JSON file , failed to convert "+versionFile.getAbsolutePath()+" -> "
+                            + binaryFile.getAbsolutePath(),e);
+                    }
+                }
+            }
+            if ( useBinaryFile ) {
+                LOG.info("init(): Using binary file "+binaryFile.getAbsolutePath());
+                fileStorage = new FlatFileStorage( binaryFile,Protocol.BINARY );
+            } else {
+                fileStorage = new FlatFileStorage( versionFile,Protocol.JSON );
+            }
+        } else {
+            LOG.info("init(): Using file "+versionFile.getAbsolutePath()+" (assuming JSON format)");
+            fileStorage = new FlatFileStorage( versionFile );
+        }
+        return fileStorage;
+    }
+
+    // unit-testing hook
+    protected IVersionProvider createVersionProvider() {
+        return new MavenCentralVersionProvider( mavenRepository );
+    }
+
+    // unit-testing hook
+    protected IBackgroundUpdater createBackgroundUpdater(SharedLockCache lockCache) {
+        return new BackgroundUpdater(versionStorage,versionProvider,lockCache);
+    }
+
+    // unit-testing hook
+    protected IVersionTracker createVersionTracker(SharedLockCache lockCache) {
+        return new VersionTracker( versionStorage, versionProvider, lockCache );
+    }
 
     public synchronized void init(boolean debugMode,boolean verboseMode)
     {
@@ -104,40 +156,8 @@ public class APIImpl implements AutoCloseable
 
         initialized = true;
 
-        final File versionFile = getArtifactFileLocation();
-        
-        final IVersionStorage fileStorage;
-        if ( versionFile.getName().endsWith(".json") ) 
-        {
-        	final File binaryFile = new File( versionFile.getAbsolutePath()+".binary");
-        	boolean useBinaryFile = binaryFile.exists();
-        	if ( ! binaryFile.exists() ) 
-        	{
-        		if ( versionFile.exists() ) 
-        		{
-        			try {
-                        // only JSON file exists -> migrate JSON storage to binary format
-						FlatFileStorage.convert(versionFile, Protocol.JSON, binaryFile, Protocol.BINARY);
-						LOG.info("init(): Converted "+versionFile.getAbsolutePath()+" -> "+binaryFile.getAbsolutePath());
-						useBinaryFile = true;
-					} catch (Exception e) {
-						LOG.error("init(): Using JSON file , failed to convert "+versionFile.getAbsolutePath()+" -> "
-								+ binaryFile.getAbsolutePath(),e);
-					}
-        		}
-        	}
-        	if ( useBinaryFile ) {
-        		LOG.info("init(): Using binary file "+binaryFile.getAbsolutePath());
-        		fileStorage = new FlatFileStorage( binaryFile,Protocol.BINARY );
-        	} else {
-        		fileStorage = new FlatFileStorage( versionFile,Protocol.JSON );
-        	}
-        } else {
-        	LOG.info("init(): Using file "+versionFile.getAbsolutePath()+" (assuming JSON format)");
-        	fileStorage = new FlatFileStorage( versionFile );
-        }
-        versionStorage  = new CachingStorageDecorator(fileStorage);
-        versionProvider = new MavenCentralVersionProvider(mavenRepository);
+        versionStorage  = createVersionStorage();
+        versionProvider = createVersionProvider();
         final SharedLockCache lockCache = new SharedLockCache();
         
         if ( debugMode || verboseMode ) 
@@ -166,7 +186,7 @@ public class APIImpl implements AutoCloseable
             }));
         }
 
-        updater = new BackgroundUpdater(versionStorage,versionProvider,lockCache);         
+        updater = createBackgroundUpdater(lockCache);
         if ( mode == Mode.SERVER ) 
         {
             LOG.info("init(): Starting background update thread.");        
@@ -177,12 +197,12 @@ public class APIImpl implements AutoCloseable
         try 
         {
             final int threadCount = Runtime.getRuntime().availableProcessors()*2;
-            versionTracker = new VersionTracker(versionStorage,versionProvider,lockCache);
+            versionTracker = createVersionTracker( lockCache );
             versionTracker.setMaxConcurrentThreads( threadCount );
 
-            LOG.info("init(): Servlet initialized.");
+            LOG.info("init(): Initialization done.");
             LOG.info("init(): ");
-            LOG.info("init(): Version file storage: "+versionFile.getAbsolutePath());
+            LOG.info("init(): Version file storage: "+versionStorage);
             LOG.info("init(): Maven repository enpoint: "+mavenRepository);
             LOG.info("init(): Thread count: "+versionTracker.getMaxConcurrentThreads());
             LOG.info("init(): ====================");
@@ -203,9 +223,9 @@ public class APIImpl implements AutoCloseable
                 }
             }
         }
-    }    
+    }
 
-    private File getArtifactFileLocation() 
+    private File getArtifactFileLocation()
     {
         String location = System.getProperty( SYSTEM_PROPERTY_ARTIFACT_FILE );
         if ( StringUtils.isNotBlank( location ) ) 
@@ -302,12 +322,12 @@ public class APIImpl implements AutoCloseable
         return mode;
     }
 
-    public BackgroundUpdater getBackgroundUpdater()
+    public IBackgroundUpdater getBackgroundUpdater()
     {
         return updater;
     }
 
-    public VersionTracker getVersionTracker()
+    public IVersionTracker getVersionTracker()
     {
         return versionTracker;
     }

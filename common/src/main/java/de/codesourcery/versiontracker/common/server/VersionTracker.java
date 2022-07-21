@@ -45,7 +45,7 @@ import java.util.function.Predicate;
  * 
  * @author tobias.gierke@code-sourcery.de
  */
-public class VersionTracker implements AutoCloseable
+public class VersionTracker implements IVersionTracker
 {
     private static final Logger LOG = LogManager.getLogger(VersionTracker.class);
 
@@ -93,6 +93,7 @@ public class VersionTracker implements AutoCloseable
      * @return
      * @throws InterruptedException 
      */
+    @Override
     public Map<Artifact,VersionInfo> getVersionInfo(List<Artifact> artifacts,Predicate<Optional<VersionInfo>> isOutdated) throws InterruptedException
     {
         final Map<Artifact,VersionInfo> resultMap = new HashMap<>();
@@ -180,7 +181,7 @@ public class VersionTracker implements AutoCloseable
                         }
 
                         synchronized(resultMap) {
-                            resultMap.put(artifact,newInfo.copy());
+                            resultMap.put(artifact,newInfo);
                         } 
 
                         try 
@@ -200,9 +201,12 @@ public class VersionTracker implements AutoCloseable
                         }
                     });
                 } 
-                catch (Exception e) 
+                catch (Throwable e)
                 {
                     LOG.error("updateArtifact(): Caught "+e.getMessage()+" while updating "+artifact,e);
+                    if ( e instanceof Error t) {
+                        throw t;
+                    }
                 } 
                 finally 
                 {
@@ -301,6 +305,7 @@ public class VersionTracker implements AutoCloseable
         }
     }
 
+    @Override
     public int getMaxConcurrentThreads()
     {
         synchronized( THREAD_POOL_LOCK ) 
@@ -323,6 +328,7 @@ public class VersionTracker implements AutoCloseable
         }
     }
 
+    @Override
     public IVersionStorage getStorage() {
         return versionStorage;
     }
