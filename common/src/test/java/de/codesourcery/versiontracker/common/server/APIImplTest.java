@@ -37,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class APIImplTest
 {
     @Test
-    public void testDataUnavailableFromStorage() throws Exception {
-
+    public void testDataUnavailableFromStorage() throws Exception
+    {
         final Version latestRelease = new Version( "1.0.1", date( "2022-07-05 11:12:13" ) );
         final Version latestSnapshot = new Version( "1.0.2-SNAPSHOT", date( "2022-07-15 11:12:13" ) );
 
@@ -71,9 +71,7 @@ class APIImplTest
             assertThat( versionInfo.versions ).isEmpty();
 
             versionInfo.versions.add( new Version( "1.0.0", date( "2022-07-01 11:12:13" ) ) );
-            latestRelease.releaseDateRequested = true;
             versionInfo.versions.add( latestRelease );
-            latestSnapshot.releaseDateRequested = true;
             versionInfo.versions.add( latestSnapshot );
 
             versionInfo.latestReleaseVersion = latestRelease;

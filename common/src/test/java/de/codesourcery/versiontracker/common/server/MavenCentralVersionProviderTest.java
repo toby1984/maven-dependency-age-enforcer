@@ -72,6 +72,7 @@ public class MavenCentralVersionProviderTest {
     <release>3.12.0</release>
     <versions>
       <version>3.11</version>
+      <version>3.11.1</version>
       <version>3.12.0</version>
     </versions>
     <lastUpdated>20210301214036</lastUpdated>
@@ -94,14 +95,13 @@ public class MavenCentralVersionProviderTest {
         final IVersionProvider.UpdateResult result = provider.update( info, scrapeAdditionalReleaseDates ? Set.of( "3.11" ) : Collections.emptySet() );
         assertThat(result).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
         assertThat(info.versions).isNotEmpty();
-        assertThat(info.versions).hasSize( 2 );
-        assertThat(info.versions).containsExactlyInAnyOrder( Version.of("3.11"), Version.of("3.12.0") );
+        assertThat(info.versions).containsExactlyInAnyOrder( Version.of("3.11"), Version.of("3.11.1"), Version.of("3.12.0") );
         if ( scrapeAdditionalReleaseDates ) {
-            assertThat( info.getDetails( "3.11" ) ).map( x -> x.releaseDate ).hasValue( releaseDate1 );
+            assertThat( info.getVersion( "3.11" ) ).map( x -> x.releaseDate ).hasValue( releaseDate1 );
         } else {
-            assertThat( info.getDetails( "3.11" ) ).isPresent();
+            assertThat( info.getVersion( "3.11" ) ).isPresent();
         }
-        assertThat( info.getDetails( "3.12.0" ) ).map( x -> x.releaseDate ).hasValue( releaseDate2 );
+        assertThat( info.getVersion( "3.12.0" ) ).map( x -> x.releaseDate ).hasValue( releaseDate2 );
 
         if ( scrapeAdditionalReleaseDates ) {
             verify( getRequestedFor( urlEqualTo( scapingURL1 ) ) );

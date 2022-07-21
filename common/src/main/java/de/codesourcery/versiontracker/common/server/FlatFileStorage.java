@@ -34,6 +34,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -288,8 +290,12 @@ public class FlatFileStorage implements IVersionStorage
 		}
 		long start = System.nanoTime();
 		try {
+			final File tmpFile = new File( file.getAbsolutePath() + ".tmp" );
+			if ( tmpFile.exists() ) {
+				Files.delete( tmpFile.toPath() );
+			}
 			if ( protocol == Protocol.BINARY ) {
-				try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream( file ) ) ) {
+				try ( BufferedOutputStream out = new BufferedOutputStream( new FileOutputStream( tmpFile ) ) ) {
 					try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) )
 					{
 						serializer.writeLong( MAGIC_V2 );
@@ -313,11 +319,14 @@ public class FlatFileStorage implements IVersionStorage
 				}
 			}
 			else if ( protocol == Protocol.JSON ) {
-				mapper.writeValue( file, allItems );
+				mapper.writeValue( tmpFile, allItems );
 			}
 			else {
 				throw new RuntimeException( "Unhandled protocol: " + protocol );
 			}
+
+			Files.move( tmpFile.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING );
+
 			// update statistics
 			synchronized ( storageStatistics ) {
 				storageStatistics.writes.update( allItems.size() );

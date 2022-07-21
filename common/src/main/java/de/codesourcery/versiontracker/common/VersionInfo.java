@@ -202,7 +202,7 @@ public class VersionInfo
        this.lastRequestDate = other.lastRequestDate;
     }
     
-    public Optional<Version> getDetails(String versionNumber) 
+    public Optional<Version> getVersion(String versionNumber)
     {
         // TODO: O(n) performance
         for ( Version v : versions ) {
@@ -213,17 +213,6 @@ public class VersionInfo
         return Optional.empty();
     }
 
-    public boolean hasVersionWithReleaseDate(String versionNumber)
-    {
-        // TODO: O(n) performance
-        for ( Version v : versions ) {
-            if ( v.versionString.equals( versionNumber ) ) {
-                return v.hasReleaseDate();
-            }
-        }
-        return false;
-    }
-    
     public ZonedDateTime lastPolledDate()
     {
         if ( lastSuccessDate != null && lastFailureDate == null ) {

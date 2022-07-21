@@ -114,7 +114,7 @@ public class VersionTracker implements IVersionTracker
                     if ( result.isEmpty() || isOutdated.test( result ) )
                     {
                         LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
-                        updateArtifact(artifact, result, resultMap, stopLatch, now );
+                        updateArtifactFromServer(artifact, result.orElse( null ), resultMap, stopLatch, now );
                     } else {
                         LOG.debug("getVersionInfo(): [from storage] "+result.get());
 
@@ -135,11 +135,11 @@ public class VersionTracker implements IVersionTracker
         return resultMap;
     }
 
-    private void updateArtifact(Artifact artifact, 
-            Optional<VersionInfo> existing,
-            Map<Artifact, VersionInfo> resultMap,
-            DynamicLatch stopLatch, 
-            ZonedDateTime now)
+    private void updateArtifactFromServer(Artifact artifact,
+                                          VersionInfo existing,
+                                          Map<Artifact, VersionInfo> resultMap,
+                                          DynamicLatch stopLatch,
+                                          ZonedDateTime now)
     {
         stopLatch.inc();
         boolean submitted = false;
@@ -161,12 +161,12 @@ public class VersionTracker implements IVersionTracker
                             LOG.debug("updateArtifact(): Got lock for "+artifact);
                         }                         
                         final VersionInfo newInfo; 
-                        if ( existing.isPresent() ) 
+                        if ( existing != null)
                         {
                             if ( LOG.isDebugEnabled() ) {
                                 LOG.debug("updateArtifact(): [outdated] Trying to update metadata for "+artifact);
                             }
-                            newInfo = existing.get();
+                            newInfo = existing;
                             newInfo.lastRequestDate = now;
                         } 
                         else 

@@ -86,14 +86,12 @@ public class APIImpl implements AutoCloseable
     
     private void setLogLevel(Level level) 
     {
-        // shamelessly taken from https://stackoverflow.com/questions/23434252/programmatically-change-log-level-in-log4j2 
+        // taken from https://stackoverflow.com/questions/23434252/programmatically-change-log-level-in-log4j2
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
-//        final LoggerConfig loggerConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME); 
         final LoggerConfig loggerConfig = config.getLoggerConfig("de.codesourcery");
         loggerConfig.setLevel(level);
         ctx.updateLoggers();
-        System.out.println("Log level is now "+level);
     }
 
     protected IVersionStorage createVersionStorage()
@@ -130,7 +128,7 @@ public class APIImpl implements AutoCloseable
             LOG.info("init(): Using file "+versionFile.getAbsolutePath()+" (assuming JSON format)");
             fileStorage = new FlatFileStorage( versionFile );
         }
-        return fileStorage;
+        return new CachingStorageDecorator( fileStorage );
     }
 
     // unit-testing hook
@@ -297,7 +295,7 @@ public class APIImpl implements AutoCloseable
                 } 
                 else 
                 {
-                    final Optional<Version> currentVersion = info.getDetails( artifact.version );
+                    final Optional<Version> currentVersion = info.getVersion( artifact.version );
                     if ( currentVersion.isPresent() ) {
                         x.currentVersion = currentVersion.get();
                     }

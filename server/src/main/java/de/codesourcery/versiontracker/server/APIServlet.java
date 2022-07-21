@@ -32,7 +32,6 @@ import de.codesourcery.versiontracker.common.Utils;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
-import de.codesourcery.versiontracker.common.server.BackgroundUpdater;
 import de.codesourcery.versiontracker.common.server.IBackgroundUpdater;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,7 +48,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
-import java.text.NumberFormat;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -58,7 +56,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -341,7 +338,7 @@ public class APIServlet extends HttpServlet
                 } 
                 else 
                 {
-                    final Optional<Version> currentVersion = info.getDetails( artifact.version );
+                    final Optional<Version> currentVersion = info.getVersion( artifact.version );
                     if ( currentVersion.isPresent() ) {
                         x.currentVersion = currentVersion.get();
                     }
