@@ -57,6 +57,9 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     private BGThread thread;
     
     private volatile boolean shutdown;
+
+    // GuardedBy( statistics )
+    private final Statistics statistics = new Statistics();
     
     /**
      * Time to wait before retrying artifact metadata retrieval if the last
@@ -212,6 +215,9 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                 if ( requiresUpdate(existing) )
                 {
                     LOG.debug("doUpdate(): Refreshing "+info.artifact);
+                    synchronized ( statistics ) {
+                        statistics.scheduledUpdates.update();
+                    }
                     try
                     {
                         provider.update(info, Collections.emptySet());
@@ -294,5 +300,12 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         Validate.notNull(pollingInterval,"pollingInterval must not be NULL");
         Validate.isTrue(pollingInterval.compareTo( Duration.ofSeconds(1) ) >= 0 , "pollingInterval must be >= 1 second" );
         this.pollingInterval = pollingInterval;
+    }
+
+    @Override
+    public Statistics getStatistics() {
+        synchronized ( statistics ) {
+            return statistics.createCopy();
+        }
     }
 }

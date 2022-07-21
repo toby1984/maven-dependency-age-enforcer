@@ -358,5 +358,6 @@ public class APIImpl implements AutoCloseable
     public void setRegisterShutdownHook(boolean registerShutdownHook)
     {
         this.registerShutdownHook = registerShutdownHook;
-    }    
+    }
+
 }

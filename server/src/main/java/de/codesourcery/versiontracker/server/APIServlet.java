@@ -119,6 +119,10 @@ public class APIServlet extends HttpServlet
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
 
+        synchronized ( requestsPerHour ) {
+            requestsPerHour.update();
+        }
+
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         final IVersionStorage storage = impl.getVersionTracker().getStorage();
 
@@ -178,8 +182,8 @@ public class APIServlet extends HttpServlet
             float sizeInMB = storageStats.storageStatistics.storageSizeInBytes/(1024*1024.0f);
             keyValue.accept( "On-disk storage (MB)", new DecimalFormat("######0.0#").format( sizeInMB ) );
 
-            keyValue.accept( "HTTP POST requests (current hour)", storageStats.httpStats.getCountForCurrentHour() );
-            keyValue.accept( "HTTP POST requests (last 24 hours)", storageStats.httpStats.getCountForLast24Hours() );
+            keyValue.accept( "HTTP requests (current hour)", storageStats.httpStats.getCountForCurrentHour() );
+            keyValue.accept( "HTTP requests (last 24 hours)", storageStats.httpStats.getCountForLast24Hours() );
 
             keyValue.accept( "Last meta-data fetch success", storageStats.storageStatistics().mostRecentSuccess().map( APIServlet::toString).orElse("n/a"));
             keyValue.accept( "Last meta-data fetch failure", storageStats.storageStatistics().mostRecentFailure().map( APIServlet::toString).orElse("n/a"));
@@ -203,6 +207,10 @@ public class APIServlet extends HttpServlet
             keyValue.accept( "Repo release date fetches (current hour)", repoStats.releaseDateRequests.getCountForCurrentHour()+"\n");
             keyValue.accept( "Repo release date fetches (last 24h)", repoStats.releaseDateRequests.getCountForLast24Hours()+"\n");
 
+            final IBackgroundUpdater.Statistics bgStats = impl.getBackgroundUpdater().getStatistics();
+            keyValue.accept( "Background update (most recent)", bgStats.scheduledUpdates.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Background updates (current hour)", bgStats.scheduledUpdates.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Background updates (last 24h)", bgStats.scheduledUpdates.getCountForLast24Hours()+"\n");
             final String html = """
                 <html>
                 <head>
@@ -238,6 +246,10 @@ public class APIServlet extends HttpServlet
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException
     {
+        synchronized ( requestsPerHour ) {
+            requestsPerHour.update();
+        }
+
         final InputStream in = req.getInputStream();
         final ByteArrayOutputStream reqData = new ByteArrayOutputStream();
         
@@ -253,8 +265,7 @@ public class APIServlet extends HttpServlet
             final byte[] binaryResponse = processRequest(in, reqData, protocol);
 			resp.getOutputStream().write( binaryResponse );            
             resp.setStatus(200);
-            requestsPerHour.update();
-        } 
+        }
         catch(Exception e) 
         {
             final String body;
