@@ -116,6 +116,7 @@ public class APIImpl implements AutoCloseable
         		if ( versionFile.exists() ) 
         		{
         			try {
+                        // only JSON file exists -> migrate JSON storage to binary format
 						FlatFileStorage.convert(versionFile, Protocol.JSON, binaryFile, Protocol.BINARY);
 						LOG.info("init(): Converted "+versionFile.getAbsolutePath()+" -> "+binaryFile.getAbsolutePath());
 						useBinaryFile = true;
@@ -129,10 +130,10 @@ public class APIImpl implements AutoCloseable
         		LOG.info("init(): Using binary file "+binaryFile.getAbsolutePath());
         		fileStorage = new FlatFileStorage( binaryFile,Protocol.BINARY );
         	} else {
-        		fileStorage = new FlatFileStorage( versionFile );
+        		fileStorage = new FlatFileStorage( versionFile,Protocol.JSON );
         	}
         } else {
-        	LOG.info("init(): Using JSON file "+versionFile.getAbsolutePath());
+        	LOG.info("init(): Using file "+versionFile.getAbsolutePath()+" (assuming JSON format)");
         	fileStorage = new FlatFileStorage( versionFile );
         }
         versionStorage  = new CachingStorageDecorator(fileStorage);
@@ -191,7 +192,7 @@ public class APIImpl implements AutoCloseable
         {
             if ( ! success ) 
             {
-                LOG.error("init(): Servlet failed to initialize");
+                LOG.error("init(): Initialization failed");
                 try 
                 {
                     updater.close();

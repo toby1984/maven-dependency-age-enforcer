@@ -39,7 +39,7 @@ import java.util.function.Predicate;
 
 /**
  * This class is responsible for requesting and periodically refreshing artifact metadata as well
- * as providing this metadata to clients using the {@link #getVersionInfo(Artifact)} method. 
+ * as providing this metadata to clients using the {@link #getVersionInfo(List,Predicate)} method.
  *
  * This class is thread-safe.
  * 
@@ -110,7 +110,7 @@ public class VersionTracker implements AutoCloseable
                         LOG.debug("getVersionInfo(): Looking for "+artifact+" in version storage");
                     }
                     final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-                    if( result.isEmpty() || isOutdated.test( result ) )
+                    if ( result.isEmpty() || isOutdated.test( result ) )
                     {
                         LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
                         updateArtifact(artifact, result, resultMap, stopLatch, now );

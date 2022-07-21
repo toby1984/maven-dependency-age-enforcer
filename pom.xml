@@ -20,7 +20,7 @@
 
     <!-- JVM compiler and runtime options -->
     <preview></preview>
-    <illegalAccess></illegalAccess>
+    <illegalAccess>--add-opens java.base/java.lang=ALL-UNNAMED</illegalAccess>
     <jdkModules></jdkModules>
     <javac.compilation.options>${preview}</javac.compilation.options>
     <java.runtime.options>${preview} ${jdkModules} ${illegalAccess} -Dfile.encoding=${project.build.sourceEncoding}</java.runtime.options>

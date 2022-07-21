@@ -37,7 +37,16 @@ public class ArtifactMap<T>
 {
     private Map<String,Map<String,T>> data = new HashMap<>();
     private int size;
-    
+
+    public ArtifactMap() {
+    }
+
+    public ArtifactMap(ArtifactMap<T> other)
+    {
+        this.data = new HashMap<>( other.data );
+        this.size = other.size;
+    }
+
     /**
      * Visits all values in this container.
      * 
@@ -53,15 +62,6 @@ public class ArtifactMap<T>
                 visitor.accept( entries2.getValue() );
             }
         }
-    }
-    
-    public ArtifactMap() {
-    }
-    
-    public ArtifactMap(ArtifactMap<T> other) 
-    {
-        this.data = new HashMap<>( other.data );
-        this.size = other.size;
     }
     
     /**

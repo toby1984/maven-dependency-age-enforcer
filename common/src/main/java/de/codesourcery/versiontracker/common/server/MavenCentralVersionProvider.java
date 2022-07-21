@@ -156,10 +156,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         final Artifact test = new Artifact();
         test.groupId = "commons-lang";
         test.artifactId = "commons-lang";
-        //        test.groupId = "org.lucee";
-        //        test.artifactId = "jta";        
 
-        // org/lucee/jta/1.1.0/
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
@@ -185,7 +182,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
             return performGET(url, stream -> {
                 final Document document = parseXML( stream );
 
-                final MyExpressions expr = expressions(); // XPath evaluation is not thread-safe so we get a thread-local instance here
+                // note: XPath evaluation is not thread-safe so we have to use a ThreadLocal here
+                final MyExpressions expr = expressions.get();
                 final Set<String> versionFromMetaData = new HashSet<>( readStrings( expr.versionsXPath , document ) );
                 for ( String version : versionFromMetaData ) {
                     info.maybeAddVersion( new Version(version,null) );
@@ -248,20 +246,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
                 if ( ! versionsToRequest.isEmpty() )
                 {
-                    /*
-                     * The problem here is that clients may blacklist arbitrary version numbers so
-                     * the "latest" version of a given artifact is actually "the latest version that is not blacklisted
-                     * by the current client".
-                     *
-                     * This in turn makes it necessary to retrieve release dates for ALL version numbers
-                     * and not just the most recent one.
-                     *
-                     * TODO: One *could*
-                     *       1.) extend the on-disk data format to store a "release date not determined because version is
-                     *       not the most-recent one"
-                     *       2.) only fetch release dates of the latest snapshots/releases here
-                     *       3.) Do a (slow) synchronous lookup on-demand when the client has blacklisted the most recent snapshot/release version.
-                     */
                     final Map<String,Version> result = getReleaseDates(artifact,versionsToRequest);
                     for ( Map.Entry<String,Version> entry : result.entrySet() )
                     {
@@ -553,10 +537,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
             LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
             throw new IOException("Failed to parse document: "+e.getMessage(),e);
         }
-    }
-
-    private MyExpressions expressions() {
-        return expressions.get();
     }
 
     static String metaDataPath(Artifact artifact) {

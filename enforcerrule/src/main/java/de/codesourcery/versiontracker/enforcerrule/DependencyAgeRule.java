@@ -95,11 +95,11 @@ public class DependencyAgeRule implements EnforcerRule
 		}
     }
 
-    private Log log;
-    private MavenProject project;
+    Log log;
+    MavenProject project;
 
-    private Age parsedMaxAge;
-    private Age parsedWarnAge;
+    Age parsedMaxAge;
+    Age parsedWarnAge;
 
     // rule configuration properties
 
@@ -112,7 +112,7 @@ public class DependencyAgeRule implements EnforcerRule
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */
     @SuppressWarnings("unused")
-    private String warnAge;
+    String warnAge;
 
     /**
      * Dependency age at which to fail the build.
@@ -123,44 +123,44 @@ public class DependencyAgeRule implements EnforcerRule
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */
     @SuppressWarnings("unused")
-    private String maxAge;
+    String maxAge;
 
     /**
      * API endpoint to contact for fetching artifact version metadata.  
      */
     @SuppressWarnings("unused")
-    private String apiEndpoint;
+    String apiEndpoint;
 
     /**
      * Enable verbose output.
      */
     @SuppressWarnings("unused")
-    private boolean verbose;
+    boolean verbose;
 
     /**
      * Enable debug (very verbose) output.
      */
     @SuppressWarnings("unused")
-    private boolean debug;
+    boolean debug;
 
     /**
      * Optional path to XML file that describes what artifact versions to ignore. 
      */
-    private File rulesFile;
+    File rulesFile;
 
     /**
      * Whether to fail when an artifact could not be found in the repository.
      */
-    private boolean failOnMissingArtifacts=true;
+    boolean failOnMissingArtifacts=true;
     
-    private boolean binaryProtocol=true;
+    boolean binaryProtocol=true;
 
     /**
      * Whether to look for the rules XML file in parent directories
      * if the file is not found in the specified location.
      */
     @SuppressWarnings("unused")
-    private boolean searchRulesInParentDirectories;
+    boolean searchRulesInParentDirectories;
 
     private enum AgeUnit
     {
@@ -209,8 +209,7 @@ public class DependencyAgeRule implements EnforcerRule
                 };
             }
 
-            public boolean isExceeded(Duration duration) {
-                final ZonedDateTime now = ZonedDateTime.now();
+            public boolean isExceeded(Duration duration, ZonedDateTime now) {
                 final Duration thisDuration = Duration.between( now, now.plus( toPeriod() ) );
                 return duration.compareTo( thisDuration ) > 0;
             }
@@ -234,17 +233,13 @@ public class DependencyAgeRule implements EnforcerRule
         if ( response.hasCurrentVersion() &&
                 response.hasLatestVersion() )
         {
-            // FIXME: This check is actually kinda crude as we also need to consider
-            // FIXME: whether the version currently in use is more than 1 version behind the latest
-            // FIXME: release ... in this case we should really consider the time range (used_version_release_date,latest_version_release_date)
-            // FIXME: instead of unconditionally checking (latest_version_release_date,now())
-            if ( response.currentVersion.hasReleaseDate() &&
-                 response.latestVersion.hasReleaseDate() &&
-                    ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
+            if ( response.currentVersion.hasReleaseDate() && response.latestVersion.hasReleaseDate() &&
+                 ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
                  response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
             {
-                final Duration age = Duration.between( response.latestVersion.releaseDate , ZonedDateTime.now() );
-                if ( threshold.isExceeded( age ) )
+                final ZonedDateTime now = currentTime();
+                final Duration age = Duration.between( response.latestVersion.releaseDate , now );
+                if ( threshold.isExceeded( age, now) )
                 {
                     final String msg = "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold;
                     log.debug(msg);
@@ -629,8 +624,9 @@ public class DependencyAgeRule implements EnforcerRule
             throw new ParseException("Sorry, rules file "+rulesFile.getAbsolutePath()+" contains custom comparison method '"+method+"' but custom comparison methods are not supported by this plugin.",-1);
         }
     }
-    
-    private static LocalAPIClient getLocalAPIClient(boolean debug) 
+
+    // unit-testing hook
+    protected IAPIClient getLocalAPIClient(boolean debug)
     {
         synchronized(LOCAL_API_CLIENT_LOCK) 
         {
@@ -653,8 +649,9 @@ public class DependencyAgeRule implements EnforcerRule
             return LOCAL_API_CLIENT;
         }
     }
-    
-    private RemoteApiClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug) 
+
+    // unit-testing hook
+    protected IAPIClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug)
     {
         final String key = endpoint+protocol.name()+debug;
         final String callingThreadName = Thread.currentThread().getName();
@@ -688,5 +685,10 @@ public class DependencyAgeRule implements EnforcerRule
             }
             return existing;
         }
+    }
+
+    // unit-testing hook
+    protected ZonedDateTime currentTime() {
+        return ZonedDateTime.now();
     }
 }

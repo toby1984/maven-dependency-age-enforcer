@@ -68,7 +68,27 @@ public class Artifact
     public String artifactId;
     private String classifier;
     public String type;
-    
+
+    public Artifact() {
+    }
+
+    public Artifact(Artifact artifact)
+    {
+        this.groupId = artifact.groupId;
+        this.version = artifact.version;
+        this.artifactId = artifact.artifactId;
+        this.classifier = artifact.classifier;
+        this.type = artifact.type;
+    }
+
+    public Artifact(String groupId, String artifactId, String version, String classifier, String type) {
+        this.groupId = groupId;
+        this.version = version;
+        this.artifactId = artifactId;
+        this.classifier = classifier;
+        this.type = type;
+    }
+
     public void serialize(BinarySerializer serializer) throws IOException {
         serializer.writeString(groupId);
         serializer.writeString(version);
@@ -86,18 +106,6 @@ public class Artifact
         a.classifier = serializer.readString();
         a.type = serializer.readString();
         return a;
-    }
-    
-    public Artifact() {
-    }
-    
-    public Artifact(Artifact artifact)
-    {
-        this.groupId = artifact.groupId;
-        this.version = artifact.version;
-        this.artifactId = artifact.artifactId;
-        this.classifier = artifact.classifier;
-        this.type = artifact.type;
     }
     
     @Override

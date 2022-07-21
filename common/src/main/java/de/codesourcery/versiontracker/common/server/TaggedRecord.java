@@ -15,6 +15,9 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
+/**
+ * A
+ */
 public class TaggedRecord {
 
     public enum RecordType

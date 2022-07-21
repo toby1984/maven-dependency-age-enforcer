@@ -27,7 +27,6 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -192,7 +191,7 @@ public class BackgroundUpdater implements AutoCloseable {
                     lastFailureDuration,
                     ZonedDateTime.now() );
             if ( LOG.isDebugEnabled() ) {
-                LOG.debug("requiresUpdate(): [YES] "+info.get().artifact);
+                LOG.debug("requiresUpdate(): ["+(result?"YES":"NO")+"] "+info.get().artifact);
             }
             return result;
         }
@@ -204,7 +203,8 @@ public class BackgroundUpdater implements AutoCloseable {
         {
             artifactLocks.doWhileLocked( info.artifact, () -> 
             {
-                // check again after we aquired the lock,something might've already updated the artifact in the meantime
+                // check again that the update is still needed after we've acquired the lock.
+                // Something might've already updated the artifact while we were waiting.
                 final Optional<VersionInfo> existing = storage.getVersionInfo( info.artifact );
                 if ( requiresUpdate(existing) )
                 {
