@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.InstanceOfAssertFactories.OFFSET_TIME;
 import static org.easymock.EasyMock.anyInt;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
@@ -33,6 +32,7 @@ import static org.easymock.EasyMock.getCurrentArgument;
 import static org.easymock.EasyMock.isA;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.verify;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class APIImplTest
 {
@@ -159,6 +159,14 @@ class APIImplTest
 
         // mock BG updater
         final IBackgroundUpdater bgUpdater = createMock( IBackgroundUpdater.class );
+        expect( bgUpdater.requiresUpdate( isA(Optional.class) ) ).andAnswer( () ->
+        {
+            Optional<VersionInfo> arg = getCurrentArgument( 0 );
+            assertThat( arg ).isPresent();
+            assertThat( arg.get().artifact.groupId ).isEqualTo( art1.groupId );
+            assertThat( arg.get().artifact.artifactId ).isEqualTo( art1.artifactId );
+            return false;
+        });
         bgUpdater.close();
         replay( bgUpdater );
 
@@ -179,39 +187,27 @@ class APIImplTest
         versionInfo.latestSnapshotVersion = latestSnapshot;
 
         final IVersionStorage versionStorage = createMock( IVersionStorage.class );
+        expect( versionStorage.getVersionInfo( isA(Artifact.class) ) ).andAnswer( () -> {
+            final Artifact a = getCurrentArgument( 0 );
+            assertThat( a.groupId ).isEqualTo( art1.groupId );
+            assertThat( a.artifactId ).isEqualTo( art1.artifactId);
+            return Optional.of( versionInfo );
+        });
+        versionStorage.updateLastRequestDate( isA(Artifact.class), isA(ZonedDateTime.class) );
+        expectLastCall().andAnswer( () -> {
+            final Artifact a = getCurrentArgument( 0 );
+            assertThat( a.groupId ).isEqualTo( art1.groupId );
+            assertThat( a.artifactId ).isEqualTo( art1.artifactId );
+            final ZonedDateTime ts = getCurrentArgument( 1 );
+            assertNotNull( ts );
+            return null;
+        });
         versionStorage.close();
         replay( versionStorage );
 
         // mock version tracker
-        final IVersionTracker versionTracker = createMock( IVersionTracker.class );
-
-        // boring stuff
-        versionTracker.close();
-        final AtomicInteger threadCount = new AtomicInteger();
-        versionTracker.setMaxConcurrentThreads( anyInt() );
-        expectLastCall().andAnswer( (IAnswer<Void>) () -> {
-            threadCount.set( getCurrentArgument( 0 ) );
-            return null;
-        } );
-        expect( versionTracker.getMaxConcurrentThreads() ).andAnswer( threadCount::get ).anyTimes();
-        expect( versionTracker.getStorage() ).andReturn( versionStorage ).anyTimes();
-        // interesting stuff...
-        expect( versionTracker.getVersionInfo( isA( List.class ), isA( Predicate.class ) ) ).andAnswer( () -> {
-
-            final List<Artifact> artifacts = getCurrentArgument( 0 );
-            final Predicate<Optional<VersionInfo>> isOutdated = getCurrentArgument( 1 );
-
-            assertThat( artifacts ).hasSize( 1 );
-            assertThat( artifacts ).containsExactly( art1 );
-            assertThat( isOutdated ).isNotNull();
-
-            final Map<Artifact, VersionInfo> map = new HashMap<>();
-            map.put( art1, versionInfo );
-            return map;
-        });
-        replay( versionTracker );
-
-        try ( APIImpl api = new APIImpl( APIImpl.Mode.CLIENT ) {
+        try ( APIImpl api = new APIImpl( APIImpl.Mode.CLIENT )
+        {
             @Override
             protected IBackgroundUpdater createBackgroundUpdater(SharedLockCache lockCache) {
                 return bgUpdater;
@@ -229,7 +225,7 @@ class APIImplTest
 
             @Override
             protected IVersionTracker createVersionTracker(SharedLockCache lockCache) {
-                return versionTracker;
+                return new VersionTracker( versionStorage, createVersionProvider(), lockCache );
             }
         } ) {
             api.setRegisterShutdownHook( false );
@@ -249,7 +245,7 @@ class APIImplTest
             assertThat( resp1.latestVersion ).isEqualTo( latestRelease );
             assertThat( resp1.currentVersion.versionString ).isEqualTo( art1.version );
         }
-        verify( versionStorage, versionProvider, versionTracker, bgUpdater );
+        verify( versionStorage, versionProvider, bgUpdater );
     }
 
     private static ZonedDateTime date(String s)
