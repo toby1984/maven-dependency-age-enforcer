@@ -15,10 +15,10 @@
  */
 package de.codesourcery.versiontracker.enforcerrule;
 
-import de.codesourcery.versiontracker.client.IAPIClient;
-import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
-import de.codesourcery.versiontracker.client.LocalAPIClient;
-import de.codesourcery.versiontracker.client.RemoteApiClient;
+import de.codesourcery.versiontracker.client.api.IAPIClient;
+import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.client.api.local.LocalAPIClient;
+import de.codesourcery.versiontracker.client.api.remote.RemoteApiClient;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;

@@ -1,7 +1,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>de.codesourcery.versiontracker</groupId>
+    <groupId>de.code-sourcery.versiontracker</groupId>
     <artifactId>versiontracker-parent</artifactId>
     <version>1.0.14-SNAPSHOT</version>
   </parent>
@@ -10,14 +10,12 @@
   <name>versiontracker-enforcerrule</name>
   <dependencies>
     <dependency>
-      <groupId>de.codesourcery.versiontracker</groupId>
+      <groupId>de.code-sourcery.versiontracker</groupId>
       <artifactId>versiontracker-common</artifactId>
-      <classifier>${myclassifier}</classifier>
     </dependency>
     <dependency>
-      <groupId>de.codesourcery.versiontracker</groupId>
+      <groupId>de.code-sourcery.versiontracker</groupId>
       <artifactId>versiontracker-client</artifactId>
-      <classifier>${myclassifier}</classifier>
     </dependency>
 
     <!-- Maven dependencies -->
@@ -79,11 +77,14 @@
       <artifactId>maven-plugin-api</artifactId>
       <version>${enforcerrule.maven.version}</version>
     </dependency>
+<!--
+    TODO: Temporarily commented out - find out if this dependency is really needed as it makes javadoc generation crash because of an invalid module name (because of the 'default' identifier being reserved)
     <dependency>
       <groupId>org.codehaus.plexus</groupId>
       <artifactId>plexus-container-default</artifactId>
       <version>1.0-alpha-9</version>
     </dependency>
+-->
   </dependencies>
 
   <build>

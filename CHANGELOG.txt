@@ -1,0 +1,7 @@
+xx.xx.xx
+--------
+
+- first release on Maven central 
+- dropped support for Java < 17
+- many bugfixes, code cleanup, more tests added
+- upgrade to JUnit5 and AssertJ 

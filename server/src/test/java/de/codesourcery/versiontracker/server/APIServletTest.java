@@ -16,7 +16,7 @@
 package de.codesourcery.versiontracker.server;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.codesourcery.versiontracker.client.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
 import de.codesourcery.versiontracker.common.APIResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse;

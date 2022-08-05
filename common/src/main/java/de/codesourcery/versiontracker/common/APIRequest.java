@@ -16,7 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import de.codesourcery.versiontracker.client.IAPIClient;
+import de.codesourcery.versiontracker.client.api.IAPIClient;
 
 import java.io.IOException;
 

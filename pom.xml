@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>de.codesourcery.versiontracker</groupId>
+  <groupId>de.code-sourcery.versiontracker</groupId>
   <artifactId>versiontracker-parent</artifactId>
   <version>1.0.14-SNAPSHOT</version>
   <packaging>pom</packaging>
@@ -24,6 +24,10 @@
     <jdkModules></jdkModules>
     <javac.compilation.options>${preview}</javac.compilation.options>
     <java.runtime.options>${preview} ${jdkModules} ${illegalAccess} -Dfile.encoding=${project.build.sourceEncoding}</java.runtime.options>
+
+    <javac.source>17</javac.source>
+    <javac.target>17</javac.target>
+    <javac.release>17</javac.release>
 
   </properties>
   <profiles>
@@ -61,70 +65,6 @@
         </plugins>
       </build>
     </profile>
-    <profile>
-      <id>jdk11</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <jdk>11</jdk>
-      </activation>
-      <properties>
-        <javac.source>1.8</javac.source>
-        <javac.target>1.8</javac.target>
-        <javac.release>11</javac.release>
-        <myclassifier>jdk11</myclassifier>
-      </properties>
-    </profile>
-    <profile>
-      <id>jdk16</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <jdk>16</jdk>
-      </activation>
-      <properties>
-        <javac.source>16</javac.source>
-        <javac.target>16</javac.target>
-        <javac.release>16</javac.release>
-        <myclassifier>jdk16</myclassifier>
-      </properties>
-    </profile>
-    <profile>
-      <id>jdk17</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <jdk>17</jdk>
-      </activation>
-      <properties>
-        <javac.source>17</javac.source>
-        <javac.target>17</javac.target>
-        <javac.release>17</javac.release>
-        <myclassifier>jdk17</myclassifier>
-      </properties>
-    </profile>
-    <profile>
-      <id>jdk15</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <jdk>15</jdk>
-      </activation>
-      <properties>
-        <javac.source>15</javac.source>
-        <javac.target>15</javac.target>
-        <javac.release>15</javac.release>
-        <myclassifier>jdk15</myclassifier>
-      </properties>
-    </profile>
-    <profile>
-      <id>jdk8</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <jdk>1.8</jdk>
-      </activation>
-      <properties>
-        <javac.source>1.8</javac.source>
-        <javac.target>1.8</javac.target>
-        <myclassifier>jdk8</myclassifier>
-      </properties>
-    </profile>
   </profiles>
   <distributionManagement>
     <snapshotRepository>
@@ -139,6 +79,7 @@
   <scm>
     <connection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</connection>
     <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
+    <url>https://github.com/toby1984/maven-dependency-analyzer-spring</url>
   </scm>
   <licenses>
     <license>
@@ -162,28 +103,24 @@
     <dependencies>
       <!-- sub-modules -->
       <dependency>
-        <groupId>de.codesourcery.versiontracker</groupId>
+        <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-common</artifactId>
         <version>1.0.14-SNAPSHOT</version>
-        <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
-        <groupId>de.codesourcery.versiontracker</groupId>
+        <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-client</artifactId>
         <version>1.0.14-SNAPSHOT</version>
-        <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
-        <groupId>de.codesourcery.versiontracker</groupId>
+        <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-server</artifactId>
         <version>1.0.14-SNAPSHOT</version>
-        <classifier>${myclassifier}</classifier>
       </dependency>
       <dependency>
-        <groupId>de.codesourcery.versiontracker</groupId>
+        <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-enforcerrule</artifactId>
         <version>1.0.14-SNAPSHOT</version>
-        <classifier>${myclassifier}</classifier>
       </dependency>
       <!-- used by all sub-modules-->
       <dependency>
@@ -368,9 +305,6 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
           <version>3.2.0</version>
-          <configuration>
-            <classifier>${myclassifier}</classifier>
-          </configuration>
         </plugin>
 
         <plugin>
@@ -414,7 +348,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-javadoc-plugin</artifactId>
-          <version>3.3.1</version>
+          <version>3.4.0</version>
           <configuration>
             <doclint>none</doclint>
           </configuration>
@@ -488,7 +422,7 @@
           <artifactId>maven-license-plugin</artifactId>
           <version>1.10.b1</version>
           <configuration>
-            <header>${project.basedir}/../etc/license_header.txt</header>
+            <header>etc/license_header.txt</header>
             <quiet>false</quiet>
             <failIfMissing>true</failIfMissing>
             <basedir>${basedir}/src</basedir>
