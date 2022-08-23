@@ -34,6 +34,7 @@ import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.IBackgroundUpdater;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,10 +44,12 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.time.ZonedDateTime;
@@ -120,14 +123,44 @@ public class APIServlet extends HttpServlet
             requestsPerHour.update();
         }
 
+        final String uri = req.getRequestURI();
+        if ( uri.contains("/scripts/" ) ) {
+            final int idx = uri.indexOf("/scripts/");
+            final String scriptName = uri.substring( idx + "/scripts/".length() ).replace( "..", "" );
+
+            final InputStream in = APIServlet.class.getResourceAsStream( "/scripts/" + scriptName );
+            if ( in == null ) {
+                resp.sendError( 404 );
+                return;
+            }
+
+            resp.setContentType( "text/javascript;charset=UTF-8" );
+            try ( BufferedReader reader = new BufferedReader(new InputStreamReader( in) ) ) {
+                String line;
+                while ( ( line = reader.readLine() ) != null )
+                {
+                    resp.getWriter().write( line + "\n" );
+                }
+            }
+            return;
+        }
+
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         final IVersionStorage storage = impl.getVersionTracker().getStorage();
 
-        if ( req.getRequestURI().endsWith("/simplequery") )
+        if ( uri.endsWith( "/simplequery") )
         {
             final Artifact a = new Artifact();
             a.artifactId = req.getParameter( "artifactId" );
+            if ( StringUtils.isBlank( a.artifactId ) ) {
+                resp.sendError( 500 , "Missing artifactId request parameter" );
+                return;
+            }
             a.groupId = req.getParameter( "groupId" );
+            if ( StringUtils.isBlank( a.groupId ) ) {
+                resp.sendError( 500 , "Missing groupId request parameter" );
+                return;
+            }
             a.setClassifier( req.getParameter( "classifier" ) );
             a.type = req.getParameter( "type" );
             if ( a.type == null) {
@@ -140,7 +173,7 @@ public class APIServlet extends HttpServlet
                    if ( ! Objects.equals( toCheck.artifact.type, a.type ) ) {
                        return true;
                    }
-                    return a.getClassifier() != null && !Objects.equals( toCheck.artifact.getClassifier(), a.getClassifier() );
+                    return a.getClassifier() != null && ! Objects.equals( toCheck.artifact.getClassifier(), a.getClassifier() );
                 });
             } else {
                 storage.getVersionInfo( a ).ifPresent( result::add );
@@ -230,6 +263,25 @@ public class APIServlet extends HttpServlet
                 <body>
                   <div class="table">
                   %s
+                  </div>
+                  <!-- search -->
+                  <script src="scripts/search.js"></script>
+                  <div style="margin-top:15px">
+                      <form action="" onsubmit="return false">
+                        <div style="display:inline-block">
+                          <input id="groupId" placeholder="Group ID" size="20" type="text">
+                        </div>                      
+                        <div style="display:inline-block">
+                          Artifact ID: <input id="artifactId" placeholder="Artifact ID" size="20" type="text">
+                        </div>
+                        <div style="display:inline-block">
+                          <input placeholder="Classifier, optional" id="classifier" size="20" type="text">
+                        </div>
+                        <button id="reset" style="margin-left:15px;width:100px" onclick="search.resetInputFields()" >Reset</button>
+                        <input type="submit" id="submit" style="margin-left:15px;width:100px" onclick="search.performSearch()" value="Search" >
+                      </form>
+                      <div id="searchResults">
+                      </div>
                   </div>
                 </body>
                 </html>
