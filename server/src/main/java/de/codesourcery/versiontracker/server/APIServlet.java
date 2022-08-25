@@ -56,13 +56,16 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -74,6 +77,8 @@ import java.util.stream.Stream;
 public class APIServlet extends HttpServlet
 {
     private static final Logger LOG = LogManager.getLogger(APIServlet.class);
+
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{(.*?)}");
 
     private static final ObjectMapper JSON_MAPPER =  JSONHelper.newObjectMapper();
 
@@ -113,7 +118,31 @@ public class APIServlet extends HttpServlet
     }
 
     private static String toString(ZonedDateTime dt) {
-        return dt.format( formatter );
+        return dt.format( formatter )+" UTC";
+    }
+
+    private void sendFileFromClasspath(String classpathLocation, HttpServletResponse resp, String contentType) throws IOException {
+        sendFileFromClasspath( classpathLocation, resp, contentType, null );
+    }
+
+    private void sendFileFromClasspath(String classpathLocation, HttpServletResponse resp,
+                                       String contentType, Map<String,String> placeholderValues) throws IOException
+    {
+        final InputStream in = APIServlet.class.getResourceAsStream( classpathLocation );
+        if ( in == null ) {
+            LOG.error( "sendFileFromClasspath(): File not found - " + classpathLocation + " (" + contentType + ")" );
+            resp.sendError( 404 );
+            return;
+        }
+
+        resp.setContentType( contentType );
+        try ( in ) {
+            String input = new String( in.readAllBytes(), StandardCharsets.UTF_8 );
+            if ( placeholderValues != null && ! placeholderValues.isEmpty() ) {
+                input = resolvePlaceholders( input, placeholderValues );
+            }
+            resp.getWriter().write( input );
+        }
     }
 
     @Override
@@ -123,30 +152,62 @@ public class APIServlet extends HttpServlet
             requestsPerHour.update();
         }
 
+        resp.setHeader( "Cache-Control", "no-cache, no-store, must-revalidate" );
+
         final String uri = req.getRequestURI();
         if ( uri.contains("/scripts/" ) ) {
             final int idx = uri.indexOf("/scripts/");
-            final String scriptName = uri.substring( idx + "/scripts/".length() ).replace( "..", "" );
-
-            final InputStream in = APIServlet.class.getResourceAsStream( "/scripts/" + scriptName );
-            if ( in == null ) {
-                resp.sendError( 404 );
-                return;
-            }
-
-            resp.setContentType( "text/javascript;charset=UTF-8" );
-            try ( BufferedReader reader = new BufferedReader(new InputStreamReader( in) ) ) {
-                String line;
-                while ( ( line = reader.readLine() ) != null )
-                {
-                    resp.getWriter().write( line + "\n" );
-                }
-            }
+            final String scriptName = uri.substring( idx + "/scripts/".length() );
+            final String classpathLocation = "/scripts/" + scriptName;
+            sendFileFromClasspath( classpathLocation, resp, "text/javascript;charset=UTF-8" );
+            return;
+        }
+        if ( uri.contains("/css/" ) ) {
+            final int idx = uri.indexOf("/css/");
+            final String scriptName = uri.substring( idx + "/css/".length() );
+            final String classpathLocation = "/css/" + scriptName;
+            sendFileFromClasspath( classpathLocation, resp, "text/css;charset=UTF-8" );
             return;
         }
 
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         final IVersionStorage storage = impl.getVersionTracker().getStorage();
+
+        if ( uri.endsWith("/autocomplete" ) ) {
+            final String kind = req.getParameter( "kind" );
+            final String userInput = req.getParameter( "userInput" );
+            final String[] choices = switch ( kind ) {
+                case "groupId" -> {
+                    yield storage.getAllVersions().stream()
+                        .filter( x -> x.artifact.groupId.contains( userInput ) )
+                        .map( x -> x.artifact.groupId )
+                        .sorted()
+                        .distinct()
+                        .limit( 10 ).toArray( String[]::new );
+                }
+                case "artifactId" -> {
+                    final String groupId = req.getParameter( "groupId" );
+                    final Predicate<VersionInfo> pred;
+                    if ( userInput == null || userInput.isBlank() ) {
+                        pred = x -> true;
+                    } else {
+                        pred = x -> x.artifact.artifactId.contains( userInput );
+                    }
+                    yield storage.getAllVersions().stream()
+                        .filter( x -> x.artifact.groupId.equals( groupId ) )
+                        .filter( pred )
+                        .map( x -> x.artifact.artifactId )
+                        .sorted()
+                        .distinct()
+                        .limit( 10 ).toArray( String[]::new );
+                }
+                default -> throw new RuntimeException( "Unknown auto completion type" );
+            };
+            final String json = JSON_MAPPER.writeValueAsString( choices );
+            resp.setContentType( "application/json" );
+            resp.getWriter().write( json );
+            return;
+        }
 
         if ( uri.endsWith( "/simplequery") )
         {
@@ -241,55 +302,33 @@ public class APIServlet extends HttpServlet
             keyValue.accept( "Background update (most recent)", bgStats.scheduledUpdates.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
             keyValue.accept( "Background updates (current hour)", bgStats.scheduledUpdates.getCountForCurrentHour()+"\n");
             keyValue.accept( "Background updates (last 24h)", bgStats.scheduledUpdates.getCountForLast24Hours()+"\n");
-            final String html = """
-                <html>
-                <head>
-                  <style>
-                    div.row {
-                      border: 1px solid black;
-                    }
-                    div.cellName {
-                      display:inline-block;
-                      width:400px;
-                    }
-                    div.cellValue {
-                      display:inline-block;
-                    }
-                    div.table {
-                      border: 1px solid black;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="table">
-                  %s
-                  </div>
-                  <!-- search -->
-                  <script src="scripts/search.js"></script>
-                  <div style="margin-top:15px">
-                      <form action="" onsubmit="return false">
-                        <div style="display:inline-block">
-                          <input id="groupId" placeholder="Group ID" size="20" type="text">
-                        </div>                      
-                        <div style="display:inline-block">
-                          Artifact ID: <input id="artifactId" placeholder="Artifact ID" size="20" type="text">
-                        </div>
-                        <div style="display:inline-block">
-                          <input placeholder="Classifier, optional" id="classifier" size="20" type="text">
-                        </div>
-                        <button id="reset" style="margin-left:15px;width:100px" onclick="search.resetInputFields()" >Reset</button>
-                        <input type="submit" id="submit" style="margin-left:15px;width:100px" onclick="search.performSearch()" value="Search" >
-                      </form>
-                      <div id="searchResults">
-                      </div>
-                  </div>
-                </body>
-                </html>
-                """.formatted(fragments);
 
-            resp.getWriter().write( html );
+            final String baseURL = getServletContext().getContextPath();
+            sendFileFromClasspath( "/markup/page.html",resp,"text/html",
+                Map.of( "baseUrl", baseURL, "tableContent", fragments.toString()));
         }
         resp.getWriter().flush();
+    }
+
+    private static String resolvePlaceholders(String input, Map<String,String> placeholderValues)
+    {
+        String source = input;
+        final Set<String> keys = new HashSet<>();
+        final Matcher m = PLACEHOLDER_PATTERN.matcher( source );
+        while ( m.find() ) {
+            keys.add( m.group( 1 ) );
+        }
+        for ( String key : keys ) {
+            if ( ! placeholderValues.containsKey( key ) ) {
+                throw new RuntimeException( "Unknown placeholder '" + key + "'" );
+            }
+            final String value = placeholderValues.get( key );
+            if ( value == null ) {
+                throw new RuntimeException( "NULL value for placeholder '" + key + "' is not supported" );
+            }
+            source = source.replace( "${" + key + "}", value );
+        }
+        return source;
     }
 
     @Override

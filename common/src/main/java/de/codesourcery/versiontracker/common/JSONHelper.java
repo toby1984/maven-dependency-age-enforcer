@@ -40,6 +40,8 @@ import java.time.format.DateTimeFormatter;
  */
 public class JSONHelper 
 {
+	// careful, client-side javascript on the admin web page also parses this format,
+	// do not change it without also adjusting the javascript !
 	private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm").withZone(ZoneId.of("UTC"));
 	
 	public static APIRequest parseAPIRequest(String jsonString,ObjectMapper mapper) throws IOException 
@@ -88,6 +90,8 @@ public class JSONHelper
 	    @Override
 	    public void serialize(ZonedDateTime value, JsonGenerator jgen, SerializerProvider provider) throws IOException
 	    {
+			// careful, client-side javascript on the admin web page also parses this format,
+			// do not change it without also adjusting the javascript !
 	        jgen.writeString( DATE_FORMATTER.format( value.withZoneSameInstant( UTC ) ) );
 	    }
 	}	

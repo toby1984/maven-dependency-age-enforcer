@@ -1,0 +1,63 @@
+<html>
+<head>
+  <link id="baseUrl" href="${baseUrl}" />
+  <link rel="stylesheet" href="${baseUrl}/css/autocomplete.css">
+  <script src="${baseUrl}/scripts/search.js"></script>
+  <script src="${baseUrl}/scripts/autocomplete.js"></script>
+  <style>
+      div.row {
+          border: 1px solid black;
+      }
+      div.cellName {
+          display:inline-block;
+          width:400px;
+      }
+      div.cellValue {
+          display:inline-block;
+      }
+      div.table {
+          border: 1px solid black;
+      }
+  </style>
+</head>
+<body>
+<div class="table">
+  ${tableContent}
+</div>
+<!-- search -->
+<div style="margin-top:15px">
+  <form autocomplete="off" action="" onsubmit="return false">
+    <div style="display:inline-block;width:300px" class="autocomplete">
+      <input id="groupId" placeholder="Group ID" size="20" type="text">
+    </div>
+    <div style="display:inline-block;width:300px" class="autocomplete">
+      <input id="artifactId" placeholder="Artifact ID" size="20" type="text">
+    </div>
+    <div style="display:inline-block">
+      <input placeholder="Classifier, optional" id="classifier" size="20" type="text">
+    </div>
+      <input type="button" id="reset" style="margin-left:15px;width:100px" onclick="search.resetInputFields()" value="Reset">
+      <input type="submit" id="submit" style="margin-left:15px;width:100px" onclick="search.performSearch()" value="Search" >
+  </form>
+  <div id="searchResults">
+  </div>
+</div>
+<script>
+    autocomplete(document.getElementById("groupId"), function(userInput) {
+        return userInput != null && userInput.trim().length > 0;
+    },function(userInput) {
+        return search.groupIdAutoComplete(userInput);
+    });
+    autocomplete(document.getElementById("artifactId"), function(userInput) {
+        if ( userInput != null ) {
+            const groupId = document.getElementById( "groupId" ).value;
+            return groupId != null && groupId.trim().length > 0;
+        }
+        return false;
+    },function(userInput) {
+        const groupId = document.getElementById( "groupId" ).value;
+        return search.artifactIdAutoComplete(groupId, userInput);
+    });
+</script>
+</body>
+</html>
