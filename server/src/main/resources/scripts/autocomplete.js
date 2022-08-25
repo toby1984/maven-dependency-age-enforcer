@@ -1,8 +1,21 @@
-// original code taken from https://www.w3schools.com/howto/howto_js_autocomplete.asp
-// and then modernized, changed to asynchronously fetch completions and support offering completion on empty input as well
-
+/*
+ * Copyright 2018 Tobias Gierke <tobias.gierke@code-sourcery.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 // the autocomplete function accepts three arguments:
-// 1. the text field element
+// 1. the text field element to attach to auto-completer functionality to
+//    (note: needs to be wrapped in a <div> with class "autocomplete" to render properly)
 // 2. a predicate function that will receive the user input as its only argument and
 //    must return either true or false depending on whether auto-completion should trigger
 // 3. A function that will receive the user input as its only argument and must return
@@ -10,68 +23,63 @@
 function autocomplete(inp, activationPredicate, choiceSupplier)
 {
     let currentFocus;
-    // execute a function when someone writes in the text field:
-    let onChangeFunction = function (e, closeExisting) {
+    let onChangeFunction = function(e) {
         const val = this.value;
 
         // close any already open lists of autocompleted values
-        if ( closeExisting == null || closeExisting === true ) {
-            closeAllListsUnconditionally();
-        }
+        closeAllListsUnconditionally();
 
+        // check whether auto-completion should trigger at all
         if ( ! activationPredicate(val) ) {
             return false;
         }
         currentFocus = -1;
-        // create a DIV element that will contain the items (values):
+
         const a = document.createElement("div");
         a.id = this.id + "autocomplete-list";
         a.classList.add( "autocomplete-items");
         a.setAttribute("data-autocomplete-for", inp.id);
-        // append the DIV element as a child of the autocomplete container
+
         this.parentNode.appendChild(a);
-        //for each item in the array...
-        choiceSupplier(val).then( function(arr) {
+
+        choiceSupplier(val).then( function(arr)
+        {
+            const quotedVal = escapeHtmlEntities(val);
             for (let i = 0; i < arr.length; i++) {
-                // create a DIV element for each matching element:
+                // create a DIV element for each matching element
                 const b = document.createElement("div");
-                // make the matching letters bold:
+                // highlight matching part
+                const currentValue = escapeHtmlEntities(arr[i]);
                 if ( val && val.length > 0 ) {
-                    const idx = arr[i].indexOf(val);
+                    const idx = currentValue.indexOf(quotedVal);
                     let part1='',part2='',part3='';
                     if ( idx > 0 ) {
-                        part1 = arr[i].substring(0,idx);
+                        part1 = currentValue.substring(0,idx);
                     }
-                    part2 = "<strong>" + arr[i].substring(idx,idx+val.length) + "</strong>";
-                    if ( (idx+val.length) < arr[i].length ) {
-                        part3 = arr[i].substring(idx + val.length);
+                    part2 = "<strong>" + currentValue.substring(idx,idx+quotedVal.length) + "</strong>";
+                    if ( (idx+quotedVal.length) < currentValue.length ) {
+                        part3 = currentValue.substring(idx + quotedVal.length);
                     }
                     b.innerHTML = part1 + part2 + part3;
                 } else {
-                    b.innerHTML = arr[i];
+                    b.innerHTML = currentValue;
                 }
-                // insert a input field that will hold the current array item's value:
-                b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
-                // execute a function when someone clicks on the item value (DIV element):
+                b.unescapedValue = arr[i];
+
+                // when clicked, copy selected value to actual input field
                 b.addEventListener("click", function (e) {
-                    // insert the value for the autocomplete text field:
-                    inp.value = this.getElementsByTagName("input")[0].value;
-                    // close the list of autocompleted values,
-                    // (or any other open lists of autocompleted values:
+                    inp.value = this.unescapedValue;
                     closeAllListsUnconditionally();
-                    e.stopPropagation();
                     e.preventDefault();
+                    e.stopPropagation();
                 });
                 a.appendChild(b);
             }
         });
     };
-    inp.addEventListener("input", function(e) {
-        onChangeFunction.apply(this,e,false)
-    });
-    inp.addEventListener("focus", function(e) {
-        onChangeFunction.apply(this, e,true);
-    });
+    inp.addEventListener("input", onChangeFunction);
+    inp.addEventListener("focus", onChangeFunction);
+
     // execute a function presses a key on the keyboard:
     inp.addEventListener("keydown", function (e) {
         let x = document.getElementById(this.id + "autocomplete-list");
@@ -85,50 +93,61 @@ function autocomplete(inp, activationPredicate, choiceSupplier)
             currentFocus--;
             markItemActive(x);
         } else if (e.keyCode === 13) { // enter
-            // If the ENTER key is pressed, prevent the form from being submitted,
             e.preventDefault();
             if (currentFocus > -1) {
                 // and simulate a click on the "active" item:
-                if (x) x[currentFocus].click();
+                if (x) {
+                    x[currentFocus].click();
+                }
             }
         }
     });
 
-    function markItemActive(x) {
-        if (!x) {
+    function markItemActive(htmlCollection) {
+        if (!htmlCollection) {
             return false;
         }
-        // start by removing the "active" class on all items:
-        markItemInactive(x);
-        if (currentFocus >= x.length) {
+        markItemInactive(htmlCollection);
+        if (currentFocus >= htmlCollection.length) {
             currentFocus = 0;
         }
         if (currentFocus < 0) {
-            currentFocus = (x.length - 1);
+            currentFocus = (htmlCollection.length - 1);
         }
-        x[currentFocus].classList.add("autocomplete-active");
+        htmlCollection[currentFocus].classList.add("autocomplete-active");
     }
 
-    function markItemInactive(x) {
-        // a function to remove the "active" class from all autocomplete items:
-        for (let i = 0; i < x.length; i++) {
-            x[i].classList.remove("autocomplete-active");
+    function markItemInactive(htmlCollection) {
+        for ( let item of htmlCollection ) {
+            item.classList.remove("autocomplete-active");
         }
     }
 
     function closeAllListsUnconditionally() {
-        // close all autocomplete lists in the document,
-        const x = document.getElementsByClassName("autocomplete-items");
-        for (let i = 0; i < x.length; i++) {
-            x[i].parentNode.removeChild(x[i]);
+        const htmlCollection = document.getElementsByClassName("autocomplete-items");
+        for ( let item of htmlCollection ) {
+            item.remove();
         }
+    }
+
+    function escapeHtmlEntities(str) {
+        if ( str == null ) {
+            return str;
+        }
+        const htmlEntities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&apos;"
+        };
+        return str.replace(/([&<>"'])/g, match => htmlEntities[match]);
     }
 
     document.addEventListener("click", function (e) {
         // close all EXCEPT the currently active list
-        const x = document.getElementsByClassName("autocomplete-items");
-        for (let i = 0; i < x.length; i++) {
-            const item = x[i];
+        const htmlCollection = document.getElementsByClassName("autocomplete-items");
+        for ( let item of htmlCollection ) {
             const ownerid = item.getAttribute("data-autocomplete-for");
             const owningElement = document.getElementById(ownerid);
             if ( owningElement != document.activeElement ) {
