@@ -2,45 +2,70 @@
 
 # What's this?
 
-A custom rule implementation for the maven-enforcer plugin that enforces 3rd party dependencies used by a project to not have been released longer than X days/weeks/months/years after the most recent version. Certain artifacts/group IDs/version numbers can be excluded using the same configuration that the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
+A custom rule implementation for the maven-enforcer plugin that enforces 3rd party dependencies used by a project to not have been released longer than X days/weeks/months/years after the most recent version.
+Specific artifacts/version numbers can be excluded from the checks using an XML configuration file with the same syntax that the
+[maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
 
-Artifact release information can either be retrieved & stored locally on client maches or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central).
+Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
+Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
 
-# Motivation
+# Basic Usage
 
-At work we have a fairly large multi-module project (600kloc, 40 modules, ~100 dependencies). After going through a very painful version upgrade after neglecting this for years (literally...) I wanted to prevent this from happening again.
+Do not forget to also add the de.code-sourcery.versiontracker:versiontracker-enforcerrule dependency to the enforcer plugin as otherwise the rule implementation will not be available.
 
-I immediately thought about using the maven-enforcer and maven-versions plugins for this BUT 
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.1.0</version>
+                    <executions>
+                        <execution>
+                            <id>enforce-versions</id>
+                            <phase>compile</phase>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <dependencyAgeRule implementation="de.codesourcery.versiontracker.enforcerrule.DependencyAgeRule">
+                                        <!-- Uncomment the next line and adjust the URL to meet your setup if you've deployed the servlet -->
+                                        <!-- <apiEndpoint>https://some.host/versiontracker/api</apiEndpoint> -->
+                                        <warnAge>1d</warnAge>
+                                        <maxAge>12w</maxAge>
+                                        <failOnMissingArtifacts>false</failOnMissingArtifacts>
+                                        <searchRulesInParentDirectories>true</searchRulesInParentDirectories>
+                                        <rulesFile>${project.basedir}/dependency_update_rules.xml</rulesFile>
+                                    </dependencyAgeRule>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
+                    <dependencies>
+                        <dependency>
+                            <groupId>de.code-sourcery.versiontracker</groupId>
+                            <artifactId>versiontracker-enforcerrule</artifactId>
+                            <version>1.0.14</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
 
-1. enforcer plugin cannot enforce dependency versions based on age compared to the artifact currently in use
-2. versions plugin can retrieve the latest version for each dependency but does not return the release (upload) date associated with each version...
-3. pointing the maven-versions plugin to our internal Artifactory server turned out to be dead-slow (takes a few minutes to check all 100 dependencies) because our artifactory server in turn has a large (>20) number of external repositories configured.
+# Rule Configuration
 
-# How does it work?
+Note that at least the warnAge (print warning but don't fail the build) or maxAge (fail build) configuration options always need to be present.
 
-## Solving the "release date unavailable" and "speed too slow" issues
-
-I wrote a custom servlet that 'speaks' a very simple binary protocol (JSON is supported as well but not enabled as I found out it's too slow), asynchronously fetches the maven-metadata.xml from a repository AND scrapes the upload dates from the HTML index page generated by at least maven central (as that information is not available from the maven-metadata.xml).
-
-The servlet automatically remembers each artifact query (and the retrieved version information) and will periodically poll the remote repository to see whether new versions have been uploaded. This polling happens asynchronously so unless an artifact is requested for the first time, clients will never have to wait for the information to become available.
-
-### Note that running the servlet is __optional__ , ommitting the *apiEndpoint* plugin configuration parameter will make the custom rule fetch & store artifact metadata locally (by default in ~/.m2/artifacts.json). I still STRONGLY recommend running the servlet if you have a lot of machines doing builds with this rule as it will otherwise send a LOT of requests against Maven central.
-
-## Solving the 'maven-enforcer-plugin cannot enforce dependency versions based on age' issue
-
-This is solved by a custom enforcer rule that accepts a configurable maxAge for dependencies and will automatically fail the build if a project dependency is more than 'maxAge' behind the release date of the latest available version.
-
-The custom enforcer rule also supports an optional XML file to blacklist specific versions for certain artifacts ; for ease of use this file uses the same syntax as the maven-versions-plugin (see http://www.mojohaus.org/versions-maven-plugin/xsd/rule-2.0.0.xsd)
+| Property Name                  | Values                                                                                                  | Description                                                                                                                                                                                            |
+|--------------------------------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| warnAge                        | Xd, X day, X days, X week, X weeks, X month, X months, X year, X years (with X being an integer number) | (optional) Print a warning for each artifact that is more than X behind the latest release. |
+| maxAge                         | Xd, X day, X days, X week, X weeks, X month, X months, X year, X years (with X being an integer number) | (optional) Fail the build as soon as any artifact is more than X behind the latest release. |
+| apiEndpoint                    | URL                                                                                                     | (optional) Path to API servlet                                                                                                                                                                         |
+| failOnMissingArtifacts         | true, false                                                                                             | (optional) Whether to fail the build if no release date could be determined for an artifact                                                                                                            |
+| searchRulesInParentDirectories | true, false                                                                                             | (optional) Whether to search the rules file in parent directories if it can't be found in the current project's directory                                                                              |
+ | rulesFiles                     | path to XML file                                                                                        | (optional) Path a rules file (using the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) syntax) that describes which versions/artifacts are excluded from age checks |
+ | debug                          | true, false                                                                                             | (optional) Enables additional debugging output                                                                                                                                                         |
+ | verbose                        | true, false                                                                                             | (optional) Enable more verbose output                                                                                                                                                                  |
 
 # Building
 
-You will need JDK 8+ and Maven 3.5.2+
-
-Note for JDK16 and upwards: You'll need to set your MAVEN_OPTS to include "--illegal-access=permit" because otherwise some of the more ancient Maven plugins in this pom.xml will crash
-
-Note for JDK17 and upwards: You'll need to set your MAVEN_OPTS to include "---add-opens java.base/java.lang=ALL-UNNAMED" because otherwise some of the more ancient Maven plugins in this pom.xml will crash
- 
-# Installation
+You will need JDK 17 or later as well as Maven 3.5.2 or later. You'll need to set your MAVEN_OPTS to include "---add-opens java.base/java.lang=ALL-UNNAMED" because otherwise some of the more ancient Maven plugins in this pom.xml will crash
 
 ## Servlet setup (optional).
 
@@ -52,74 +77,9 @@ By default the servlet will store all retrieved artifact metadata as a binary fi
 
 You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
-## Add the custom rule to your enforcer plugin configuration
-
-    <build>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-enforcer-plugin</artifactId>
-          <version>${enforcer.plugin.version}</version>
-          <executions>
-            <execution>
-              <id>enforce-clean</id>
-              <phase>clean</phase>
-              <goals>
-                <goal>enforce</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>enforce-compile</id>
-              <phase>compile</phase>
-              <goals>
-                <goal>enforce</goal>
-              </goals>
-            </execution>
-          </executions>
-          <configuration>
-            <rules>
-              <dependencyAgeRule implementation="de.codesourcery.versiontracker.enforcerrule.DependencyAgeRule">
-                <apiEndpoint>http://localhost:8080/versiontracker-server/test</apiEndpoint>
-                <warnAge>4d</warnAge>
-                <maxAge>2m</maxAge>
-                <debug>false</debug>
-                <verbose>true</verbose>
-                <rulesFile>${project.basedir}/rules.xml</rulesFile>
-              </dependencyAgeRule>
-            </rules>
-          </configuration>
-            <dependencies>
-              <dependency>
-                <groupId>de.codesourcery.versiontracker</groupId>
-                <artifactId>versiontracker-enforcerrule</artifactId>
-                <version>1.0.8</version>
-                <classifier>jdk17</classifier> <!-- classifier needs to match the JDK version you're using -->
-              </dependency>
-            </dependencies>
-        </plugin>
-      </plugins>
-    </build>
-    
-# Rule configuration options
-
-| Configuration                  | optional? | Default value |Examples                      | Description |
-|--------------------------------|-----------|:-------------:|------------------------------|-------------|
-| warnAge                        |     X     |               | 3 days                       | Print a warning for each dependency that was released more than X (days|weeks|months|years) ago. |
-| maxAge                         |           |               | 1 month                      | Fail the build for each dependency that was released more than X (days|weeks|months|years) ago. |
-| apiEndpoint                    |     X     |               | http://my.server/proxy       | URl to proxy servlet ; if omitted everything will be executed on the client and retrieved metadata is stored in ~/.m2/artifacts.json | 
-| verbose                        |     X     |    false      | true                         | Enable printing more verbose information about what's going on |
-| debug                          |     X     |    false      | false                        | Enable printing more verbose information about what's going on |
-| rulesFile                      |     X     |               | ${project.basedir}/rules.xml | XML file describing which version numbers/artifacts to ignore when checking for updates |
-| failOnMissingArtifacts         |     X     |    **true**      | true                         | Whether to fail the build if no release information could be obtained for an artifact |
-| searchRulesInParentDirectories |     X     |    false      | true                         | When set to 'true' and the rules file could not be found in the given location, recursively traverse parent directories looking for the file there |
-
-
-NOTE: The 'searchRulesInParentDirectories' option is a hack to share a single XML rules file in a top-level folder across child modules somewhere below  this folder.
-
 ## [optional] Create a XML file describing which versions to blacklist
 
-The rules XML file as described here: https://www.mojohaus.org/versions-maven-plugin/rule.html 
-
+The rules XML file as described here: https://www.mojohaus.org/versions-maven-plugin/rule.html
 
     <?xml version="1.0" ?>
     <ruleset comparisonMethod="maven">
@@ -148,7 +108,5 @@ The rules XML file as described here: https://www.mojohaus.org/versions-maven-pl
 
 * (high prio) Add support for querying multiple maven repositories instead of just Maven central
 * (high prio) Refactor code to not hold all the metadata in memory (fast and easy but obviously doesn't scale)
-* (medium prio) Add simple web UI to configure the servlet/query artifacts/show status
 * (medium prio) Add SQL database support for metadata storage
-* (low prio) Add module descriptors to all sub-modules (I would've done it already but currently the Java ecosystem seems to suffer from a chicken-and-egg problem, everybody's waiting on everybody else to modularize their project first and I got some issues with Eclipse Phonton M6 and missing 'automatic-module-name' entries in various manifests) 
-* (low prio,maybe not a good idea) Maybe add support for having per-artifact maxAge / warnAge values inside blacklist XML ?
+* (low prio) Add module.info descriptors to all sub-modules

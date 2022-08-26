@@ -303,7 +303,7 @@ public class DependencyAgeRule implements EnforcerRule
         }
 
         if ( parsedWarnAge == null && parsedMaxAge == null ) {
-            fail("Configuration error - either 'maxAge' or 'warnAge' need to be set");
+            fail("Configuration error - at least one of 'maxAge' or 'warnAge' needs to be set");
         }
 
         if ( parsedWarnAge != null && parsedMaxAge != null ) {
