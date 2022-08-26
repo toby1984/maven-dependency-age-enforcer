@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.code-sourcery.versiontracker</groupId>
   <artifactId>versiontracker-parent</artifactId>
-  <version>1.0.15</version>
+  <version>1.0.16-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>${project.groupId}:${project.artifactId}</name>
   <description>Rule for maven-dependency-plugin that enforces dependencies are no more than X weeks/months/years older than their latest release.</description>
@@ -80,7 +80,7 @@
     <connection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</connection>
     <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
     <url>https://github.com/toby1984/maven-dependency-analyzer-spring</url>
-    <tag>versiontracker-parent-1.0.15</tag>
+    <tag>HEAD</tag>
   </scm>
   <licenses>
     <license>
@@ -106,22 +106,22 @@
       <dependency>
         <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-common</artifactId>
-        <version>1.0.15</version>
+        <version>1.0.16-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-client</artifactId>
-        <version>1.0.15</version>
+        <version>1.0.16-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-server</artifactId>
-        <version>1.0.15</version>
+        <version>1.0.16-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>de.code-sourcery.versiontracker</groupId>
         <artifactId>versiontracker-enforcerrule</artifactId>
-        <version>1.0.15</version>
+        <version>1.0.16-SNAPSHOT</version>
       </dependency>
       <!-- used by all sub-modules-->
       <dependency>
