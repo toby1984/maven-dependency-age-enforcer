@@ -2,14 +2,18 @@
 
 # What's this?
 
-A custom rule implementation for the maven-enforcer plugin that enforces 3rd party dependencies used by a project to not have been released longer than X days/weeks/months/years after the most recent version.
-Specific artifacts/version numbers can be excluded from the checks using an XML configuration file with the same syntax that the
+A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a project uses are not getting too much out od date
+(=have not been released more than X days/weeks/months/years before the latest release).
+
+Specific artifacts/version numbers can be excluded from checking using an XML configuration file with the same syntax that the
 [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
 
 Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
 Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
 
 # Basic Usage
+
+Note that you'll need at least JDK 17 to use this enforcer rule.
 
 Do not forget to also add the de.code-sourcery.versiontracker:versiontracker-enforcerrule dependency to the enforcer plugin as otherwise the rule implementation will not be available.
 
