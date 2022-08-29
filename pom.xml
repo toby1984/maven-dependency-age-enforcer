@@ -79,7 +79,7 @@
   <scm>
     <connection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</connection>
     <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
-    <url>https://github.com/toby1984/maven-dependency-analyzer-spring</url>
+    <url>https://github.com/toby1984/maven-dependency-version-enforcer</url>
     <tag>HEAD</tag>
   </scm>
   <licenses>
