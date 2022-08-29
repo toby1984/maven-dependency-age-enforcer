@@ -104,6 +104,165 @@ The rules XML file as described here: https://www.mojohaus.org/versions-maven-pl
       </rules>
     </ruleset>
 
+# JSON API
+
+While the enforcer rule by default speaks a binary protocol (much faster than jackson databind), the servlet also supports JSON queries using HTTP POST requests to
+
+     http(s)://<your host>[:<your port>]/<webapp name>/api
+
+## Example query
+
+    {
+       "clientVersion":"1.0",
+       "command":"query",
+       "artifacts":[
+          {
+             "groupId":"org.junit.jupiter",
+             "version":"5.9.0-M1",
+             "artifactId":"junit-jupiter-api",
+             "type":"jar"
+          },
+          {
+             "groupId":"org.junit.jupiter",
+             "version":"5.9.0-M1",
+             "artifactId":"junit-jupiter",
+             "type":"jar"
+          }
+       ],
+       "blacklist":{
+          "globalIgnores":[
+             {
+                "pattern":"(?i).*incubating.*",
+                "type":"regex"
+             },
+             {
+                "pattern":"(?i).*atlassian.*",
+                "type":"regex"
+             }
+          ],
+          "groupIdIgnores":{
+             "org.apache.tomcat":[
+                {
+                   "pattern":"10\\..*",
+                   "type":"regex"
+                }
+             ],
+             "org.wicketstuff":[
+                {
+                   "pattern":"9\\..*",
+                   "type":"regex"
+                }
+             ]
+          },
+          "artifactIgnores":{
+             "org.snmp4j":{
+                "snmp4j-agentx":[
+                   {
+                      "pattern":".*",
+                      "type":"regex"
+                   }
+                ],
+                "snmp4j-agent":[
+                   {
+                      "pattern":".*",
+                      "type":"regex"
+                   }
+                ],
+                "snmp4j":[
+                   {
+                      "pattern":".*",
+                      "type":"regex"
+                   }
+                ]
+             },
+             "commons-logging":{
+                "commons-logging-api":[
+                   {
+                      "pattern":"99.0-does-not-exist",
+                      "type":"exact"
+                   }
+                ],
+                "commons-logging":[
+                   {
+                      "pattern":"99.0-does-not-exist",
+                      "type":"exact"
+                   }
+                ]
+             }
+          }
+       }
+    }
+
+## Example response 
+
+    {
+       "serverVersion":"1.0",
+       "command":"query",
+       "artifacts":[
+          {
+             "artifact":{
+                "groupId":"org.junit.jupiter",
+                "version":"5.9.0-M1",
+                "artifactId":"junit-jupiter",
+                "type":"jar"
+             },
+             "updateAvailable":"MAYBE"
+          },
+          {
+             "artifact":{
+                "groupId":"does.not.exist",
+                "version":"1.0.0",
+                "artifactId":"missing",
+                "type":"jar"
+             },
+             "updateAvailable":"NOT_FOUND"
+          },   
+          {
+             "artifact":{
+                "groupId":"log4j",
+                "version":"1.2.16",
+                "artifactId":"log4j",
+                "type":"jar"
+             },
+             "currentVersion":{
+                "versionString":"1.2.16",
+                "releaseDate":"201003311112"
+             },
+             "latestVersion":{
+                "versionString":"1.2.17",
+                "releaseDate":"201203261112"
+             },
+             "updateAvailable":"YES"
+          },      
+          {
+             "artifact":{
+                "groupId":"org.assertj",
+                "version":"3.23.1",
+                "artifactId":"assertj-core",
+                "type":"jar"
+             },
+             "currentVersion":{
+                "versionString":"3.23.1",
+                "releaseDate":"202205311722"
+             },
+             "latestVersion":{
+                "versionString":"3.23.1",
+                "releaseDate":"202205311722"
+             },
+             "updateAvailable":"NO"
+          },   
+          {
+             "artifact":{
+                "groupId":"org.junit.jupiter",
+                "version":"5.9.0-M1",
+                "artifactId":"junit-jupiter",
+                "type":"jar"
+             },
+             "updateAvailable":"MAYBE"
+          },      
+       ]
+    }
+
 # Known bugs
 
 * Adding XML namespace attributes to the &lt;ruleset&gt; tag inside the rules XML currently breaks JAXB unmarshalling,just leave them out for now
