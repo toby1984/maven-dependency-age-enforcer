@@ -3,10 +3,10 @@
   <parent>
     <groupId>de.code-sourcery.versiontracker</groupId>
     <artifactId>versiontracker-parent</artifactId>
-    <version>1.0.16</version>
+    <version>1.0.17-SNAPSHOT</version>
   </parent>
   <artifactId>versiontracker-common</artifactId>
-  <version>1.0.16</version>
+  <version>1.0.17-SNAPSHOT</version>
   <name>versiontracker-common</name>
   <dependencies>
       <dependency>
