@@ -182,6 +182,29 @@ public class RemoteApiClient extends AbstractAPIClient
             if ( client != null ) {
                 try {
                     client.close();
+                }
+                catch(Error ex) {
+                    /*
+                     * Hack around weird crash upon close() that happens with Apache httpclient >= 4.5.10
+                     *
+                     * Exception in thread "Thread-1" java.lang.NoClassDefFoundError: org/apache/http/impl/conn/PoolingHttpClientConnectionManager$2
+                     *         at org.apache.http.impl.conn.PoolingHttpClientConnectionManager.shutdown(PoolingHttpClientConnectionManager.java:413)
+                     *         at org.apache.http.impl.client.HttpClientBuilder$2.close(HttpClientBuilder.java:1244)
+                     *         at org.apache.http.impl.client.InternalHttpClient.close(InternalHttpClient.java:201)
+                     *         at de.codesourcery.versiontracker.client.api.remote.RemoteApiClient.close(RemoteApiClient.java:184)
+                     *         at de.codesourcery.versiontracker.enforcerrule.DependencyAgeRule.lambda$getRemoteAPIClient$1(DependencyAgeRule.java:676)
+                     *         at java.base/java.lang.Thread.run(Thread.java:833)
+                     * Caused by: java.lang.ClassNotFoundException: org.apache.http.impl.conn.PoolingHttpClientConnectionManager$2
+                     *         at org.codehaus.plexus.classworlds.strategy.SelfFirstStrategy.loadClass(SelfFirstStrategy.java:50)
+                     *         at org.codehaus.plexus.classworlds.realm.ClassRealm.unsynchronizedLoadClass(ClassRealm.java:271)
+                     *         at org.codehaus.plexus.classworlds.realm.ClassRealm.loadClass(ClassRealm.java:247)
+                     *         at org.codehaus.plexus.classworlds.realm.ClassRealm.loadClass(ClassRealm.java:239)
+                     */
+
+                    if ( !(ex instanceof NoClassDefFoundError err) || !(err.getCause() instanceof ClassNotFoundException e2) ||
+                        e2.getMessage() == null || !e2.getMessage().contains( "org.apache.http.impl.conn.PoolingHttpClientConnectionManager$2" ) ) {
+                            throw ex;
+                        }
                 } finally {
                     client = null;
                 }
