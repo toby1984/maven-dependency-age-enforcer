@@ -263,6 +263,10 @@ While the enforcer rule by default speaks a binary protocol (much faster than ja
        ]
     }
 
+# Releasing to Maven Central
+
+   mvn -Prelease release:prepare release:perform
+
 # Known bugs
 
 * Adding XML namespace attributes to the &lt;ruleset&gt; tag inside the rules XML currently breaks JAXB unmarshalling,just leave them out for now
