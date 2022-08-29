@@ -267,9 +267,11 @@ While the enforcer rule by default speaks a binary protocol (much faster than ja
 
 * Adding XML namespace attributes to the &lt;ruleset&gt; tag inside the rules XML currently breaks JAXB unmarshalling,just leave them out for now
  
-# Known issues / TODO
+# Potential enhancements 
 
-* (high prio) Add support for querying multiple maven repositories instead of just Maven central
-* (high prio) Refactor code to not hold all the metadata in memory (fast and easy but obviously doesn't scale)
-* (medium prio) Add SQL database support for metadata storage
-* (low prio) Add module.info descriptors to all sub-modules
+* Add support for querying multiple maven repositories instead of just Maven central
+* Refactor code to not hold all the metadata in memory (fast and easy but obviously doesn't scale)
+* SOAP/JSON interfaces use same entities as database backend ; this makes for concise code but also makes it hard to evolve the
+  backend without breaking the external API or having to transmit superfluous data -> separate DTOs are needed here 
+* Add SQL database support for metadata storage
+* Add module.info descriptors to all sub-modules
