@@ -81,6 +81,8 @@ By default the servlet will store all retrieved artifact metadata as a binary fi
 
 You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
+![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/screenshot_ui.png)
+
 ## [optional] Create a XML file describing which versions to blacklist
 
 The rules XML file as described here: https://www.mojohaus.org/versions-maven-plugin/rule.html
