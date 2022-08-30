@@ -6,7 +6,7 @@ A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a
 
 This rule can be configured to just print warnings about outdated artifacts or outright fail the build. Specific artifact IDs/group IDs/version numbers can be excluded from checking using an XML configuration file with the same syntax that the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
 
-![screenshot](https://url/to/img.png)
+![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/screenshot.png)
 
 Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
 Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
