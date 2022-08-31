@@ -149,30 +149,32 @@ public class RemoteApiClient extends AbstractAPIClient
             }
         }
 
-        final HttpResponse response = client().execute(httppost);
-        final HttpEntity entity = response.getEntity();
+        try {
+            final HttpResponse response = client().execute( httppost );
+            final HttpEntity entity = response.getEntity();
 
-        final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        try ( InputStream instream = entity.getContent() ) 
-        {
-            final byte[] buffer = new byte[10*1024];
-            int len;
-            while ( ( len = instream.read(buffer) ) > 0 ) {
-                byteOut.write(buffer,0,len);
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            try ( InputStream instream = entity.getContent() ) {
+                final byte[] buffer = new byte[10 * 1024];
+                int len;
+                while ((len = instream.read( buffer )) > 0) {
+                    byteOut.write( buffer, 0, len );
+                }
             }
-        }
-        final byte[] resp = byteOut.toByteArray();
-        if ( ! debugPrinted ) 
-        {
-            if ( debugMode ) {
-                System.out.println("RESPONSE: \n"+Utils.toHex(resp)+"\n");
-            }
+            final byte[] resp = byteOut.toByteArray();
+            if ( !debugPrinted ) {
+                if ( debugMode ) {
+                    System.out.println( "RESPONSE: \n" + Utils.toHex( resp ) + "\n" );
+                }
 
-            if ( LOG.isDebugEnabled() ) {
-                LOG.debug("doPost(): RESPONSE: \n=====\n"+Utils.toHex(resp)+"\n=======");
-            } 
+                if ( LOG.isDebugEnabled() ) {
+                    LOG.debug( "doPost(): RESPONSE: \n=====\n" + Utils.toHex( resp ) + "\n=======" );
+                }
+            }
+            return resp;
+        } finally {
+            httppost.releaseConnection();
         }
-        return resp;
     }
 
     @Override
