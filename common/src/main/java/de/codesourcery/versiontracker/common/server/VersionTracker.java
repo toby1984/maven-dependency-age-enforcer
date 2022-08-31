@@ -167,8 +167,7 @@ public class VersionTracker implements IVersionTracker
                                 LOG.debug("updateArtifact(): [outdated] Trying to update metadata for "+artifact);
                             }
                             newInfo = existing;
-                            newInfo.lastRequestDate = now;
-                        } 
+                        }
                         else 
                         {
                             if ( LOG.isDebugEnabled() ) {
@@ -177,8 +176,8 @@ public class VersionTracker implements IVersionTracker
                             newInfo = new VersionInfo();
                             newInfo.creationDate = now;
                             newInfo.artifact = artifact;
-                            newInfo.lastRequestDate = now;
                         }
+                        newInfo.lastRequestDate = now;
 
                         synchronized(resultMap) {
                             resultMap.put(artifact,newInfo);

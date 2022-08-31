@@ -488,24 +488,26 @@ public class MavenCentralVersionProvider implements IVersionProvider
             LOG.debug("performGET(): Should not happen: '"+url+"'",e1);
             throw new RuntimeException(e1);
         }
-        final HttpResponse response = getClient(url).execute(httpget);
-        final int statusCode = response.getStatusLine().getStatusCode();
-        if ( statusCode != 200 ) {
-            LOG.error( "performGET(): HTTP request to " + url + " returned " + response.getStatusLine() );
-            if ( statusCode == 404 ) {
-                throw new FileNotFoundException( "Failed to find " + url );
+        try {
+            final HttpResponse response = getClient( url ).execute( httpget );
+            final int statusCode = response.getStatusLine().getStatusCode();
+            if ( statusCode != 200 ) {
+                LOG.error( "performGET(): HTTP request to " + url + " returned " + response.getStatusLine() );
+                if ( statusCode == 404 ) {
+                    throw new FileNotFoundException( "Failed to find " + url );
+                }
+                throw new IOException( "HTTP request to " + url + " returned " + response.getStatusLine() );
             }
-            throw new IOException( "HTTP request to " + url + " returned " + response.getStatusLine() );
-        }
-        final HttpEntity entity = response.getEntity();
-        try (InputStream instream = entity.getContent() )
-        {
-            LOG.debug("performGET(): Got Input Stream after "+(System.currentTimeMillis()-start)+" ms");
-            return handler.process( instream );
-        }
-        finally
-        {
-            LOG.debug("performGET(): Finished processing after "+(System.currentTimeMillis()-start)+" ms");
+            final HttpEntity entity = response.getEntity();
+            try ( InputStream instream = entity.getContent() ) {
+                LOG.debug( "performGET(): Got Input Stream after " + (System.currentTimeMillis() - start) + " ms" );
+                return handler.process( instream );
+            }
+            finally {
+                LOG.debug( "performGET(): Finished processing after " + (System.currentTimeMillis() - start) + " ms" );
+            }
+        } finally {
+            httpget.releaseConnection();
         }
     }
 
