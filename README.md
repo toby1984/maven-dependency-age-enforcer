@@ -2,7 +2,7 @@
 
 # What's this?
 
-A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a project uses are "too much" behind the respective latest release (in terms of days/weeks/months).   
+A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a project uses are not "too much" behind their respective latest release (in terms of days/weeks/months).   
 
 This rule can be configured to just print warnings about outdated artifacts or outright fail the build. Specific artifact IDs/group IDs/version numbers can be excluded from checking using an XML configuration file with the same syntax that the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
 
@@ -81,7 +81,7 @@ By default the servlet will store all retrieved artifact metadata as a binary fi
 
 You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
-![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/screenshot_ui.png)
+![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/server_screenshot.png)
 
 ## [optional] Create a XML file describing which versions to blacklist
 
