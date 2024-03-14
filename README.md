@@ -13,7 +13,7 @@ Note that metadata.xml files stored on Maven Central do not reveal when a given 
 
 # Build status
 
-![status](https://github.com/OWNER/REPOSITORY/actions/workflows/maven.yml/badge.svg)
+![status](https://github.com/toby1984/maven-dependency-version-enforcer/actions/workflows/maven.yml/badge.svg)
 
 # Basic Usage
 
