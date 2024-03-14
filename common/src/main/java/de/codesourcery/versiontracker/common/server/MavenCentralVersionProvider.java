@@ -22,13 +22,17 @@ import de.codesourcery.versiontracker.common.VersionInfo;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
@@ -131,7 +135,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();    
     private String serverBase;
     private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
-    private final Map<URL,HttpClient> clients = new HashMap<>();
+    private final Map<URL,CloseableHttpClient> clients = new HashMap<>();
 
     private int maxConcurrentThreads = 10;
 
@@ -459,10 +463,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    private HttpClient getClient(URL url)
+    private CloseableHttpClient getClient(URL url)
     {
         synchronized(clients) {
-            HttpClient client = clients.get(url);
+            CloseableHttpClient client = clients.get(url);
             if ( client==null )
             {
                 final DefaultConnectionKeepAliveStrategy defaultKeepAlive = new  DefaultConnectionKeepAliveStrategy();
@@ -488,26 +492,24 @@ public class MavenCentralVersionProvider implements IVersionProvider
             LOG.debug("performGET(): Should not happen: '"+url+"'",e1);
             throw new RuntimeException(e1);
         }
-        try {
-            final HttpResponse response = getClient( url ).execute( httpget );
-            final int statusCode = response.getStatusLine().getStatusCode();
+        try (CloseableHttpResponse response = getClient( url ).execute( httpget )) {
+            final int statusCode = response.getCode();
             if ( statusCode != 200 ) {
-                LOG.error( "performGET(): HTTP request to " + url + " returned " + response.getStatusLine() );
+                LOG.error( "performGET(): HTTP request to " + url + " returned " + response.getReasonPhrase() );
                 if ( statusCode == 404 ) {
                     throw new FileNotFoundException( "Failed to find " + url );
                 }
-                throw new IOException( "HTTP request to " + url + " returned " + response.getStatusLine() );
+                throw new IOException( "HTTP request to " + url + " returned " + response.getReasonPhrase() );
             }
-            final HttpEntity entity = response.getEntity();
-            try ( InputStream instream = entity.getContent() ) {
-                LOG.debug( "performGET(): Got Input Stream after " + (System.currentTimeMillis() - start) + " ms" );
-                return handler.process( instream );
+            try ( final HttpEntity entity = response.getEntity() ) {
+                try ( InputStream instream = entity.getContent() ) {
+                    LOG.debug( "performGET(): Got Input Stream after " + (System.currentTimeMillis() - start) + " ms" );
+                    return handler.process( instream );
+                }
+                finally {
+                    LOG.debug( "performGET(): Finished processing after " + (System.currentTimeMillis() - start) + " ms" );
+                }
             }
-            finally {
-                LOG.debug( "performGET(): Finished processing after " + (System.currentTimeMillis() - start) + " ms" );
-            }
-        } finally {
-            httpget.releaseConnection();
         }
     }
 

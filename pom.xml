@@ -238,17 +238,9 @@
         <version>2.13.4.2</version>
       </dependency>
       <dependency>
-        <groupId>org.apache.httpcomponents</groupId>
-        <artifactId>httpclient</artifactId>
-        <!-- note: at least on JDK 17.0.1 and with Maven 3.8.3, my enforcer rule crashes with a weird ClassNotFoundException: org.apache.http.impl.conn.PoolingHttpClientConnectionManager$2
-             when using anything ABOVE httpclient v.4.5.10 ... this is caused by the following commit  in https://github.com/apache/httpcomponents-client/
-
-              541783d44 2019-12-05 09:45:36 +0100 Oleg Kalnichevski HTTPCLIENT-2033: connection managers to immediately shut down all leased connection upon shutdown
-
-             I suspect the exception is either caused by some JDK17 bug or some bug related to the Maven Plexus classworlds stuff and JDK17 ; the inner class is clearly part of the JAR
-             file but for some reason it fails to load.
--->
-        <version>4.5.13</version>
+        <groupId>org.apache.httpcomponents.client5</groupId>
+        <artifactId>httpclient5</artifactId>
+        <version>5.2.3</version>
       </dependency>
       <dependency>
         <groupId>javax.servlet</groupId>

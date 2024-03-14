@@ -27,12 +27,14 @@ import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Utils;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.logging.log4j.LogManager;
 
 import java.io.ByteArrayInputStream;
@@ -136,7 +138,7 @@ public class RemoteApiClient extends AbstractAPIClient
         final HttpPost httppost = new HttpPost( endpointUrl );
 
         final byte[] tmp = IAPIClient.toWireFormat(input,protocol);
-        httppost.setEntity(new ByteArrayEntity(tmp));
+        httppost.setEntity(new ByteArrayEntity(tmp, ContentType.APPLICATION_OCTET_STREAM));
 
         if ( ! debugPrinted ) 
         {
@@ -149,8 +151,7 @@ public class RemoteApiClient extends AbstractAPIClient
             }
         }
 
-        try {
-            final HttpResponse response = client().execute( httppost );
+        try ( final CloseableHttpResponse response = client().execute( httppost ) ) {
             final HttpEntity entity = response.getEntity();
 
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
@@ -172,8 +173,6 @@ public class RemoteApiClient extends AbstractAPIClient
                 }
             }
             return resp;
-        } finally {
-            httppost.releaseConnection();
         }
     }
 
@@ -187,27 +186,28 @@ public class RemoteApiClient extends AbstractAPIClient
                 }
                 catch(Error ex) {
                     /*
-                     * Hack around weird crash upon close() that happens with Apache httpclient >= 4.5.10
+                     * Hack around weird crash upon close() that happens with Apache httpcomponents >= 5.2.3 and (at least) Maven 3.9.1,
+                     * maybe related to Plexus classpath container stuff and Maven still being on httpcomponents 4.x
                      *
-                     * Exception in thread "Thread-1" java.lang.NoClassDefFoundError: org/apache/http/impl/conn/PoolingHttpClientConnectionManager$2
-                     *         at org.apache.http.impl.conn.PoolingHttpClientConnectionManager.shutdown(PoolingHttpClientConnectionManager.java:413)
-                     *         at org.apache.http.impl.client.HttpClientBuilder$2.close(HttpClientBuilder.java:1244)
-                     *         at org.apache.http.impl.client.InternalHttpClient.close(InternalHttpClient.java:201)
-                     *         at de.codesourcery.versiontracker.client.api.remote.RemoteApiClient.close(RemoteApiClient.java:184)
+                     * Exception in thread "Thread-1" java.lang.NoClassDefFoundError: org/apache/hc/core5/io/CloseMode
+                     *         at org.apache.hc.client5.http.impl.classic.InternalHttpClient.close(InternalHttpClient.java:184)
+                     *         at de.codesourcery.versiontracker.client.api.remote.RemoteApiClient.close(RemoteApiClient.java:185)
                      *         at de.codesourcery.versiontracker.enforcerrule.DependencyAgeRule.lambda$getRemoteAPIClient$1(DependencyAgeRule.java:676)
-                     *         at java.base/java.lang.Thread.run(Thread.java:833)
-                     * Caused by: java.lang.ClassNotFoundException: org.apache.http.impl.conn.PoolingHttpClientConnectionManager$2
+                     *         at java.base/java.lang.Thread.run(Thread.java:1583)
+                     * Caused by: java.lang.ClassNotFoundException: org.apache.hc.core5.io.CloseMode
                      *         at org.codehaus.plexus.classworlds.strategy.SelfFirstStrategy.loadClass(SelfFirstStrategy.java:50)
                      *         at org.codehaus.plexus.classworlds.realm.ClassRealm.unsynchronizedLoadClass(ClassRealm.java:271)
                      *         at org.codehaus.plexus.classworlds.realm.ClassRealm.loadClass(ClassRealm.java:247)
                      *         at org.codehaus.plexus.classworlds.realm.ClassRealm.loadClass(ClassRealm.java:239)
+                     *         ... 4 more
                      */
 
                     if ( !(ex instanceof NoClassDefFoundError err) || !(err.getCause() instanceof ClassNotFoundException e2) ||
-                        e2.getMessage() == null || !e2.getMessage().contains( "org.apache.http.impl.conn.PoolingHttpClientConnectionManager$2" ) ) {
+                        e2.getMessage() == null || !e2.getMessage().contains( "org.apache.hc.core5.io.CloseMode" ) ) {
                             throw ex;
                         }
-                } finally {
+                }
+                finally {
                     client = null;
                 }
             }
