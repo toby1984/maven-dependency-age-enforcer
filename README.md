@@ -11,6 +11,10 @@ This rule can be configured to just print warnings about outdated artifacts or o
 Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
 Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
 
+# Build status
+
+![status](https://github.com/OWNER/REPOSITORY/actions/workflows/maven.yml/badge.svg)
+
 # Basic Usage
 
 Note that you'll need at least JDK 17 to use this enforcer rule.
