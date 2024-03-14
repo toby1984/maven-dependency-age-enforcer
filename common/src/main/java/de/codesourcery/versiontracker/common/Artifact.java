@@ -154,7 +154,7 @@ public class Artifact
     }
     
     public static String[] splitVersionNumber(String number) {
-    	if ( number == null || number.trim().length() == 0 ) {
+    	if ( number == null || number.trim().isEmpty() ) {
     		return EMPTY_ARRAY;
     	}    	
     	final List<String> parts = new ArrayList<>();
@@ -164,7 +164,7 @@ public class Artifact
     		if ( Character.isDigit( c ) ) {
     			buffer.append( c );
     		} else {
-    	        if ( buffer.length() > 0 ) {
+    	        if ( !buffer.isEmpty() ) {
     	        	parts.add( buffer.toString() );
     	        	buffer.setLength(0);
     	        }
@@ -174,7 +174,7 @@ public class Artifact
     	        }
     		}
     	}
-    	if ( buffer.length() > 0 ) {
+    	if ( !buffer.isEmpty() ) {
     		parts.add(buffer.toString());
     	}
     	return parts.toArray(new String[0]);

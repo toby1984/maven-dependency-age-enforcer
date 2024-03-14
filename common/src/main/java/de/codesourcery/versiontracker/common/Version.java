@@ -73,12 +73,14 @@ public class Version
     
     public Version(String versionString, ZonedDateTime releaseDate)
     {
+        Validate.notBlank( versionString, "versionString must not be null or blank");
         this.versionString = versionString;
         this.releaseDate = releaseDate;
     }
 
     public Version(Version other)
     {
+        Validate.notNull( other, "other must not be null" );
         this.versionString = other.versionString;
         this.releaseDate = other.releaseDate;
     }

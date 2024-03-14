@@ -45,7 +45,7 @@ public class BinarySerializer implements AutoCloseable,Closeable
     
     public final IBuffer buffer;
     
-    public interface IBuffer extends AutoCloseable,Closeable
+    public interface IBuffer extends Closeable
     {
         int maybeReadByte() throws IOException;
         

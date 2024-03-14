@@ -128,7 +128,12 @@
         <artifactId>versiontracker-enforcerrule</artifactId>
         <version>1.0.21-SNAPSHOT</version>
       </dependency>
-      <!-- used by all sub-modules-->
+      <!-- dependencies used by sub-modules-->
+      <dependency>
+        <groupId>javax.inject</groupId>
+        <artifactId>javax.inject</artifactId>
+        <version>1</version>
+      </dependency>
       <dependency>
         <groupId>javax.activation</groupId>
         <artifactId>activation</artifactId>

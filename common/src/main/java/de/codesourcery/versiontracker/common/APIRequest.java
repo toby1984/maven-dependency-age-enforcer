@@ -17,6 +17,7 @@ package de.codesourcery.versiontracker.common;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import de.codesourcery.versiontracker.client.api.IAPIClient;
+import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
 
@@ -35,7 +36,7 @@ public abstract class APIRequest
 	public enum Command
 	{
 	    /**
-	     * 
+	     * Query artifact information.
 	     */
 	    @JsonProperty("query")
 		QUERY("query");
@@ -61,6 +62,7 @@ public abstract class APIRequest
 	public final Command command;
 	
 	public APIRequest(APIRequest.Command cmd) {
+		Validate.notNull( cmd, "cmd must not be null" );
 		this.command = cmd;
 	}
 	
@@ -74,12 +76,12 @@ public abstract class APIRequest
 	
 	public static APIRequest deserialize(BinarySerializer serializer) throws IOException 
 	{
-	    String version = serializer.readString();
+	    final String version = serializer.readString();
         if ( ! IAPIClient.CLIENT_VERSION.equals( version ) ) {
             throw new IOException("Unknown client version: '"+version+"'");
         }
         
-	    Command cmd = APIRequest.Command.fromString( serializer.readString() );
+	    final Command cmd = APIRequest.Command.fromString( serializer.readString() );
 		return switch ( cmd ) {
 			case QUERY -> QueryRequest.doDeserialize( serializer );
 		};

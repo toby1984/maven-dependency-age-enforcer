@@ -28,9 +28,10 @@ import java.util.stream.StreamSupport;
 
 /**
  * A container that stores values indexed by artifact group ID and artifact ID.
- *
+ * <p>
  * <b>This class is NOT thread-safe.</b>
- * 
+ * </p>
+ *
  * @author tobias.gierke@code-sourcery.de
  */
 public class ArtifactMap<T> 
@@ -77,7 +78,7 @@ public class ArtifactMap<T>
         Validate.notBlank(artifactId,"artifactId must not be NULL");           
 
     	T result = null;
-        Map<String, T> map = data.get( groupId );
+        final Map<String, T> map = data.get( groupId );
         if ( map != null ) {
             result = map.remove( artifactId );
             if ( result != null ) {
@@ -97,7 +98,7 @@ public class ArtifactMap<T>
      */
     public Stream<T> stream() 
     {
-        final Spliterator<T> it = new Spliterator<T>() 
+        final Spliterator<T> it = new Spliterator<>()
         {
             private Iterator<Entry<String, Map<String, T>>> it1 = data.entrySet().iterator();
             
@@ -182,10 +183,7 @@ public class ArtifactMap<T>
         Validate.notBlank(artifactId,"artifactId must not be NULL");   
 
         final Map<String, T> map = data.get( groupId );
-        if ( map != null ) {
-            return map.containsKey( artifactId );
-        }
-        return false;
+        return map != null && map.containsKey( artifactId );
     }
     
     /**
@@ -200,12 +198,8 @@ public class ArtifactMap<T>
         Validate.notBlank(groupId,"groupId must not be NULL");
         Validate.notBlank(artifactId,"artifactId must not be NULL");        
         Validate.notNull(value,"value must not be NULL");
-        
-        Map<String, T> map = data.get( groupId );
-        if ( map == null ) {
-            map = new HashMap<>();
-            data.put( groupId, map );
-        }
+
+        final Map<String, T> map = data.computeIfAbsent( groupId, k -> new HashMap<>() );
         T existing = map.put( artifactId, value );
         if ( existing == null ) {
             size++;
@@ -225,10 +219,7 @@ public class ArtifactMap<T>
         Validate.notBlank(groupId,"groupId must not be NULL");
         Validate.notBlank(artifactId,"artifactId must not be NULL");           
         final Map<String, T> map = data.get( groupId );
-        if ( map != null ) {
-            return map.get( artifactId );
-        }
-        return null;
+        return map != null ? map.get( artifactId ) : null;
     }
 
     /**
@@ -238,11 +229,7 @@ public class ArtifactMap<T>
     {
         for ( Entry<String, Map<String, T>> entry : other.data.entrySet() ) 
         {
-            Map<String, T> existing = this.data.get( entry.getKey() );
-            if ( existing == null ) {
-                existing = new HashMap<>( entry.getValue().size() );
-                this.data.put( entry.getKey(), existing );
-            }
+            final Map<String, T> existing = this.data.computeIfAbsent( entry.getKey(), k -> new HashMap<>( entry.getValue().size() ) );
             existing.putAll( entry.getValue() );
         }
     }
