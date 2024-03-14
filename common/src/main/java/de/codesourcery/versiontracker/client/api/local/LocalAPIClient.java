@@ -23,7 +23,6 @@ import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 
-import java.io.IOException;
 import java.util.List;
 
 public class LocalAPIClient extends AbstractAPIClient
@@ -34,7 +33,7 @@ public class LocalAPIClient extends AbstractAPIClient
     }
     
     @Override
-    public List<ArtifactResponse> query(List<Artifact> artifacts, Blacklist blacklist) throws IOException
+    public List<ArtifactResponse> query(List<Artifact> artifacts, Blacklist blacklist)
     {
         impl.init(debugMode,false);
         

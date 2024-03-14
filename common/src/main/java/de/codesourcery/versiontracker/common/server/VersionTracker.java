@@ -270,7 +270,7 @@ public class VersionTracker implements IVersionTracker
             if ( threadPool == null ) 
             {
                 LOG.info("setMaxConcurrentThreads(): Using "+maxConcurrentThreads+" threads to retrieve artifact metadata.");                
-                final BlockingQueue<Runnable> workingQueue = new ArrayBlockingQueue<Runnable>(200);
+                final BlockingQueue<Runnable> workingQueue = new ArrayBlockingQueue<>(200);
                 threadPool = new ThreadPoolExecutor( maxConcurrentThreads, maxConcurrentThreads, 60 , TimeUnit.SECONDS,
                         workingQueue,threadFactory, new ThreadPoolExecutor.CallerRunsPolicy() );
             }
@@ -279,9 +279,9 @@ public class VersionTracker implements IVersionTracker
     }
 
     /**
-     * Sets the maximum number of threads to use when retrieving artifact metdata.
+     * Sets the maximum number of threads to use when retrieving artifact metadata.
      * 
-     * Note that the concurrency on a HTTP request level is determined by the
+     * Note that the concurrency on an HTTP request level is determined by the
      * {@link IVersionProvider}, not by this setting.
      * 
      * @param maxConcurrentThreads

@@ -65,7 +65,9 @@ public interface IVersionProvider
         }
 
         public Statistics(Statistics other) {
+            //noinspection IncompleteCopyConstructor
             this.metaDataRequests = new RequestsPerHour(other.metaDataRequests);
+            //noinspection IncompleteCopyConstructor
             this.releaseDateRequests = new RequestsPerHour(other.releaseDateRequests);
         }
 

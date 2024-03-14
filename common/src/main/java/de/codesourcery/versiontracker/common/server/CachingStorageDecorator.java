@@ -215,10 +215,7 @@ public class CachingStorageDecorator implements IVersionStorage
         {
             if ( ! initialized ) {
                 cleanCache.clear();
-                delegate.getAllVersions().forEach( v ->
-                {
-                    cleanCache.put( v.artifact.groupId, v.artifact.artifactId, v );
-                });
+                delegate.getAllVersions().forEach( v -> cleanCache.put( v.artifact.groupId, v.artifact.artifactId, v ) );
                 LOG.info("maybeInit(): Loaded "+cleanCache.size()+" entries from underlying storage");
                 initialized = true;
             }

@@ -100,7 +100,7 @@ public class ArtifactMap<T>
     {
         final Spliterator<T> it = new Spliterator<>()
         {
-            private Iterator<Entry<String, Map<String, T>>> it1 = data.entrySet().iterator();
+            private final Iterator<Entry<String, Map<String, T>>> it1 = data.entrySet().iterator();
             
             private Iterator<Entry<String, T>> it2;
             

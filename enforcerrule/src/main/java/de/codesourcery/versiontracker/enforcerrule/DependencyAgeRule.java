@@ -28,6 +28,7 @@ import de.codesourcery.versiontracker.xsd.IgnoreVersion;
 import de.codesourcery.versiontracker.xsd.Rule;
 import de.codesourcery.versiontracker.xsd.Ruleset;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.maven.enforcer.rule.api.AbstractEnforcerRule;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
@@ -453,10 +454,11 @@ public class DependencyAgeRule extends AbstractEnforcerRule
 
     private Age parseAge(String configKey, String configValue) throws EnforcerRuleException 
     {
+        Validate.notBlank( configKey, "configKey must not be null or blank");
+        Validate.notNull( configValue, "configValue must not be null" );
         try 
         {
-            final String trimmed= configValue != null ? configValue.trim() : configValue;
-            final Matcher m = MAX_AGE_PATTERN.matcher( trimmed );
+            final Matcher m = MAX_AGE_PATTERN.matcher( configValue.trim() );
             if ( m.matches() ) 
             {
                 final int value = Integer.parseInt( m.group(1) );
@@ -467,13 +469,10 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 }
                 final AgeUnit unit = AgeUnit.parse( m.group(2) );
                 return new Age(value,unit);
-            } 
-            else 
-            {
-                final String message = "Configuration error - not a valid '"+configKey+"' pattern: '"+configValue+"', must match regex '"+MAX_AGE_PATTERN_STRING+"'";
-                getLog().error( message );
-                throw new EnforcerRuleException(message);                
             }
+            final String message = "Configuration error - not a valid '"+configKey+"' pattern: '"+configValue+"', must match regex '"+MAX_AGE_PATTERN_STRING+"'";
+            getLog().error( message );
+            throw new EnforcerRuleException(message);
         } 
         catch(EnforcerRuleException e) {
             throw e;
@@ -609,7 +608,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                         try {
                             LOCAL_API_CLIENT.close();
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            getLog().debug( "Caught exception during close(): " + e.getMessage() );
                         } finally {
                             LOCAL_API_CLIENT = null;
                         }
@@ -636,7 +635,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 Runtime.getRuntime().addShutdownHook( new Thread( () -> 
                 {
                     if ( debug ) {
-                        getLog().info("Shutting down HTTP client aquired by "+callingThreadName+" connecting to "+endpoint+" using "+protocol);
+                        getLog().info("Shutting down HTTP client acquired by "+callingThreadName+" connecting to "+endpoint+" using "+protocol);
                     }
                     synchronized(CLIENTS) 
                     {

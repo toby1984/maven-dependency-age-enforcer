@@ -61,14 +61,16 @@ public class APIImpl implements AutoCloseable
     {
         /**
          * Client mode - does not use a background thread to periodically check registered artifacts for newer releases.
-         * 
+         * <p>
          * If artifact metadata is deemed too old it will be re-fetched again while the client is blocked waiting.
+         * </p>
          */
         CLIENT,
         /**
          * Server mode - uses a background thread to periodically check all registered artifacts for newer releases.
-         * 
-         * Artifact metadata should never be outdated as the background thread should've updated it already.   
+         * <p>
+         * Artifact metadata should never be outdated as the background thread should've updated it already.
+         * </p>
          */
         SERVER
     }
@@ -293,9 +295,7 @@ public class APIImpl implements AutoCloseable
                 else 
                 {
                     final Optional<Version> currentVersion = info.getVersion( artifact.version );
-                    if ( currentVersion.isPresent() ) {
-                        x.currentVersion = currentVersion.get();
-                    }
+                    currentVersion.ifPresent( version -> x.currentVersion = version );
 
                     int cmp = Artifact.VERSION_COMPARATOR.compare( artifact.version, x.latestVersion.versionString);
                     if ( cmp >= 0 ) {                       

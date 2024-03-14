@@ -27,7 +27,7 @@ public enum SerializationFormat
     V1( (short) 1 ),
     /**
      * New field:
-     * {@link de.codesourcery.versiontracker.common.Version#releaseDateRequested}
+     * {@link de.codesourcery.versiontracker.common.Version#releaseDate}
      */
     V2( (short) 2 );
 

@@ -33,7 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class SharedLockCache 
 {
-    // @GuaredBy( locks )
+    // @GuardedBy( locks )
     private static final ArtifactMap<ReentrantLock> locks = new ArtifactMap<>();
     
     public interface ThrowingRunnable

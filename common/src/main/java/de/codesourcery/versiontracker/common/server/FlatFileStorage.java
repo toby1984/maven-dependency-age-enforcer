@@ -69,7 +69,7 @@ public class FlatFileStorage implements IVersionStorage
 	private static final ObjectMapper mapper = JSONHelper.newObjectMapper();
 
 	private final Protocol protocol;
-	private File file;
+	private final File file;
 
 	// @GuardedBy( storageStatistics )
 	private final StorageStatistics storageStatistics = new StorageStatistics();
@@ -124,9 +124,9 @@ public class FlatFileStorage implements IVersionStorage
 						}
 						byte tag;
 						result = new ArrayList<>();
-						while ( ( tag = serializer.readByte()) != TaggedRecord.RecordType.END_OF_FILE.tag )  {
+						while ( ( tag = serializer.readByte()) != TaggedRecordType.END_OF_FILE.tag )  {
 							final int recordLength = serializer.readInt();
-							if ( tag == TaggedRecord.RecordType.VERSION_DATA.tag )
+							if ( tag == TaggedRecordType.VERSION_DATA.tag )
 							{
 								final byte[] payload = new byte[recordLength];
 								serializer.readBytes( payload );
@@ -215,17 +215,19 @@ public class FlatFileStorage implements IVersionStorage
 		for ( VersionInfo i : storage.getAllVersions() ) 
 		{
 			buffer.append("-----------------------------------").append("\n");
-			buffer.append("group id: "+i.artifact.groupId).append("\n");
-			buffer.append("artifact id: "+i.artifact.artifactId).append("\n");
+			buffer.append( "group id: " ).append( i.artifact.groupId ).append("\n");
+			buffer.append( "artifact id: " ).append( i.artifact.artifactId ).append("\n");
 
 			if  (i.latestReleaseVersion != null ) {
-				buffer.append("latest release: "+i.latestReleaseVersion.versionString+" ("+printDate( i.latestReleaseVersion.releaseDate )+")" ).append("\n");
+				buffer.append( "latest release: " ).append( i.latestReleaseVersion.versionString ).append( " (" )
+                    .append( printDate( i.latestReleaseVersion.releaseDate ) ).append( ")" ).append("\n");
 			} else {
 				buffer.append("latest release : n/a").append("\n");
 			}
 
 			if  (i.latestSnapshotVersion != null ) {
-				buffer.append("latest snapshot : "+i.latestSnapshotVersion.versionString+" ("+printDate( i.latestSnapshotVersion.releaseDate )+")" ).append("\n");
+				buffer.append( "latest snapshot : " ).append( i.latestSnapshotVersion.versionString ).append( " (" )
+                    .append( printDate( i.latestSnapshotVersion.releaseDate ) ).append( ")" ).append("\n");
 			} else {
 				buffer.append("latest snapshot : n/a").append("\n");
 			}
@@ -237,15 +239,15 @@ public class FlatFileStorage implements IVersionStorage
 				list.sort( Comparator.comparing( a -> a.versionString ) );
 				for ( Version v : list ) 
 				{
-					buffer.append("            "+v.versionString+" ("+func.apply( v.releaseDate )+")").append("\n");
+					buffer.append( "            " ).append( v.versionString ).append( " (" ).append( func.apply( v.releaseDate ) ).append( ")" ).append("\n");
 				}
 			}
 
-			buffer.append("lastRequestDate: "+printDate(i.lastRequestDate)).append("\n");
-			buffer.append("creationDate: "+printDate(i.creationDate)).append("\n");
-			buffer.append("lastSuccessDate: "+printDate(i.lastSuccessDate)).append("\n");
-			buffer.append("lastFailureDate: "+printDate(i.lastFailureDate)).append("\n");
-			buffer.append("lastRepositoryUpdate: "+printDate(i.lastRepositoryUpdate)).append("\n");       
+			buffer.append( "lastRequestDate: " ).append( printDate( i.lastRequestDate ) ).append("\n");
+			buffer.append( "creationDate: " ).append( printDate( i.creationDate ) ).append("\n");
+			buffer.append( "lastSuccessDate: " ).append( printDate( i.lastSuccessDate ) ).append("\n");
+			buffer.append( "lastFailureDate: " ).append( printDate( i.lastFailureDate ) ).append("\n");
+			buffer.append( "lastRepositoryUpdate: " ).append( printDate( i.lastRepositoryUpdate ) ).append("\n");
 		}
 		return buffer.toString();
 	}
@@ -303,7 +305,7 @@ public class FlatFileStorage implements IVersionStorage
 
 						// write
 						if ( ! allItems.isEmpty() ) {
-							serializer.writeByte( TaggedRecord.RecordType.VERSION_DATA.tag );
+							serializer.writeByte( TaggedRecordType.VERSION_DATA.tag );
 							final ByteArrayOutputStream tmpOut = new ByteArrayOutputStream();
 							try ( BinarySerializer serializer2 = new BinarySerializer( BinarySerializer.IBuffer.wrap( tmpOut ) ) ) {
 								for ( VersionInfo info : allItems ) {
@@ -314,7 +316,7 @@ public class FlatFileStorage implements IVersionStorage
 							serializer.writeInt( payload.length );
 							serializer.writeBytes( payload );
 						}
-						serializer.writeByte( TaggedRecord.RecordType.END_OF_FILE.tag );
+						serializer.writeByte( TaggedRecordType.END_OF_FILE.tag );
 					}
 				}
 			}
@@ -354,6 +356,7 @@ public class FlatFileStorage implements IVersionStorage
 		if ( input.equals( output ) ) {
 			throw new IllegalArgumentException("Input and output file must differ");
 		}
+		//noinspection ResultOfMethodCallIgnored
 		output.delete();
 		
 		try ( FlatFileStorage in = new FlatFileStorage(input,inputProtocol) ) {

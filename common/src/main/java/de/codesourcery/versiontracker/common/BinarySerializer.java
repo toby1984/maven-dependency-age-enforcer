@@ -338,8 +338,8 @@ public class BinarySerializer implements AutoCloseable,Closeable
     }        
 
     public void writeLong(long value) throws IOException {
-        writeInt( (int) ( (value >> 32) & 0xffffffff) );
-        writeInt( (int) ( value & 0xffffffff) );
+        writeInt( (int) ((value >> 32)) );
+        writeInt( (int) (value) );
     }
 
     public long readLong() throws IOException {

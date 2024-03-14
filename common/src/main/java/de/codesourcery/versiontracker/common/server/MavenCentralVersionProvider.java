@@ -51,6 +51,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
@@ -129,9 +131,9 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();    
-    private String serverBase;
+    private final String serverBase;
     private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
-    private final Map<URL,CloseableHttpClient> clients = new HashMap<>();
+    private final Map<URI,CloseableHttpClient> clients = new HashMap<>();
 
     private int maxConcurrentThreads = 10;
 
@@ -187,7 +189,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 }
                 final Document document = parseXML( stream );
 
-                // note: XPath evaluation is not thread-safe so we have to use a ThreadLocal here
+                // note: XPath evaluation is not thread-safe, so we have to use a ThreadLocal here
                 final MyExpressions expr = expressions.get();
                 final Set<String> versionFromMetaData = new HashSet<>( readStrings( expr.versionsXPath , document ) );
                 for ( String version : versionFromMetaData ) {
@@ -415,6 +417,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             builder.setEntityResolver( new DummyResolver() );
             if ( logServerResponseOnError() )
             {
+                //noinspection DataFlowIssue
                 inputStream = new ByteArrayInputStream(xml.toString().getBytes(StandardCharsets.UTF_8));
             }
             return builder.parse(inputStream);
@@ -459,10 +462,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    private CloseableHttpClient getClient(URL url)
+    private CloseableHttpClient getClient(URI uri)
     {
         synchronized(clients) {
-            CloseableHttpClient client = clients.get(url);
+            CloseableHttpClient client = clients.get(uri);
             if ( client==null )
             {
                 final DefaultConnectionKeepAliveStrategy defaultKeepAlive = new  DefaultConnectionKeepAliveStrategy();
@@ -470,32 +473,40 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     .setKeepAliveStrategy(defaultKeepAlive)
                     .setConnectionManager(connManager)
                     .setConnectionManagerShared(true).build();
-                clients.put(url, client);
+                    clients.put(uri, client);
             }
             return client;
         }
     }
 
-    private <T> T performGET(URL url, MyStreamHandler<T> handler) throws IOException
+    private <T> T performGET(URL url2, MyStreamHandler<T> handler) throws IOException
     {
-        LOG.debug("performGET(): Connecting to "+url);
+        LOG.debug("performGET(): Connecting to "+url2);
+
+        URI uri;
+        try {
+            uri = url2.toURI();
+        }
+        catch ( URISyntaxException e ) {
+            throw new IOException( "URL is not RFC2396-compliant and cannot be converted into an URI", e);
+        }
 
         final long start = System.currentTimeMillis();
         final HttpGet httpget;
         try {
-            httpget = new HttpGet( url.toURI() );
+            httpget = new HttpGet( uri );
         } catch (Exception e1) {
-            LOG.debug("performGET(): Should not happen: '"+url+"'",e1);
+            LOG.debug("performGET(): Should not happen: '"+uri+"'",e1);
             throw new RuntimeException(e1);
         }
-        try (CloseableHttpResponse response = getClient( url ).execute( httpget )) {
+        try (CloseableHttpResponse response = getClient( uri ).execute( httpget )) {
             final int statusCode = response.getCode();
             if ( statusCode != 200 ) {
-                LOG.error( "performGET(): HTTP request to " + url + " returned " + response.getReasonPhrase() );
+                LOG.error( "performGET(): HTTP request to " + uri + " returned " + response.getReasonPhrase() );
                 if ( statusCode == 404 ) {
-                    throw new FileNotFoundException( "Failed to find " + url );
+                    throw new FileNotFoundException( "Failed to find " + uri );
                 }
-                throw new IOException( "HTTP request to " + url + " returned " + response.getReasonPhrase() );
+                throw new IOException( "HTTP request to " + uri + " returned " + response.getReasonPhrase() );
             }
             try ( final HttpEntity entity = response.getEntity() ) {
                 try ( InputStream instream = entity.getContent() ) {

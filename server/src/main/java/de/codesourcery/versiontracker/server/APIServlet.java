@@ -480,9 +480,7 @@ public class APIServlet extends HttpServlet
                 else 
                 {
                     final Optional<Version> currentVersion = info.getVersion( artifact.version );
-                    if ( currentVersion.isPresent() ) {
-                        x.currentVersion = currentVersion.get();
-                    }
+                    currentVersion.ifPresent( version -> x.currentVersion = version );
 
                     int cmp = Artifact.VERSION_COMPARATOR.compare( artifact.version, x.latestVersion.versionString);
                     if ( cmp >= 0 ) {                    	

@@ -409,7 +409,7 @@ public class Blacklist implements IBlacklistCheck
             return false;
         }
         for ( VersionStringMatcher m1 : l1 ) {
-            if ( ! l2.stream().anyMatch( x -> x.equals( m1 ) ) )  {
+            if ( l2.stream().noneMatch( x -> x.equals( m1 ) ) )  {
                 return false;
             }
         }

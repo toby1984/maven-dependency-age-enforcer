@@ -52,7 +52,7 @@ public interface IAPIClient extends AutoCloseable
             if ( id == BINARY.id ) {
                 return BINARY;
             }
-            throw new IllegalArgumentException("Unsupporter protocol ID : 0x"+Integer.toHexString( id & 0xff ) );
+            throw new IllegalArgumentException("Unsupported protocol ID : 0x"+Integer.toHexString( id & 0xff ) );
         }
     }
     
