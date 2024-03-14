@@ -29,13 +29,12 @@ import de.codesourcery.versiontracker.xsd.Rule;
 import de.codesourcery.versiontracker.xsd.Ruleset;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DurationFormatUtils;
-import org.apache.maven.enforcer.rule.api.EnforcerRule;
+import org.apache.maven.enforcer.rule.api.AbstractEnforcerRule;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
-import org.apache.maven.enforcer.rule.api.EnforcerRuleHelper;
-import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
-import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
 
+import javax.inject.Inject;
+import javax.inject.Named;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
@@ -64,7 +63,8 @@ import java.util.regex.Pattern;
  * 
  * @author tobias.gierke@code-sourcery.de
  */
-public class DependencyAgeRule implements EnforcerRule
+@Named("dependencyAgeRule")
+public class DependencyAgeRule extends AbstractEnforcerRule
 {
     private static final String MAX_AGE_PATTERN_STRING = "(\\d+)\\s*([dwmy]|(day|days|week|weeks|month|months|year|years))";
 
@@ -95,7 +95,7 @@ public class DependencyAgeRule implements EnforcerRule
 		}
     }
 
-    Log log;
+    @Inject
     MavenProject project;
 
     Age parsedMaxAge;
@@ -105,10 +105,10 @@ public class DependencyAgeRule implements EnforcerRule
 
     /**
      * Dependency age at which to start printing warnings.
-     * 
+     * <p>
      * Executing this rule will print warnings for all project dependencies
      * whose version is older than <code>warnAge</code>.
-     * 
+     * </p>
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */
     @SuppressWarnings("unused")
@@ -116,10 +116,10 @@ public class DependencyAgeRule implements EnforcerRule
 
     /**
      * Dependency age at which to fail the build.
-     * 
+     * <p>
      * Executing this rule will fail the build when at least one project dependency
      * is older than <code>maxAge</code>.
-     * 
+     * </p>
      * Supported syntax is "1d", "1 day", "3 days", "2 weeks", "1 month", "1m", "1 year", "1y".
      */
     @SuppressWarnings("unused")
@@ -215,19 +215,6 @@ public class DependencyAgeRule implements EnforcerRule
             }
         }
     
-    private static <T> T eval(String expression,EnforcerRuleHelper helper,Log log) throws EnforcerRuleException {
-
-        try {
-            return (T) helper.evaluate(expression);
-        }
-        catch (ExpressionEvaluationException e) 
-        {
-            final String msg = "Failed to evaluate expression '"+expression+"' : "+e.getMessage();
-            log.error(msg,e);
-            throw new EnforcerRuleException( msg ,e );
-        }        
-    }
-
     private boolean isTooOld(ArtifactResponse response,Age threshold)
     {
         if ( response.hasCurrentVersion() &&
@@ -242,41 +229,41 @@ public class DependencyAgeRule implements EnforcerRule
                 if ( threshold.isExceeded( age, now) )
                 {
                     final String msg = "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold;
-                    log.debug(msg);
+                    getLog().debug(msg);
                     return true;
                 }
             } 
             else 
             {
                 if( ! response.currentVersion.hasReleaseDate() ) {
-                    log.warn("Unable to determine current release date for version '"+response.currentVersion.versionString+"' of "+response.artifact);
+                    getLog().warn("Unable to determine current release date for version '"+response.currentVersion.versionString+"' of "+response.artifact);
                 }
                 if( ! response.latestVersion.hasReleaseDate() ) {
-                    log.warn("Unable to determine latest release date for version '"+response.latestVersion.versionString+"' of "+response.artifact);
+                    getLog().warn("Unable to determine latest release date for version '"+response.latestVersion.versionString+"' of "+response.artifact);
                 }                
             }
         }
         return false;
     }
-    
+
     @Override
-    public void execute(EnforcerRuleHelper helper) throws EnforcerRuleException {
+    public void execute() throws EnforcerRuleException {
     	long start = System.currentTimeMillis();
     	try {
-    		executeInternal(helper);
+    		executeInternal();
     	} 
     	finally 
     	{
     	    if ( debug ) {
     	        final long elapsed = System.currentTimeMillis() - start;
-    	        log.info("RULE TIME: "+elapsed+" ms");
+    	        getLog().info("RULE TIME: "+elapsed+" ms");
     	    }
     	}
     }
     
-    public void executeInternal(EnforcerRuleHelper helper) throws EnforcerRuleException
+    public void executeInternal() throws EnforcerRuleException
     {
-        setup(helper);
+        setup();
         
         if ( StringUtils.isBlank( apiEndpoint ) ) 
         {
@@ -289,12 +276,8 @@ public class DependencyAgeRule implements EnforcerRule
         }
     }
     
-    private void setup(EnforcerRuleHelper helper) throws EnforcerRuleException 
+    private void setup() throws EnforcerRuleException
     {
-        log = helper.getLog();
-
-        project = eval("${project}",helper,log);
-
         if ( StringUtils.isNotBlank( maxAge ) ) {
             parsedMaxAge = parseAge( "maxAge", maxAge );
         }
@@ -312,12 +295,12 @@ public class DependencyAgeRule implements EnforcerRule
                 fail("Configuration error - 'warnAge' needs to be less than 'maxAge'");
             }
         }
-        log.debug("==== Rule executing with API endpoint = "+apiEndpoint);
+        getLog().debug("==== Rule executing with API endpoint = "+apiEndpoint);
         if ( parsedWarnAge != null )  {
-            log.debug("==== Rule executing with warnAge = "+parsedWarnAge);
+            getLog().debug("==== Rule executing with warnAge = "+parsedWarnAge);
         }
         if ( parsedMaxAge != null ) {
-            log.debug("==== Rule executing with maxAge = "+parsedMaxAge);
+            getLog().debug("==== Rule executing with maxAge = "+parsedMaxAge);
         }        
     }    
 
@@ -344,15 +327,15 @@ public class DependencyAgeRule implements EnforcerRule
                 a.type = ma.getType();
                 a.setClassifier(ma.getClassifier());
                 if ( verbose ) {
-                    log.info("Project depends on "+a);
+                    getLog().info("Project depends on "+a);
                 } else {
-                    log.debug("Project depends on "+a);
+                    getLog().debug("Project depends on "+a);
                 }
                 if ( bl == null || ! bl.isAllVersionsBlacklisted( a.groupId, a.artifactId) ) {
                     artifacts.add( a );
                 } else {
                     if ( verbose ) {
-                        log.warn("All artifact versions ignored by blacklist: "+a);
+                        getLog().warn("All artifact versions ignored by blacklist: "+a);
                     }
                 }
             }
@@ -361,23 +344,23 @@ public class DependencyAgeRule implements EnforcerRule
             final IAPIClient client; 
             if ( StringUtils.isBlank( apiEndpoint ) ) 
             {
-                log.warn("No API endpoint configured, running locally");
+                getLog().warn("No API endpoint configured, running locally");
                 client = getLocalAPIClient(debug);
             } 
             else 
             {
             	final Protocol protocol = binaryProtocol ? Protocol.BINARY : Protocol.JSON;
             	if ( verbose ) {
-            		log.info("Using "+protocol+" protocol");
+            		getLog().info("Using "+protocol+" protocol");
             	}
                 client = getRemoteAPIClient(apiEndpoint,protocol,debug);
             }
             try 
             {
                 if ( StringUtils.isBlank( apiEndpoint ) ) {
-                    log.info("Querying metadata for "+artifacts.size()+" artifacts");
+                    getLog().info("Querying metadata for "+artifacts.size()+" artifacts");
                 } else {
-                    log.info("Querying metadata for "+artifacts.size()+" artifacts from "+apiEndpoint);
+                    getLog().info("Querying metadata for "+artifacts.size()+" artifacts from "+apiEndpoint);
                 }
                 result = client.query(artifacts,bl);
             } 
@@ -393,7 +376,7 @@ public class DependencyAgeRule implements EnforcerRule
             {
                 if ( resp.updateAvailable == UpdateAvailable.NOT_FOUND ) {
                     artifactsNotFound = true;
-                    log.warn( "Failed to find metadata for artifact "+resp.artifact);
+                    getLog().warn( "Failed to find metadata for artifact "+resp.artifact);
                     continue;
                 }
                 final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( resp, parsedMaxAge );
@@ -423,10 +406,10 @@ public class DependencyAgeRule implements EnforcerRule
                 final Duration remainingTime = Duration.between(now,failureTime);
                 final long millis = remainingTime.toMillis();
                 final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
-                log.warn("===========================================");
-                log.warn("= Your build will start FAILING on "+formatter.format( failureTime )+" which is in "+
+                getLog().warn("===========================================");
+                getLog().warn("= Your build will start FAILING on "+formatter.format( failureTime )+" which is in "+
                         DurationFormatUtils.formatDurationWords(millis,true,true));
-                log.warn("===========================================");
+                getLog().warn("===========================================");
             }
         }
     }
@@ -443,19 +426,19 @@ public class DependencyAgeRule implements EnforcerRule
                 );
 
         if ( printAsError ) {
-            log.error( msg );
+            getLog().error( msg );
         } else {
-            log.warn( msg );
+            getLog().warn( msg );
         }
     }
 
     private void fail(String msg,Throwable t) throws EnforcerRuleException {
-        log.error(msg,t);
+        getLog().error(msg);
         throw new EnforcerRuleException(msg,t);		
     }
 
     private void fail(String msg) throws EnforcerRuleException {
-        log.error(msg);
+        getLog().error(msg);
         throw new EnforcerRuleException(msg);		
     }
 
@@ -479,7 +462,7 @@ public class DependencyAgeRule implements EnforcerRule
                 final int value = Integer.parseInt( m.group(1) );
                 if ( value < 0 ) {
                     final String message = "'"+configKey+"' must be >= 0 but was "+value;
-                    log.error( message );
+                    getLog().error( message );
                     throw new EnforcerRuleException(message);                      
                 }
                 final AgeUnit unit = AgeUnit.parse( m.group(2) );
@@ -488,7 +471,7 @@ public class DependencyAgeRule implements EnforcerRule
             else 
             {
                 final String message = "Configuration error - not a valid '"+configKey+"' pattern: '"+configValue+"', must match regex '"+MAX_AGE_PATTERN_STRING+"'";
-                log.error( message );
+                getLog().error( message );
                 throw new EnforcerRuleException(message);                
             }
         } 
@@ -498,22 +481,9 @@ public class DependencyAgeRule implements EnforcerRule
         catch(Exception e) 
         {
             final String message = "Configuration error - not a valid '"+configKey+"' pattern: '"+configValue+"', must match regex '"+MAX_AGE_PATTERN_STRING+"'";
-            e.printStackTrace();
-            log.error( message );
+            getLog().error( message );
             throw new EnforcerRuleException(message,e);
         }
-    }
-
-    @Override
-    public boolean isCacheable()
-    {
-        return true;
-    }
-
-    @Override
-    public boolean isResultValid(EnforcerRule cachedRule)
-    {
-        return true;
     }
 
     @Override
@@ -536,7 +506,7 @@ public class DependencyAgeRule implements EnforcerRule
         if ( ! rulesFile.exists() && searchRulesInParentDirectories ) 
         {
             if ( verbose ) {
-                log.info("Rules file "+rulesFile.getAbsolutePath()+" does not exist, searching parent folders");
+                getLog().info("Rules file "+rulesFile.getAbsolutePath()+" does not exist, searching parent folders");
             }
             String fileName = rulesFile.getName();
             File folder;
@@ -545,7 +515,7 @@ public class DependencyAgeRule implements EnforcerRule
                 folder = getParent( rulesFile.getParentFile() );                    
                 rulesFile = new File(folder,fileName);
                 if ( debug ) {
-                    log.info("Trying "+rulesFile.getAbsolutePath());
+                    getLog().info("Trying "+rulesFile.getAbsolutePath());
                 }                 
                 if ( rulesFile.exists() && rulesFile.isFile() ) 
                 {
@@ -558,7 +528,7 @@ public class DependencyAgeRule implements EnforcerRule
         }     
 
         if ( verbose ) {
-            log.info("Using XML rules file "+rulesFile.getAbsolutePath());
+            getLog().info("Using XML rules file "+rulesFile.getAbsolutePath());
         }        
 
         final Blacklist blacklist = new Blacklist();
@@ -665,8 +635,8 @@ public class DependencyAgeRule implements EnforcerRule
                 
                 Runtime.getRuntime().addShutdownHook( new Thread( () -> 
                 {
-                    if ( log != null && debug ) {
-                        log.info("Shutting down HTTP client aquired by "+callingThreadName+" connecting to "+endpoint+" using "+protocol);
+                    if ( debug ) {
+                        getLog().info("Shutting down HTTP client aquired by "+callingThreadName+" connecting to "+endpoint+" using "+protocol);
                     }
                     synchronized(CLIENTS) 
                     {
@@ -675,7 +645,7 @@ public class DependencyAgeRule implements EnforcerRule
                             try {
                                 client.close();
                             } catch (Exception e) {
-                                e.printStackTrace();
+                                getLog().debug( "Caught exception during close(): "+e.getMessage());
                             } finally {
                                 CLIENTS.remove( key );
                             }

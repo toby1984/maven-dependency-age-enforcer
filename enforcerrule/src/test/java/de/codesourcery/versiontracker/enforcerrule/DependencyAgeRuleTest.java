@@ -21,16 +21,17 @@ import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.Version;
 import org.apache.maven.artifact.DefaultArtifact;
+import org.apache.maven.enforcer.rule.api.EnforcerLogger;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
-import org.apache.maven.enforcer.rule.api.EnforcerRuleHelper;
-import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
-import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
 import org.easymock.EasyMock;
 import org.easymock.IAnswer;
 import org.junit.jupiter.api.Test;
 
+import javax.inject.Inject;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -52,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class DependencyAgeRuleTest {
 
     @Test
-    void testMaxAgeExceeded() throws ExpressionEvaluationException, IOException {
+    void testMaxAgeExceeded() throws IOException, IllegalAccessException {
 
         // mock data
         final ZonedDateTime currentTime = date( "2022-08-01 11:12:13" );
@@ -68,25 +69,63 @@ class DependencyAgeRuleTest {
         final List<ArtifactResponse> apiResponse = List.of( resp1 );
 
         // setup
-        final EnforcerRuleHelper helper = createEnforcerRuleHelper( projectDependencies );
+        final MavenProject mavenProject = createMavenProject( projectDependencies );
         final IAPIClient apiClient = createApiClient( projectDependencies, apiResponse );
-        final DependencyAgeRule rule = createRule( projectDependencies, apiResponse, currentTime, apiClient);
+        final DependencyAgeRule rule = createRule( currentTime, apiClient);
+
+        // new EnforcerRule API uses @Inject to inject dependencies
+        inject( rule, MavenProject.class, mavenProject );
 
         // rule.apiEndpoint = "http://mock";
         rule.maxAge = "1w";
         rule.warnAge = "3d";
 
+        // mock
+
         // run test
-        assertThatThrownBy( () -> rule.execute( helper ) ).isInstanceOf( EnforcerRuleException.class ).hasMessageContaining( "One or more dependencies of this project are older than the allowed maximum age (1 week)" );
+        assertThatThrownBy( rule::execute ).isInstanceOf( EnforcerRuleException.class ).hasMessageContaining( "One or more dependencies of this project are older than the allowed maximum age (1 week)" );
 
         // verify
-        verify( helper, apiClient );
+        verify( apiClient );
     }
 
-    private DependencyAgeRule createRule(List<Artifact> projectDependencies, List<ArtifactResponse> apiResponse,ZonedDateTime currentTime, IAPIClient apiClient) throws IOException
+    private static <T> void inject(Object bean, Class<T> fieldType, T value) throws IllegalAccessException {
+
+        Class<?> currentClass = bean.getClass();
+
+        boolean injected = false;
+        do {
+            final Field[] fields = currentClass.getDeclaredFields();
+
+            for ( final Field f : fields ) {
+                final int m = f.getModifiers();
+                final Inject inject = f.getAnnotation( Inject.class );
+                if ( inject != null ) {
+                    if ( Modifier.isFinal( m ) || Modifier.isStatic( m ) ) {
+                        throw new UnsupportedOperationException( "Found invalid @Inject annotation on" +
+                            " field " + f + " of class " + bean.getClass() + " - only non-static, non-final fields may be annotated with @Inject" );
+                    }
+                    if ( f.getType().isAssignableFrom( fieldType ) ) {
+                        if ( injected ) {
+                            throw new IllegalStateException( "Multiple fields accepting " + fieldType + " are annotated with @Inject?" );
+                        }
+                        injected = true;
+                        f.setAccessible( true );
+                        f.set( bean, value );
+                    }
+                }
+            }
+            currentClass = currentClass.getSuperclass();
+        } while (currentClass != null && currentClass != Object.class);
+        if ( ! injected  ) {
+            throw new IllegalStateException( "Failed to find any @Inject field suitable for injecting " + fieldType );
+        }
+    }
+
+    private DependencyAgeRule createRule(ZonedDateTime currentTime, IAPIClient apiClient) throws IOException
     {
         // setup
-        return new DependencyAgeRule() {
+        final DependencyAgeRule rule = new DependencyAgeRule() {
             @Override
             protected IAPIClient getLocalAPIClient(boolean debug) {
                 return apiClient;
@@ -97,6 +136,10 @@ class DependencyAgeRuleTest {
                 return currentTime;
             }
         };
+        final EnforcerLogger logger = EasyMock.createNiceMock( EnforcerLogger.class );
+        EasyMock.replay( logger );
+        rule.setLog( logger );
+        return rule;
     }
 
     private IAPIClient createApiClient(List<Artifact> projectDependencies, List<ArtifactResponse> apiResponse) throws IOException
@@ -113,18 +156,6 @@ class DependencyAgeRuleTest {
         });
         replay( apiClient );
         return apiClient;
-    }
-
-    private EnforcerRuleHelper createEnforcerRuleHelper(List<Artifact> projectDependencies) throws ExpressionEvaluationException {
-
-        final Log log = EasyMock.createNiceMock( Log.class );
-        replay( log );
-
-        final EnforcerRuleHelper helper = createMock( EnforcerRuleHelper.class );
-        expect( helper.getLog() ).andReturn( log ).anyTimes();
-        expect( helper.evaluate( "${project}" ) ).andReturn( createMavenProject( projectDependencies ) );
-        replay( helper );
-        return helper;
     }
 
     private static ZonedDateTime date(String s)
