@@ -15,6 +15,14 @@
  */
 package de.codesourcery.versiontracker.server;
 
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.ArtifactMap;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.CachingStorageDecorator;
+import de.codesourcery.versiontracker.common.server.FlatFileStorage;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
@@ -25,14 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.ArtifactMap;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.CachingStorageDecorator;
-import de.codesourcery.versiontracker.common.server.FlatFileStorage;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

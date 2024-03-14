@@ -15,22 +15,21 @@
  */
 package de.codesourcery.versiontracker.server;
 
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.APIImpl;
+import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
+import de.codesourcery.versiontracker.common.server.IVersionTracker;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.Map;
-
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.APIImpl;
-import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
-import de.codesourcery.versiontracker.common.server.IVersionTracker;
-import de.codesourcery.versiontracker.common.server.VersionTracker;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
 public class RetrievalTest
 {

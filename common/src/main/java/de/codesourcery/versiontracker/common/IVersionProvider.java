@@ -16,7 +16,6 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
-import java.time.ZonedDateTime;
 import java.util.Set;
 
 /**

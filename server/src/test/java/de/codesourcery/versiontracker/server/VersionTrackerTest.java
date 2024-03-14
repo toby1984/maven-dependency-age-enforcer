@@ -19,7 +19,6 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.MavenCentralVersionProvider;
 import de.codesourcery.versiontracker.common.server.SharedLockCache;
 import de.codesourcery.versiontracker.common.server.VersionTracker;
 import org.junit.jupiter.api.AfterEach;
