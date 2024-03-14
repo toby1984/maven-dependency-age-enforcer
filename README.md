@@ -20,7 +20,7 @@ Do not forget to also add the de.code-sourcery.versiontracker:versiontracker-enf
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.4.1</version>
                     <executions>
                         <execution>
                             <id>enforce-versions</id>
@@ -47,7 +47,7 @@ Do not forget to also add the de.code-sourcery.versiontracker:versiontracker-enf
                         <dependency>
                             <groupId>de.code-sourcery.versiontracker</groupId>
                             <artifactId>versiontracker-enforcerrule</artifactId>
-                            <version>1.0.18</version>
+                            <version>1.0.20</version>
                         </dependency>
                     </dependencies>
                 </plugin>

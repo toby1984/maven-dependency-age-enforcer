@@ -9,14 +9,19 @@
   <url>https://github.com/toby1984/maven-dependency-version-enforcer</url>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <wicket.version>7.10.0</wicket.version>
-    <apache.tomcat.version>9.0.5</apache.tomcat.version>
-    <log4.version>2.17.2</log4.version>
-    <junit.version>5.9.0-M1</junit.version>
+    <apache.tomcat.version>9.0.68</apache.tomcat.version>
+    <log4.version>2.23.1</log4.version>
+    <junit.version>5.10.2</junit.version>
 
     <!-- properties specific to building the enforcer rule -->
-    <enforcer.api.version>3.0.0</enforcer.api.version>
-    <enforcerrule.maven.version>3.8.4</enforcerrule.maven.version>
+    <enforcer.api.version>3.4.1</enforcer.api.version>
+    <!--
+     Used for
+     - maven-core
+     - maven-artifact
+     - maven-plugin-api
+    -->
+    <enforcerrule.maven.version>3.9.6</enforcerrule.maven.version>
 
     <!-- JVM compiler and runtime options -->
     <preview />
