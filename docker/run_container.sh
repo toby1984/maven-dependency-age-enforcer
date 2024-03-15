@@ -40,16 +40,16 @@ done
 if ! docker image ls --format "{{.Repository}}:{{.Tag}}" | grep ${IMAGE_NAME} ; then
   echo "Docker image not found, building it..."
   REBUILD="1"
+else
+  RUNNING_CONTAINERS=`docker ps -a --filter ancestor=${IMAGE_NAME} --format="{{.ID}}"`
+  if [ ! -z "$RUNNING_CONTAINERS" ] ; then
+    echo "Stopping running containers."
+    docker stop ${RUNNING_CONTAINERS} 
+  fi
 fi
 
 if [ "$REBUILD" != "0" ] ; then
   build_image.sh ${FORCE}
-fi
-
-RUNNING_CONTAINERS=`docker ps -a --filter ancestor=${IMAGE_NAME} --format="{{.ID}}"`
-if [ ! -z "$RUNNING_CONTAINERS" ] ; then
-  echo "Stopping running containers."
-  docker stop ${RUNNING_CONTAINERS} 
 fi
 
 # docker run -itd --rm -p 8888:8080 $IMAGE_NAME
