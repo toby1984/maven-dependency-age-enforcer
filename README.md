@@ -2,14 +2,23 @@
 
 # What's this?
 
-A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a project uses are not "too much" behind their respective latest release (in terms of days/weeks/months).   
+A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a project uses are not "too much" behind 
+their respective latest release (in terms of days/weeks/months).   
 
-This rule can be configured to just print warnings about outdated artifacts or outright fail the build. Specific artifact IDs/group IDs/version numbers can be excluded from checking using an XML configuration file with the same syntax that the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
+This rule can be configured to just print warnings about outdated artifacts or outright fail the build. 
+Specific artifact IDs/group IDs/version numbers can be excluded from checking using an XML configuration file with the
+same syntax that the [maven-versions-plugin](https://www.mojohaus.org/versions-maven-plugin/rule.html) uses.
 
 ![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/screenshot.png)
 
-Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server (or simply build a docker image using the docker/build_image.sh script) and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
-Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
+Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a
+server (or simply build & run a docker container using the docker/run_container.sh script in this repository) and have
+all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use 
+this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same 
+company use it).
+
+Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my 
+enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
 
 # Basic Usage
 
@@ -81,12 +90,12 @@ Note: You can request status information by sending a HTTP GET request to the HT
 
 ![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/server_screenshot.png)
 
-# Using Docker
+### Using Docker
 
 You can create/run the servlet inside an Apache Tomcat Docker image using the docker/build_image.sh and docker/run_container.sh scripts (run_container.sh will automatically build the image if not already done).
 The run_container.sh script will automatically create a 'versiontracker_data' Docker volume and mount it on /data, making already fetched artifact metadata persistent.
 
-# Using your own application server
+### Using your own application server
 Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file into the webapps folder of your favorite application server.
 
 ## [optional] Create a XML file describing which versions to blacklist
