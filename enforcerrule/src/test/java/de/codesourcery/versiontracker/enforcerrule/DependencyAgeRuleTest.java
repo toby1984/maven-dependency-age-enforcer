@@ -31,14 +31,19 @@ import org.junit.jupiter.api.Test;
 import javax.inject.Inject;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class DependencyAgeRuleTest {
 
     @Test
-    void testMaxAgeExceeded() throws IOException, IllegalAccessException {
+    void testMaxAgeExceeded() throws IOException, IllegalAccessException, InvocationTargetException {
 
         // mock data
         final ZonedDateTime currentTime = date( "2022-08-01 11:12:13" );
@@ -74,7 +79,12 @@ class DependencyAgeRuleTest {
         final DependencyAgeRule rule = createRule( currentTime, apiClient);
 
         // new EnforcerRule API uses @Inject to inject dependencies
-        inject( rule, MavenProject.class, mavenProject );
+        inject( rule, type -> {
+            if ( MavenProject.class.isAssignableFrom( type ) ) {
+                return mavenProject;
+            }
+            throw new IllegalStateException( "@Inject requires a bean of type " + type + " but we don't know any" );
+        } );
 
         // rule.apiEndpoint = "http://mock";
         rule.maxAge = "1w";
@@ -89,36 +99,77 @@ class DependencyAgeRuleTest {
         verify( apiClient );
     }
 
-    private static <T> void inject(Object bean, Class<T> fieldType, T value) throws IllegalAccessException {
+    private interface InjectableLocation {
+        int modifiers();
+        Object location();
+        Class<?> type();
+        void set(Object value, Object target) throws IllegalAccessException, InvocationTargetException;
+    }
 
-        Class<?> currentClass = bean.getClass();
+    private static List<InjectableLocation> getInjectLocations(Object bean) {
 
-        boolean injected = false;
-        do {
-            final Field[] fields = currentClass.getDeclaredFields();
+        final List<InjectableLocation> result = new ArrayList<>();
 
-            for ( final Field f : fields ) {
-                final int m = f.getModifiers();
-                final Inject inject = f.getAnnotation( Inject.class );
-                if ( inject != null ) {
-                    if ( Modifier.isFinal( m ) || Modifier.isStatic( m ) ) {
+        Class<?> current = bean.getClass();
+        while ( current != null && current != Object.class ) {
+            // fields
+            Arrays.stream( current.getDeclaredFields() )
+                .filter( x -> x.getAnnotation( Inject.class ) != null )
+                .map( x -> new InjectableLocation() {
+                    @Override public int modifiers() {return x.getModifiers();}
+                    @Override public Object location() {return x;}
+                    @Override public Class<?> type() {return x.getType();}
+                    @Override public void set(Object value, Object target) throws IllegalAccessException {
+                        x.setAccessible( true );
+                        x.set( target, value );
+                    }
+                }).forEach( result::add );
+
+            // methods
+            Arrays.stream( current.getDeclaredMethods() )
+                .filter( x -> x.getAnnotation( Inject.class ) != null )
+                .peek( x -> System.out.println("GOT method "+x))
+                .map( x -> new InjectableLocation() {
+                    @Override public int modifiers() {return x.getModifiers();}
+                    @Override public Object location() {return x;}
+                    @Override public Class<?> type() {return x.getParameterTypes()[0];}
+                    @Override public void set(Object value, Object target) throws IllegalAccessException, InvocationTargetException {
+                        x.setAccessible( true );
+                        x.invoke( target, value );
+                    }
+                }).forEach( result::add );
+            current = current.getSuperclass();
+        }
+        return result;
+    }
+
+    private static void inject(Object target,Function<Class<?>,?> supplier) throws InvocationTargetException, IllegalAccessException {
+
+        for ( final InjectableLocation f : getInjectLocations( target ) ) {
+
+                final int m = f.modifiers();
+                if ( f.location() instanceof Field) {
+                    if ( Modifier.isFinal( m ) ) {
                         throw new UnsupportedOperationException( "Found invalid @Inject annotation on" +
-                            " field " + f + " of class " + bean.getClass() + " - only non-static, non-final fields may be annotated with @Inject" );
+                            " " + f + ", only non-final fields may be annotated with @Inject" );
                     }
-                    if ( f.getType().isAssignableFrom( fieldType ) ) {
-                        if ( injected ) {
-                            throw new IllegalStateException( "Multiple fields accepting " + fieldType + " are annotated with @Inject?" );
-                        }
-                        injected = true;
-                        f.setAccessible( true );
-                        f.set( bean, value );
+                } else if ( f.location() instanceof Method method) {
+                    if ( Modifier.isAbstract( m ) || Modifier.isNative( m ) ) {
+                        throw new UnsupportedOperationException( "Found invalid @Inject annotation on " +
+                            " method " + f + ", only non-abstract and non-native methods may be annotated with @Inject" );
                     }
+                    if ( method.getReturnType() != Void.TYPE ) {
+                        throw new UnsupportedOperationException( "Refusing to @Inject into non-void method " + method );
+                    }
+                    if ( method.getParameterCount() != 1 ) {
+                        throw new UnsupportedOperationException(
+                            "Refusing to @Inject into method " + method + " with " + method.getParameterCount() + " parameters, expected exactly one" );
+                    }
+                } else {
+                    throw new RuntimeException("Internal error, unhandled location "+f.location());
                 }
-            }
-            currentClass = currentClass.getSuperclass();
-        } while (currentClass != null && currentClass != Object.class);
-        if ( ! injected  ) {
-            throw new IllegalStateException( "Failed to find any @Inject field suitable for injecting " + fieldType );
+            final Object value = supplier.apply( f.type() );
+            f.set( value, target );
         }
     }
 
