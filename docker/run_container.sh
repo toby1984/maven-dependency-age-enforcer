@@ -18,6 +18,7 @@ while [ "$#" -gt "0" ] ; do
   case "$1" in
   
     -b | --build)
+      FORCE="--force-image-removal"
       REBUILD="1" 
       ;;
     -d | --debug)
@@ -42,7 +43,7 @@ if ! docker image ls --format "{{.Repository}}:{{.Tag}}" | grep ${IMAGE_NAME} ; 
 fi
 
 if [ "$REBUILD" != "0" ] ; then
-  build_image.sh
+  build_image.sh ${FORCE}
 fi
 
 RUNNING_CONTAINERS=`docker ps -a --filter ancestor=${IMAGE_NAME} --format="{{.ID}}"`

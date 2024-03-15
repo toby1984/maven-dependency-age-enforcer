@@ -26,7 +26,10 @@ mkdir ${TMP_FOLDER}
 cp ${WAR} ${TMP_FOLDER}/versiontracker.war
 
 if docker image ls --format '{{.Repository}}:{{.Tag}}' | grep ${IMAGE_NAME} ; then
-  docker image rm ${IMAGE_NAME}
+  if [ "$#" == "1" -a "$1" == "--force-image-removal" ] ; then
+    FORCE="--force"
+  fi
+  docker image rm ${FORCE} ${IMAGE_NAME}
 fi
 
 docker build --no-cache -t ${IMAGE_NAME} .

@@ -35,6 +35,10 @@
       div.table {
           border: 1px solid black;
       }
+      .version-label {
+          background-color: lightgray;
+          text-align: right;
+      }
   </style>
 </head>
 <body>
@@ -58,6 +62,9 @@
   </form>
   <div id="searchResults">
   </div>
+</div>
+<div class="version-label">
+  Server Version: ${project.version}-${buildNumber}
 </div>
 <script>
     autocomplete(document.getElementById("groupId"), function(userInput) {

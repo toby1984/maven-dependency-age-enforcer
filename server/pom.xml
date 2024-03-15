@@ -24,6 +24,23 @@
     </dependency>
   </dependencies>
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>markup/page.html</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <targetPath>markup</targetPath>
+        <directory>src/main/resources/markup</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>page.html</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
