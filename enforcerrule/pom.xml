@@ -26,6 +26,7 @@
     <dependency>
       <groupId>javax.inject</groupId>
       <artifactId>javax.inject</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>javax.xml.bind</groupId>
@@ -65,35 +66,42 @@
       <groupId>org.apache.maven.enforcer</groupId>
       <artifactId>enforcer-api</artifactId>
       <version>${enforcer.api.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-core</artifactId>
       <version>${enforcerrule.maven.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-artifact</artifactId>
       <version>${enforcerrule.maven.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-plugin-api</artifactId>
       <version>${enforcerrule.maven.version}</version>
+      <scope>provided</scope>
     </dependency>
-<!--
-    TODO: Temporarily commented out - find out if this dependency is really needed as it makes javadoc generation crash because of an invalid module name (because of the 'default' identifier being reserved)
     <dependency>
-      <groupId>org.codehaus.plexus</groupId>
-      <artifactId>plexus-container-default</artifactId>
-      <version>1.0-alpha-9</version>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-enforcer-plugin</artifactId>
+      <scope>provided</scope>
     </dependency>
--->
   </dependencies>
 
   <build>
 
   <plugins>
+
+      <plugin>
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>sisu-maven-plugin</artifactId>
+        <version>0.3.5</version>
+      </plugin>
 
       <plugin>
         <groupId>com.mycila.maven-license-plugin</groupId>

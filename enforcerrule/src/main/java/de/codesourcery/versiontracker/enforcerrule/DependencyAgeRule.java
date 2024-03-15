@@ -96,8 +96,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
 		}
     }
 
-    @Inject
-    MavenProject project;
+    private MavenProject project;
 
     Age parsedMaxAge;
     Age parsedWarnAge;
@@ -215,7 +214,10 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 return duration.compareTo( thisDuration ) > 0;
             }
         }
-    
+
+    public DependencyAgeRule() {
+    }
+
     private boolean isTooOld(ArtifactResponse response,Age threshold)
     {
         if ( response.hasCurrentVersion() &&
@@ -659,5 +661,10 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     // unit-testing hook
     protected ZonedDateTime currentTime() {
         return ZonedDateTime.now();
+    }
+
+    @Inject
+    public void setProject(MavenProject project) {
+        this.project = project;
     }
 }

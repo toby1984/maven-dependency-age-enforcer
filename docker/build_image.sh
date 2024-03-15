@@ -13,7 +13,7 @@ source image_name
 echo "Building ${IMAGE_NAME} ..."
 
 cd "$(dirname "$0")"
-( cd .. && mvn -DskipTests=true clean package )
+( cd .. && mvn -DskipTests=true clean install)
 if [ ! -e ${WAR} ] ; then
   echo "Something went wrong, did not find ${WAR}"
   exit 1
@@ -24,5 +24,9 @@ if [ -e ${TMP_FOLDER} ] ; then
 fi
 mkdir ${TMP_FOLDER}
 cp ${WAR} ${TMP_FOLDER}/versiontracker.war
+
+if docker image ls --format '{{.Repository}}:{{.Tag}}' | grep ${IMAGE_NAME} ; then
+  docker image rm ${IMAGE_NAME}
+fi
 
 docker build --no-cache -t ${IMAGE_NAME} .

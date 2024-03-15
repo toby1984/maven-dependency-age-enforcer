@@ -75,7 +75,7 @@ You will need JDK 17 or later as well as Maven 3.5.2 or later. You'll need to se
 
 ### If you don't want to use the servlet, just omit the `<apiEndpoint>` tag inside the rule configuration.
 
-By default the servlet will store all retrieved artifact metadata as a binary file in ${user.home}/artifacts.json.binary unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the JVM (the Dockerfile will use the path /data/artifacts.json.binary so ).
+By default the servlet will store all retrieved artifact metadata as a binary file in ${user.home}/artifacts.json.binary unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the JVM (the Dockerfile will use the path /data/artifacts.json.binary so mounting a Docker volume on /data, as the run_container.sh script does, will make the artifact metadata persistent outside of the container).
 
 Note: You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
@@ -83,7 +83,8 @@ Note: You can request status information by sending a HTTP GET request to the HT
 
 # Using Docker
 
-You can create/run the servlet inside an Apache Tomcat Docker image using the docker/build_image.sh and docker/run_image.sh scripts (run_image.sh will automatically build the image if not already done).
+You can create/run the servlet inside an Apache Tomcat Docker image using the docker/build_image.sh and docker/run_container.sh scripts (run_container.sh will automatically build the image if not already done).
+The run_container.sh script will automatically create a 'versiontracker_data' Docker volume and mount it on /data, making already fetched artifact metadata persistent.
 
 # Using your own application server
 Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file into the webapps folder of your favorite application server.
