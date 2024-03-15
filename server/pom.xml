@@ -51,22 +51,7 @@
               <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
             </manifest>
           </archive>
-          <classifier>webapp</classifier>
         </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>jar</goal>
-            </goals>
-            <configuration>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
       <plugin>
         <groupId>com.mycila.maven-license-plugin</groupId>

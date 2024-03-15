@@ -7,7 +7,12 @@
         xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
 
   <display-name>versiontracker</display-name>
-
+  
+  <absolute-ordering>
+    <name>log4j</name>
+    <others/>
+  </absolute-ordering>
+  
   <!-- Listener needed to make sure we flush in-memory artifact metadata to disk when the servlet is reloaded -->
   <listener>
     <listener-class>de.codesourcery.versiontracker.server.APIImplDestructionListener</listener-class>
@@ -17,6 +22,7 @@
   <servlet>
     <servlet-name>api-servlet</servlet-name>
     <servlet-class>de.codesourcery.versiontracker.server.APIServlet</servlet-class>
+    <load-on-startup>1</load-on-startup>
   </servlet>
 
   <!-- Servlet to URL mappings -->

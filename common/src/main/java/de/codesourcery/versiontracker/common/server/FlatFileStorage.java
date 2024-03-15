@@ -59,14 +59,24 @@ public class FlatFileStorage implements IVersionStorage
 	private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
 	// magic: file format v1
-	private static final long MAGIC_V1 = 0xdeadbeef;
+	private static final long MAGIC_V1 = 0xdeadbeefL;
 
 	// magic: file format v2
-	private static final long MAGIC_V2 = 0xdeadface;
+	private static final long MAGIC_V2 = 0xdeadfaceL;
 
 	private static final SerializationFormat CURRENT_FILE_FORMAT = SerializationFormat.V2;
 
 	private static final ObjectMapper mapper = JSONHelper.newObjectMapper();
+
+	public enum TaggedRecordType {
+		VERSION_DATA( 0x01 ),
+		END_OF_FILE( 0xff );
+		final byte tag;
+
+		TaggedRecordType(int tag) {
+			this.tag = (byte) tag;
+		}
+	}
 
 	private final Protocol protocol;
 	private final File file;

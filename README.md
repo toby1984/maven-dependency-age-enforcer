@@ -8,7 +8,7 @@ This rule can be configured to just print warnings about outdated artifacts or o
 
 ![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/screenshot.png)
 
-Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
+Artifact release information can either be retrieved & stored locally or one can deploy a simple Java servlet on a server (or simply build a docker image using the docker/build_image.sh script) and have all clients talk to this servlet instead of talking to Maven Central directly (which is the recommended way to use this project as it otherwise creates unnecessary load on Maven Central when multiple people inside the same company use it).
 Note that metadata.xml files stored on Maven Central do not reveal when a given version has been uploaded so my enforcer rule simply scrapes the "last modified" date from an artifact's "Browse" page.
 
 # Basic Usage
@@ -71,17 +71,22 @@ Note that at least the warnAge (print warning but don't fail the build) or maxAg
 
 You will need JDK 17 or later as well as Maven 3.5.2 or later. You'll need to set your MAVEN_OPTS to include "---add-opens java.base/java.lang=ALL-UNNAMED" because otherwise some of the more ancient Maven plugins in this pom.xml will crash
 
-## Servlet setup (optional).
+## Servlet setup (optional)
 
 ### If you don't want to use the servlet, just omit the `<apiEndpoint>` tag inside the rule configuration.
 
-Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file inside the webapps folder of your favorite application server.
+By default the servlet will store all retrieved artifact metadata as a binary file in ${user.home}/artifacts.json.binary unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the JVM (the Dockerfile will use the path /data/artifacts.json.binary so ).
 
-By default the servlet will store all retrieved artifact metadata as a binary file in ${user.home}/artifacts.json.binary unless you override this location by passing a '-Dversiontracker.artifact.file='&lt;path to file&gt;' option to the JVM.
-
-You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
+Note: You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
 ![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/server_screenshot.png)
+
+# Using Docker
+
+You can create/run the servlet inside an Apache Tomcat Docker image using the docker/build_image.sh and docker/run_image.sh scripts (run_image.sh will automatically build the image if not already done).
+
+# Using your own application server
+Currently there's nothing to be done except running 'mvn package' and then tossing the server/target/versiontracker.war file into the webapps folder of your favorite application server.
 
 ## [optional] Create a XML file describing which versions to blacklist
 
