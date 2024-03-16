@@ -2,7 +2,7 @@
 
 # What's this?
 
-A custom maven-enforcer plugin rule that makes sure the 3rd party dependencies a project uses are not "too much" behind 
+A custom maven-enforcer plugin rule that makes sure the direct dependencies a project uses are not "too much" behind 
 their respective latest release (in terms of days/weeks/months).   
 
 This rule can be configured to just print warnings about outdated artifacts or outright fail the build. 
