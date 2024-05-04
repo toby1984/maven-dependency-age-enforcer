@@ -56,7 +56,7 @@ Do not forget to also add the de.code-sourcery.versiontracker:versiontracker-enf
                         <dependency>
                             <groupId>de.code-sourcery.versiontracker</groupId>
                             <artifactId>versiontracker-enforcerrule</artifactId>
-                            <version>1.0.21/version>
+                            <version>1.0.22/version>
                         </dependency>
                     </dependencies>
                 </plugin>
