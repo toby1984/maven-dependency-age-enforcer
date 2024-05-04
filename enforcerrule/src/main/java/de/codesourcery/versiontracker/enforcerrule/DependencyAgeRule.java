@@ -27,6 +27,9 @@ import de.codesourcery.versiontracker.common.Blacklist.VersionMatcher;
 import de.codesourcery.versiontracker.xsd.IgnoreVersion;
 import de.codesourcery.versiontracker.xsd.Rule;
 import de.codesourcery.versiontracker.xsd.Ruleset;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.JAXBException;
+import jakarta.xml.bind.Unmarshaller;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.time.DurationFormatUtils;
@@ -36,9 +39,6 @@ import org.apache.maven.project.MavenProject;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
 import java.io.File;
 import java.text.MessageFormat;
 import java.text.ParseException;
@@ -90,8 +90,8 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     static 
     {
         try {
-			jaxbContext = JAXBContext.newInstance(Ruleset.class);
-		} catch (JAXBException e) {
+			jaxbContext = JAXBContext.newInstance( Ruleset.class);
+		} catch ( JAXBException e) {
 			throw new RuntimeException(e);
 		}
     }
