@@ -55,7 +55,8 @@ public class APIImpl implements AutoCloseable
     
     private boolean registerShutdownHook = true;
 
-    private String mavenRepository = MavenCentralVersionProvider.DEFAULT_MAVEN_URL;
+    private String repo1BaseUrl = MavenCentralVersionProvider.DEFAULT_REPO1_BASE_URL;
+    private String restApiBaseUrl = MavenCentralVersionProvider.DEFAULT_SONATYPE_REST_API_BASE_URL;
 
     public enum Mode
     {
@@ -132,7 +133,7 @@ public class APIImpl implements AutoCloseable
 
     // unit-testing hook
     protected IVersionProvider createVersionProvider() {
-        return new MavenCentralVersionProvider( mavenRepository );
+        return new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
     }
 
     // unit-testing hook
@@ -200,7 +201,7 @@ public class APIImpl implements AutoCloseable
             LOG.info("init(): Initialization done.");
             LOG.info("init(): ");
             LOG.info("init(): Version file storage: "+versionStorage);
-            LOG.info("init(): Maven repository enpoint: "+mavenRepository);
+            LOG.info("init(): Maven repository enpoint: "+ repo1BaseUrl );
             LOG.info("init(): Thread count: "+versionTracker.getMaxConcurrentThreads());
             LOG.info("init(): ====================");
             success = true;

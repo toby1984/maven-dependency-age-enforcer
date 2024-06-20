@@ -60,10 +60,22 @@ public class FlatFileStorageTest
 				file = null;
 			}
 		}
-	}    
+	}
 
 	@Test
-	public void testStoreAndLoadEmpty() throws IOException 
+	public void testStoreAndLoadEmptyBinary() throws IOException
+	{
+		FlatFileStorage storage = new FlatFileStorage(file, Protocol.BINARY);
+		List<VersionInfo> data = new ArrayList<>();
+		storage.saveOrUpdate( data );
+
+		storage = new FlatFileStorage(file, Protocol.BINARY);
+		List<VersionInfo> loaded = storage.getAllVersions();
+		assertEquals(0,loaded.size());
+	}
+
+	@Test
+	public void testStoreAndLoadEmptyJSON() throws IOException
 	{
 		FlatFileStorage storage = new FlatFileStorage(file);
 		List<VersionInfo> data = new ArrayList<>();

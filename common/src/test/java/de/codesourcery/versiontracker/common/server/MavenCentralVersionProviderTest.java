@@ -24,6 +24,8 @@ import de.codesourcery.versiontracker.common.VersionInfo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URL;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -53,7 +55,10 @@ public class MavenCentralVersionProviderTest {
 
     private void doTest(WireMockRuntimeInfo webServer, boolean scrapeAdditionalReleaseDates) throws IOException {
 
-        final MavenCentralVersionProvider provider = new MavenCentralVersionProvider("http://localhost:"+webServer.getHttpPort());
+        final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
+        final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
+
+        final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
 
         final VersionInfo info = new VersionInfo();
         info.artifact = new Artifact();
@@ -82,31 +87,35 @@ public class MavenCentralVersionProviderTest {
         final String metaDataURL = "/"+MavenCentralVersionProvider.metaDataPath( info.artifact );
         stubFor(get( metaDataURL ).willReturn( ok( metadata ) ) );
 
-        final String scapingURL1 = "/" + MavenCentralVersionProvider.getPathToFolder( info.artifact, "3.11" );
-        final ZonedDateTime releaseDate1 = date( "2021-07-11 11:12" );
-        if ( scrapeAdditionalReleaseDates ) {
-            stubFor( get( scapingURL1 ).willReturn( ok( createMarkupForScraping( info.artifact, "3.11", releaseDate1 ) ) ) );
-        }
 
-        final String scapingURL2 = "/" + MavenCentralVersionProvider.getPathToFolder( info.artifact, "3.12.0" );
+        final ZonedDateTime releaseDate1 = date( "2021-07-11 11:12" );
         final ZonedDateTime releaseDate2 = date( "2021-07-12 12:13" );
-        stubFor(get( scapingURL2 ).willReturn( ok( createMarkupForScraping( info.artifact,"3.12.0", releaseDate2 ) ) ) );
+
+        final String jsonResponse = """
+{"responseHeader":{"status":0,"QTime":3,"params":{"q":"g:org.apache.commons AND a:commons-lang3 AND v: 3.12.0","core":"","indent":"off","fl":"id,g,a,v,p,ec,timestamp,tags","start":"","sort":"score desc,timestamp desc,g asc,a asc,v desc","rows":"20","wt":"json","version":"2.2"}},"response":{"numFound":1,"start":0,"docs":[{"id":"org.apache.commons:commons-lang3:3.12.0","g":"org.apache.commons","a":"commons-lang3","v":"3.12.0","p":"jar","timestamp":1626091980000,"ec":["-sources.jar","-javadoc.jar","-test-sources.jar",".jar","-tests.jar",".pom"],"tags":["classes","standard","justify","package","apache","lang","considered","existence","that","utility","commons","java","hierarchy"]}]}}            
+            """;
+        final String expectedRestURL = "/select/?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3+AND+v%3A+3.12.0&rows=10000&wt=json";
+        stubFor( get( expectedRestURL ).willReturn( ok( jsonResponse ) ) );
+
+        if ( scrapeAdditionalReleaseDates ) {
+            final String jsonResponse2 = """
+{"responseHeader":{"status":0,"QTime":3,"params":{"q":"g:org.apache.commons AND a:commons-lang3 AND v: 3.11","core":"","indent":"off","fl":"id,g,a,v,p,ec,timestamp,tags","start":"","sort":"score desc,timestamp desc,g asc,a asc,v desc","rows":"20","wt":"json","version":"2.2"}},"response":{"numFound":1,"start":0,"docs":[{"id":"org.apache.commons:commons-lang3:3.11","g":"org.apache.commons","a":"commons-lang3","v":"3.11","p":"jar","timestamp":1626001920000,"ec":["-sources.jar","-javadoc.jar","-test-sources.jar",".jar","-tests.jar",".pom"],"tags":["classes","standard","justify","package","apache","lang","considered","existence","that","utility","commons","java","hierarchy"]}]}}            
+            """;
+            final String expectedRestURL2 = "/select/?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3+AND+v%3A+3.11&rows=10000&wt=json";
+            stubFor( get( expectedRestURL2 ).willReturn( ok( jsonResponse2 ) ) );
+        }
 
         final IVersionProvider.UpdateResult result = provider.update( info, scrapeAdditionalReleaseDates ? Set.of( "3.11" ) : Collections.emptySet() );
         assertThat(result).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
         assertThat(info.versions).isNotEmpty();
         assertThat(info.versions).containsExactlyInAnyOrder( Version.of("3.11"), Version.of("3.11.1"), Version.of("3.12.0") );
         if ( scrapeAdditionalReleaseDates ) {
-            assertThat( info.getVersion( "3.11" ) ).map( x -> x.releaseDate ).hasValue( releaseDate1 );
+            assertThat( info.getVersion( "3.11" ) ).map( x -> x.releaseDate ).hasValueSatisfying( v -> v.toInstant().equals( releaseDate1.toInstant() ) );
         } else {
             assertThat( info.getVersion( "3.11" ) ).isPresent();
         }
-        assertThat( info.getVersion( "3.12.0" ) ).map( x -> x.releaseDate ).hasValue( releaseDate2 );
+        assertThat( info.getVersion( "3.12.0" ) ).map( x -> x.releaseDate ).hasValueSatisfying( v -> v.toInstant().equals( releaseDate2.toInstant() ) );
 
-        if ( scrapeAdditionalReleaseDates ) {
-            verify( getRequestedFor( urlEqualTo( scapingURL1 ) ) );
-        }
-        verify( getRequestedFor( urlEqualTo( scapingURL2 ) ) );
         verify( getRequestedFor( urlEqualTo( metaDataURL ) ) );
     }
 

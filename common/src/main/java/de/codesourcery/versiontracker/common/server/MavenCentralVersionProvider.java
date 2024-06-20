@@ -15,37 +15,6 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.Version;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.EntityResolver;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpression;
-import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -55,6 +24,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -74,8 +44,39 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.EntityResolver;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.IVersionProvider;
+import de.codesourcery.versiontracker.common.JSONHelper;
+import de.codesourcery.versiontracker.common.Version;
+import de.codesourcery.versiontracker.common.VersionInfo;
 
 /**
  * Version provider that retrieves artifact metadata from Maven central.
@@ -89,19 +90,45 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private static final Logger LOG = LogManager.getLogger(MavenCentralVersionProvider.class);
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneId.of("UTC"));
-    private static final DateTimeFormatter MAVEN_REPO_INDEX_DATE_FORMATTER = 
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
-    public static final String DEFAULT_MAVEN_URL = "https://repo1.maven.org/maven2/";
+    public static final String DEFAULT_REPO1_BASE_URL = "https://repo1.maven.org/maven2/";
+    public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://search.maven.org/solrsearch/select";
 
-
-    /*
-     * <a href="junit-4.12-javadoc.jar" title="junit-4.12-javadoc.jar">junit-4.12-javadoc.jar</a>
-     *                             2014-12-04 16:17    937942
+    /**
+     * HTTP GET parameters used by Sonatype REST API.
+     *
+     * <p>There's basically no documentation for this except https://central.sonatype.org/search/rest-api-guide/</p>
+     *
+     *
+     * @author tobias.gierke@code-sourcery.de
      */
-    private static final Pattern LINE_PATTERN = Pattern.compile("<a .*?>(.*?)</a>\\s*(\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2})\\s+(\\d+)");
+    enum HttpParam {
+        QUERY("q",1),
+        /** return all versions of an artifact */
+        OPT_RETURN_ALL_VERSION("core","gav", 2 ),
+        START_OFFSET("start",3),
+        MAX_RESULT_COUNT("rows",4),
+        RESULT_TYPE("wt", "json", 5 )
+        ;
+        public final String literal;
+        public final String value;
+        public final int order;
 
-    private static final class MyExpressions // XPathExpression is NOT thread-safe to we use a ThreadLocal + this wrapper
+        HttpParam(String literal, int order) {
+            this( literal, null, order );
+        }
+
+        HttpParam(String literal, String value, int order)
+        {
+            this.literal = literal;
+            this.value = value;
+            this.order = order;
+        }
+    }
+
+    private static final ObjectMapper JSON_MAPPER =  JSONHelper.newObjectMapper();
+
+    private static final class MyExpressions // XPathExpression is NOT thread-safe so we use a ThreadLocal + this wrapper
     {
         private final XPathExpression latestSnapshot;
         private final XPathExpression latestRelease;
@@ -131,7 +158,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();    
-    private final String serverBase;
+    private final String repo1BaseUrl;
+    private final String sonatypeRestApiBaseUrl;
     private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
     private final Map<URI,CloseableHttpClient> clients = new HashMap<>();
 
@@ -145,21 +173,22 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public MavenCentralVersionProvider()
     {
-        this(DEFAULT_MAVEN_URL);
+        this( DEFAULT_REPO1_BASE_URL, DEFAULT_SONATYPE_REST_API_BASE_URL);
         connManager.setDefaultMaxPerRoute(10);
         connManager.setMaxTotal(20);
     }
 
-    public MavenCentralVersionProvider(String serverBase) 
+    public MavenCentralVersionProvider(String repo1BaseUrl, String sonatypeRestApiBaseUrl)
     {
-        this.serverBase = serverBase+(serverBase.trim().endsWith("/") ? "" : "/" );
+        this.repo1BaseUrl = repo1BaseUrl+(repo1BaseUrl.trim().endsWith("/") ? "" : "/" );
+        this.sonatypeRestApiBaseUrl = sonatypeRestApiBaseUrl+(sonatypeRestApiBaseUrl.trim().endsWith("/") ? "" : "/" );
     }
     
     public static void main(String[] args) throws IOException
     {
         final Artifact test = new Artifact();
-        test.groupId = "commons-lang";
-        test.artifactId = "commons-lang";
+        test.groupId = "org.apache.wicket";
+        test.artifactId = "wicket-core";
 
         VersionInfo data = new VersionInfo();
         data.artifact = test;
@@ -169,19 +198,24 @@ public class MavenCentralVersionProvider implements IVersionProvider
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);
         System.out.println("GOT: "+data);
+
+        System.out.println( "VERSION COUNT: " + data.versions.size() );
+
+        data.versions.stream().sorted( (a, b) -> a.versionString.compareToIgnoreCase( b.versionString ) )
+            .forEach( x -> System.out.println( x.versionString + " => " + x.releaseDate ) );
     }
 
     @Override
     public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException
     {
         final Artifact artifact = info.artifact;
-        final URL url = new URL( serverBase+metaDataPath( artifact ) );
-        
+        final URL url = new URL( repo1BaseUrl +metaDataPath( artifact ) );
+
         if ( LOG.isDebugEnabled() ) {
             LOG.debug("update(): Retrieving metadata for "+info.artifact+" from "+url);
         }
-        
-        try 
+
+        try
         {
             return performGET(url, stream -> {
                 synchronized ( statistics ) {
@@ -250,7 +284,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
                 if ( ! versionsToRequest.isEmpty() )
                 {
-                    final Map<String,Version> result = getReleaseDates(artifact,versionsToRequest);
+                    final Map<String,Version> result = queryReleaseDates(artifact,versionsToRequest);
                     for ( Map.Entry<String,Version> entry : result.entrySet() )
                     {
                         final Optional<Version> existing = info.getVersion( entry.getKey() );
@@ -319,7 +353,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
     
-    private Map<String,Version> getReleaseDates(Artifact artifact, Set<String> versionNumbers)
+    private Map<String,Version> queryReleaseDates(Artifact artifact, Set<String> versionNumbers)
     {
         final Map<String,Version> result = new HashMap<>();
         if ( versionNumbers.isEmpty() ) {
@@ -332,14 +366,14 @@ public class MavenCentralVersionProvider implements IVersionProvider
             final Runnable r = () -> 
             {
                 try {
-                    final Optional<Version> v = getReleaseDate(artifact,versionNumber);
+                    final Optional<ZonedDateTime> v = queryReleaseDateNew(artifact,versionNumber);
                     if ( v.isPresent() ) {
                         synchronized(result) {
-                            result.put(versionNumber,v.get());
+                            result.put(versionNumber,new Version(versionNumber,v.get()) );
                         }
                     }
                 } catch(Exception e) {
-                    LOG.error("readVersion(): Failed to retrieve version '"+versionNumber+"' for "+artifact);
+                    LOG.error("readVersion(): Failed to retrieve version '"+versionNumber+"' for "+artifact,e);
                 } finally {
                     latch.countDown();
                 }
@@ -358,46 +392,158 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    private Optional<Version> getReleaseDate(Artifact artifact, String versionString) throws IOException
-    {
-        Validate.notBlank(versionString, "versionString must not be NULL/blank");
+    private Optional<ZonedDateTime> queryReleaseDateNew(Artifact artifact, String versionString) throws IOException {
 
-        final URL url2 = new URL( serverBase+getPathToFolder( artifact, versionString ) );        
-        LOG.debug("readVersion(): Looking for release date of version '"+versionString+"' for "+artifact);
-        
-        return performGET(url2, stream -> {
-
-            synchronized ( statistics ) {
-                statistics.releaseDateRequests.update();
-            }
-
-            final String page = String.join( "\n", IOUtils.readLines( stream, StandardCharsets.UTF_8 ) );
-            Matcher m = LINE_PATTERN.matcher( page );
-
-            ZonedDateTime latest = null;
-            final boolean trace = LOG.isTraceEnabled();
-            while ( m.find() )
-            {
-                final String filename = m.group(1);
-                final String uploadDate = m.group(2);
-                final String size = m.group(3);
-                if ( filename.trim().endsWith(".jar" ) )
-                {
-                    final ZonedDateTime date = ZonedDateTime.parse( uploadDate, MAVEN_REPO_INDEX_DATE_FORMATTER );
-                    if( latest == null || latest.compareTo( date ) < 0 ) {
-                        latest = date;
-                    }
-                    if ( trace ) {
-                        LOG.trace( "readVersion(): (*) FOUND: "+filename + " | " + uploadDate + " | " + size);
-                    }
-                } else {
-                    if ( trace ) {
-                        LOG.trace( "readVersion(): FOUND: "+filename + " | " + uploadDate + " | " + size);
-                    }
-                }
-            }
-            return latest == null ? Optional.empty() : Optional.of( new Version(versionString,latest) );
+        final URL url = newRESTUrlBuilder()
+            .groupId( artifact.groupId )
+            .artifactId( artifact.artifactId )
+            .version( versionString )
+            .classifier( artifact.classifier ).build();
+        return performGET( url, stream -> {
+            final PartialResult result = parseSonatypeResponse( stream );
+            return result.getFirstResult().filter( Version::hasReleaseDate ).map( x -> x.releaseDate );
         } );
+    }
+
+    /** Sonatype API seems to refuse returning more than 20 results ... we'll have to page through them to get all ... */
+    private record PartialResult(List<Version> data, int totalResultSize) {
+        private PartialResult
+        {
+            Validate.notNull( data, "data must not be null" );
+            Validate.isTrue( totalResultSize >= 0 );
+        }
+
+        public Optional<Version> getFirstResult()
+        {
+            return data.isEmpty() ? Optional.empty() : Optional.of( data.get(0) );
+        }
+    }
+
+    SonatypeRestAPIUrlBuilder newRESTUrlBuilder() {
+        return new SonatypeRestAPIUrlBuilder( sonatypeRestApiBaseUrl );
+    }
+
+    // code left here because it was a PITA to write and it might come in handy during debugging when
+    // comparing the Maven indexer XML vs. the real deal
+    private List<Version> queryAllVersions(Artifact artifact) throws IOException
+    {
+        final SonatypeRestAPIUrlBuilder urlBuilder = newRESTUrlBuilder()
+            .groupId( artifact.groupId )
+            .artifactId( artifact.artifactId )
+            .classifier( artifact.classifier )
+            .returnAllResults();
+
+        URL restApiURL = urlBuilder.build();
+
+        // need to query in a loop here as the REST API seems to refuse returning more than 20 results
+        // at once
+        final PartialResult first = performGET( restApiURL, this::parseSonatypeResponse );
+        int remaining = first.totalResultSize() - first.data().size();
+        final List<Version> result = new ArrayList<>( first.data() );
+        if ( remaining > 0 ) {
+
+            LOG.debug("queryAllVersions(): Artifact "+artifact+" has "+first.totalResultSize()+" releases.");
+            int offset = first.data().size();
+            PartialResult tmp;
+            do
+            {
+                restApiURL = urlBuilder.startOffset( offset ).build();
+
+                tmp = performGET( restApiURL, this::parseSonatypeResponse );
+                result.addAll( tmp.data() );
+                final int resultCount = tmp.data().size();
+                offset += resultCount;
+                remaining -= resultCount;
+            } while (! tmp.data().isEmpty() && remaining > 0 );
+        }
+        if ( result.size() != first.totalResultSize() ) {
+            final String msg = "Tried to retrieve " + first.totalResultSize() + " versions for " + artifact + " " +
+                "but only got " + result.size();
+            LOG.error( "queryAllVersions(): " + msg );
+            throw new IOException( msg );
+        }
+        return result;
+    }
+
+    private PartialResult parseSonatypeResponse(InputStream stream) throws IOException
+    {
+        final TypeReference<HashMap<String, Object>> typeRef = new TypeReference<>() {};
+
+        final byte[] data = stream.readAllBytes();
+        final String json = new String( data, StandardCharsets.UTF_8 );
+
+        final HashMap<String, Object> map = JSON_MAPPER.readValue( json, typeRef );
+
+            /*
+                {
+                   "responseHeader":{
+                      "status":0,
+                      "QTime":2,
+                      "params":{
+                         "q":"g:de.code-sourcery.versiontracker AND a:versiontracker-enforcerrule AND v:1.0.22",
+                         "core":"",
+                         "indent":"off",
+                         "fl":"id,g,a,v,p,ec,timestamp,tags",
+                         "start":"",
+                         "sort":"score desc,timestamp desc,g asc,a asc,v desc",
+                         "rows":"20",
+                         "wt":"json",
+                         "version":"2.2"
+                      }
+                   },
+                   "response":{
+                      "numFound":1,
+                      "start":0,
+                      "docs":[
+                         {
+                            "id":"de.code-sourcery.versiontracker:versiontracker-enforcerrule:1.0.22",
+                            "g":"de.code-sourcery.versiontracker",
+                            "a":"versiontracker-enforcerrule",
+                            "v":"1.0.22",
+                            "p":"jar",
+                            "timestamp":1714834541000,
+                            "ec":[
+                               "-sources.jar",
+                               ".pom",
+                               "-javadoc.jar",
+                               ".jar"
+                            ]
+                         }
+                      ]
+                   }
+                }
+             */
+
+        final List<Version> result = new ArrayList<>();
+        final Map<String, Object> response = (Map<String, Object>) map.get( "response" );
+        if ( response == null )
+        {
+            throw new IOException( "getReleaseDateNew(): JSON response contained no 'response' attribute?" );
+        }
+        if ( ! response.containsKey( "numFound" ) )
+        {
+            throw new IOException( "JSON response contained no 'numFound' attribute?" );
+        }
+        final int numFound = ((Number) (response.get( "numFound" ))).intValue();
+        if ( LOG.isTraceEnabled() )
+        {
+            LOG.trace( "getReleaseDateNew(): Response found " + numFound + " artifacts" );
+        }
+        final List<Map<String, Object>> docs = (List<Map<String, Object>>) response.get( "docs" );
+        for ( final Map<String, Object> artifactDetails : docs )
+        {
+            if ( artifactDetails.containsKey( "timestamp" ) )
+            {
+                final long ts = ((Number) (artifactDetails.get( "timestamp" ))).longValue();
+                final String version = (String) (artifactDetails.get( "v" ));
+                result.add( new Version( version, Instant.ofEpochMilli( ts ).atZone( ZoneId.systemDefault() ) ) );
+            }
+        }
+        if ( numFound > 0 && result.isEmpty() )
+        {
+            LOG.warn( "getReleaseDateNew(): JSON response contained " + docs.size() + " artifacts but none had a 'timestamp' attribute?" );
+        }
+        return new PartialResult( result, numFound );
     }
 
     public static Document parseXML(InputStream inputStream) throws IOException
@@ -504,7 +650,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             if ( statusCode != 200 ) {
                 LOG.error( "performGET(): HTTP request to " + uri + " returned " + response.getReasonPhrase() );
                 if ( statusCode == 404 ) {
-                    throw new FileNotFoundException( "Failed to find " + uri );
+                    throw new FileNotFoundException( "(HTTP 404) Failed to find " + uri );
                 }
                 throw new IOException( "HTTP request to " + uri + " returned " + response.getReasonPhrase() );
             }
