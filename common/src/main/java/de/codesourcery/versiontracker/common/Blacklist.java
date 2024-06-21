@@ -209,7 +209,7 @@ public class Blacklist implements IBlacklistCheck
     	if ( containsNeverMatcher(globalIgnores) ) {
     		return true;
     	}
-    	if ( containsNeverMatcher( groupIdIgnores.get( groupId ) ) ) {
+    	if ( containsNeverMatcher( getMatchersForGroupId( groupId ) ) ) {
     		return true;
     	}
     	Map<String, List<VersionStringMatcher>> map1 = artifactIgnores.get( groupId );
@@ -322,7 +322,7 @@ public class Blacklist implements IBlacklistCheck
             // See https://www.mojohaus.org/versions-maven-plugin/version-rules.html where it says:
             // "Note: the groupId attribute in the rule elements has a lazy .* at the end, such that com.mycompany will match com.mycompany, com.mycompany.foo, com.mycompany.foo.bar, etc."
 
-            final boolean matches = artifactGroupId.equals( expectedGroupId ) ||artifactGroupId.startsWith( expectedGroupId + "." );
+            final boolean matches = artifactGroupId.equals( expectedGroupId ) || artifactGroupId.startsWith( expectedGroupId + "." );
             // we'll only keep the most-specific match (longest prefix)
             if ( matches && ( mostSpecificMatch == null || expectedGroupId.length() > mostSpecificMatch.length() ) )
             {
