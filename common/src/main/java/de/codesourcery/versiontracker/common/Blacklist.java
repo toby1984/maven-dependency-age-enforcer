@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public class Blacklist implements IBlacklistCheck 
@@ -130,8 +131,34 @@ public class Blacklist implements IBlacklistCheck
         }
     }
     private final List<VersionStringMatcher> globalIgnores = new ArrayList<>();
+
     // key is group ID
-    private final Map<String,List<VersionStringMatcher>>  groupIdIgnores = new HashMap<>();
+    private final GroupIdMap<VersionStringMatcher,List<VersionStringMatcher>> groupIdIgnores = new GroupIdMap<>( () -> new GroupIdMap.IAccumulator<>()
+    {
+        private final List<VersionStringMatcher> result = new ArrayList<>();
+
+        @Override
+        public void accumulate(VersionStringMatcher versionStringMatcher)
+        {
+            result.add( versionStringMatcher );
+        }
+
+        @Override
+        public List<VersionStringMatcher> merge(List<VersionStringMatcher> a, List<VersionStringMatcher> b)
+        {
+            final List<VersionStringMatcher> result = new ArrayList<>(a);
+            result.addAll(b);
+            return result;
+        }
+
+        @Override
+        public List<VersionStringMatcher> finish()
+        {
+            return result;
+        }
+    } );
+
+    // key is group ID
     private final Map<String,Map<String,List<VersionStringMatcher>>>  artifactIgnores = new HashMap<>();
 
     public Blacklist() {
@@ -152,7 +179,7 @@ public class Blacklist implements IBlacklistCheck
             if ( ! equals(this.globalIgnores, o.globalIgnores ) ) {
     			return false;
     		}
-    		if ( ! equals(this.groupIdIgnores,o.groupIdIgnores) ) {
+    		if ( ! this.groupIdIgnores.equals(o.groupIdIgnores) ) {
     			return false;
     		}
     		if ( artifactIgnores.size() != o.artifactIgnores.size() ) {
@@ -179,7 +206,7 @@ public class Blacklist implements IBlacklistCheck
         }
 
         serializer.writeInt( groupIdIgnores.size() );
-        for (Entry<String, List<VersionStringMatcher>> entry : groupIdIgnores.entrySet() )
+        for (Entry<String, List<VersionStringMatcher>> entry : groupIdIgnores.getAsMap().entrySet() )
         {
             serializeMapEntry(entry,serializer);
         }
@@ -245,11 +272,7 @@ public class Blacklist implements IBlacklistCheck
     public void addIgnoredVersion(String groupId,String pattern,VersionMatcher matcher)
     {
         Validate.notBlank( groupId , "groupId must not be NULL or blank");
-        List<VersionStringMatcher> existing = groupIdIgnores.computeIfAbsent( groupId, k -> new ArrayList<>() );
-        VersionStringMatcher newMatcher = VersionStringMatcher.createMatcher(pattern,matcher);
-        if ( ! existing.contains( newMatcher ) ) {
-            existing.add( newMatcher);
-        }
+        groupIdIgnores.put( groupId, VersionStringMatcher.createMatcher( pattern, matcher ) );
     }
     
     /**

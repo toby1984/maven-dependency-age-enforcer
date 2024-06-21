@@ -123,6 +123,15 @@ class BlacklistTest
     }
 
     @Test
+    void testGroupIdWithWildcardMatching() {
+        bl.addIgnoredVersion( "com.voipfuture.*", ".*", Blacklist.VersionMatcher.REGEX );
+        assertThat( bl.isVersionBlacklisted("com.voipfuture", "voipmngr-core", "1.0") ).isTrue();
+        assertThat( bl.isVersionBlacklisted("com.voipfuture.test", "voipmngr-core", "1.0") ).isTrue();
+        assertThat( bl.isVersionBlacklisted("com.something", "voipmngr-core", "1.0") ).isFalse();
+        assertThat( bl.isVersionBlacklisted("com", "voipmngr-core", "1.0") ).isFalse();
+    }
+
+    @Test
     void testRegExPatternMatching()
     {
         bl.addIgnoredVersion("group", "artifact", "1\\.0.*", Blacklist.VersionMatcher.REGEX);
