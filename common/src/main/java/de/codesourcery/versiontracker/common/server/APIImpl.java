@@ -358,16 +358,23 @@ public class APIImpl implements AutoCloseable
             if ( info.hasVersions() )
             {
                 if ( artifact.hasReleaseVersion() ) {
-                    // FIXME: Problem here is that versionTracker.getVersionInfo()
-                    //        will only retrieve the release dates for the *TRULY* latest release/snapshot versions
-                    //        (as according to the Maven Indexer XML file) as it doesn't know about any blacklists
-                    //        that a client is using.
-                    //        In this case, the release date of that specific version may very well not have been fetched
-                    //        and hence the enforcer rule can never perform an age comparison since the release date
-                    //        always stays unknown.
-                    //
-                    //        TODO: Trigger an MavenCentralProvider#update() call just with that version number
-
+                    /*
+                     *FIXME: Problem here is that versionTracker.getVersionInfo()
+                     *       will only retrieve the release dates for the *TRULY* latest release/snapshot versions
+                     *       (as given by the Maven Indexer XML file) as it doesn't know about any artifact blacklists
+                     *       a client may be using.
+                     *       In this case, the release date of that specific version may very well not have been fetched
+                     *       and hence the enforcer rule can never perform an age comparison since the release date
+                     *       always stays unknown.
+                     *
+                     *       TODO:
+                     *
+                     *      1.) Trigger a MavenCentralProvider#update() call just with that version number OR
+                     *          figure out how to fetch more version info per REST API call (with less attributes)
+                     *
+                     * In either case, the client should probably perform some kind of rate limiting so we don't
+                     * get banned because we're hammering the server.
+                     */
                     x.latestVersion = info.findLatestReleaseVersion( request.blacklist ).orElse( null );
                     if ( LOG.isDebugEnabled() ) {
                         LOG.debug("processQuery(): latest release version from metadata: "+info.latestReleaseVersion);

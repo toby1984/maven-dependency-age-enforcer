@@ -72,7 +72,7 @@ public class ArtifactResponse
 
 	public Artifact artifact;
 	public Version currentVersion;
-	// TODO: Rename to 'latestReleasedVersion' version, snapshots are not considered
+	// TODO: This is actually the latest non-snapshot version that is not blacklisted by the client
 	public Version latestVersion;
 	public UpdateAvailable updateAvailable;
 
