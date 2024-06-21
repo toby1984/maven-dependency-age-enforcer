@@ -26,6 +26,7 @@ import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,8 +37,11 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class APIImpl implements AutoCloseable
 {
@@ -159,9 +163,51 @@ public class APIImpl implements AutoCloseable
         return new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
     }
 
+    private static Optional<Duration> getDurationFromSystemProperties(String key) {
+        final String v = System.getProperty( key );
+        if ( v != null ) {
+            try
+            {
+                return Optional.of( parseDurationString( v ) );
+            } catch(Exception ex) {
+                throw new RuntimeException( "Invalid duration value '" + v + "' for system property '" + key + "' : "+ex.getMessage() );
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Duration parseDurationString(String s) {
+        Validate.notBlank( s, "s must not be null or blank");
+        final Pattern p = Pattern.compile( "^([0-9]+)([smhd])$" , Pattern.CASE_INSENSITIVE);
+        final Matcher m = p.matcher( s.trim() );
+        if ( ! m.matches() ) {
+            throw new IllegalArgumentException( "Invalid syntax" );
+        }
+        int seconds = Integer.parseInt(m.group(1));
+        switch( m.group(2) ) {
+            case "d":
+                seconds *= 24;
+            case "h":
+                seconds *= 60;
+            case "m":
+                seconds *= 60;
+            case "s":
+                break;
+            default: throw new RuntimeException( "Unhandled switch/case: " + m.group( 2 ) );
+        }
+        return Duration.ofSeconds( seconds );
+    }
+
     // unit-testing hook
     protected IBackgroundUpdater createBackgroundUpdater(SharedLockCache lockCache) {
-        return new BackgroundUpdater(versionStorage,versionProvider,lockCache);
+        final Optional<Duration> delayAfterFailure = getDurationFromSystemProperties( "versionTracker.delayAfterFailure" );
+        final Optional<Duration> delayAfterSuccess = getDurationFromSystemProperties( "versionTracker.delayAfterSuccess" );
+        final Optional<Duration> checkInterval = getDurationFromSystemProperties( "versionTracker.bgUpdate.checkDelay" );
+        final BackgroundUpdater result = new BackgroundUpdater( versionStorage, versionProvider, lockCache );
+        delayAfterFailure.ifPresent( result::setMinUpdateDelayAfterFailure );
+        delayAfterSuccess.ifPresent( result::setMinUpdateDelayAfterSuccess );
+        checkInterval.ifPresent( result::setPollingInterval );
+        return result;
     }
 
     // unit-testing hook

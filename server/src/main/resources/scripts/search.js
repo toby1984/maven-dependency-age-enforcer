@@ -147,7 +147,7 @@ const search = {
               buttonHtml +
               "</td>" +
               "</tr>"
-        }).reduce((previous, current) => previous + current);
+        }).reduce((previous, current) => previous + current, "");
 
         table1 = "<table>"+
             "<tr><td><b>Last Request Date: </b></td><td>"+search.formatDate( item.lastRequestDate )+"</td></tr>" +
@@ -163,7 +163,7 @@ const search = {
       if ( console && console.trace ) {
         console.trace(error);
       }
-      alert("HTTP GET failed");
+      alert("HTTP GET failed: "+error);
     });
     return true;
   }

@@ -80,7 +80,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
      * Time the background thread will sleep() before checking the backing storage 
      * for stale artifact metadata.  
      */
-    public volatile Duration pollingInterval = Duration.ofMinutes( 1 );
+    public volatile Duration executionInterval = Duration.ofMinutes( 1 );
     
     private final IVersionStorage storage;
     private final IVersionProvider provider;
@@ -108,7 +108,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     doUpdate();
                     synchronized( SLEEP_LOCK ) 
                     {
-                        SLEEP_LOCK.wait( pollingInterval.toMillis() );
+                        SLEEP_LOCK.wait( executionInterval.toMillis() );
                     }
                 }
                 regularShutdown = true; 
@@ -211,7 +211,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             return true;
         }
         boolean updateNeeded;
-        if ( info.latestReleaseVersion == null ) {
+        if ( info.latestReleaseVersion == null || ! info.latestReleaseVersion.hasReleaseDate()) {
             updateNeeded = true;
         } else if ( StringUtils.isNotBlank( artifact.version ) ) {
             // when called by the Background Updater, the artifact version will be blank
@@ -225,6 +225,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             //       would've returned true in this case and we bail out early above
             final Duration timeSinceLastUpdate = Duration.between( info.lastPolledDate(), ZonedDateTime.now() );
             final boolean lastRequestFailed = info.lastPolledDate() == info.lastFailureDate;
+            // do not hammer the server if the last attempt already failed
             if ( lastRequestFailed )
             {
                 updateNeeded = timeSinceLastUpdate.compareTo( minUpdateDelayAfterFailure ) >= 0;
@@ -313,22 +314,22 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         threadPool.shutdownNow();
     }
 
-    public void setLastFailureDuration(Duration lastFailureDuration) {
-        Validate.notNull(lastFailureDuration,"lastFailureDuration must not be NULL");
-        Validate.isTrue(lastFailureDuration.compareTo( Duration.ofSeconds(1) ) >= 0 , "lastFailureDuration must be >= 1 second" );
-        this.minUpdateDelayAfterFailure = lastFailureDuration;
+    public void setMinUpdateDelayAfterFailure(Duration minUpdateDelayAfterFailure) {
+        Validate.notNull(minUpdateDelayAfterFailure,"minUpdateDelayAfterFailure must not be NULL");
+        Validate.isTrue(minUpdateDelayAfterFailure.compareTo( Duration.ofSeconds(1) ) >= 0 , "minUpdateDelayAfterFailure must be >= 1 second" );
+        this.minUpdateDelayAfterFailure = minUpdateDelayAfterFailure;
     }
     
-    public void setLastSuccessDuration(Duration lastSuccessDuration) {
-        Validate.notNull(lastSuccessDuration,"lastSuccessDuration must not be NULL");
-        Validate.isTrue(lastSuccessDuration.compareTo( Duration.ofSeconds(1) ) >= 0 , "lastSuccessDuration must be >= 1 second" );
-        this.minUpdateDelayAfterSuccess = lastSuccessDuration;
+    public void setMinUpdateDelayAfterSuccess(Duration minUpdateDelayAfterSuccess) {
+        Validate.notNull(minUpdateDelayAfterSuccess,"minUpdateDelayAfterSuccess must not be NULL");
+        Validate.isTrue(minUpdateDelayAfterSuccess.compareTo( Duration.ofSeconds(1) ) >= 0 , "minUpdateDelayAfterSuccess must be >= 1 second" );
+        this.minUpdateDelayAfterSuccess = minUpdateDelayAfterSuccess;
     }
     
     public void setPollingInterval(Duration pollingInterval) {
         Validate.notNull(pollingInterval,"pollingInterval must not be NULL");
         Validate.isTrue(pollingInterval.compareTo( Duration.ofSeconds(1) ) >= 0 , "pollingInterval must be >= 1 second" );
-        this.pollingInterval = pollingInterval;
+        this.executionInterval = pollingInterval;
     }
 
     @Override
