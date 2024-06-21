@@ -190,8 +190,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         }
     }
 
-    @Override
-    public boolean requiresUpdate(VersionInfo info)
+    private boolean requiresUpdate(VersionInfo info)
     {
         Validate.notNull( info, "info must not be null" );
         boolean result = IVersionStorage.isStaleVersion(

@@ -165,12 +165,11 @@ class APIImplTest
 
         // mock BG updater
         final IBackgroundUpdater bgUpdater = createMock( IBackgroundUpdater.class );
-        expect( bgUpdater.requiresUpdate( isA(VersionInfo.class) ) ).andAnswer( () ->
+        expect( bgUpdater.requiresUpdate( isA(VersionInfo.class), isA(Artifact.class) ) ).andAnswer( () ->
         {
-            Optional<VersionInfo> arg = getCurrentArgument( 0 );
-            assertThat( arg ).isPresent();
-            assertThat( arg.get().artifact.groupId ).isEqualTo( art1.groupId );
-            assertThat( arg.get().artifact.artifactId ).isEqualTo( art1.artifactId );
+            VersionInfo arg = getCurrentArgument( 0 );
+            assertThat( arg.artifact.groupId ).isEqualTo( art1.groupId );
+            assertThat( arg.artifact.artifactId ).isEqualTo( art1.artifactId );
             return false;
         });
         bgUpdater.close();

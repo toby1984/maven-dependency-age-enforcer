@@ -55,7 +55,5 @@ public interface IBackgroundUpdater extends AutoCloseable, Closeable {
 
     void startThread();
 
-    boolean requiresUpdate(VersionInfo info);
-
     boolean requiresUpdate(VersionInfo info, Artifact artifact);
 }

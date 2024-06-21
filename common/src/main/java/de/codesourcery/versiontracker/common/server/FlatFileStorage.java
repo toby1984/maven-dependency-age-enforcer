@@ -414,7 +414,7 @@ public class FlatFileStorage implements IVersionStorage
 				final int character = in.read();
 				if ( character == -1 || ! Character.isWhitespace( character ) )
 				{
-					if ( character == '{' ) {
+					if ( character == '[' ) {
 						return Optional.of( Protocol.JSON );
 					}
 					break;
