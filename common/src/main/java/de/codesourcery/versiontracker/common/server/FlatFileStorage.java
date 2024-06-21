@@ -31,17 +31,22 @@ import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -58,11 +63,20 @@ public class FlatFileStorage implements IVersionStorage
     
 	private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("UTC"));
 
+	private static final int MAGIC_LENGTH_IN_BYTES = 8;
+	private static final int RECORD_TAG_LENGTH_IN_BYTES = 1;
+
+	// minimum size of a valid (empty) binary file
+	// used when trying to check whether a file could possibly be a valid file
+	private static final int MINIMUM_BINARY_FILESIZE = MAGIC_LENGTH_IN_BYTES + RECORD_TAG_LENGTH_IN_BYTES;
+
 	// magic: file format v1
-	private static final long MAGIC_V1 = 0xdeadbeefL;
+	private static final long MAGIC_V1 = 0xffffffffdeadbeefL;
 
 	// magic: file format v2
-	private static final long MAGIC_V2 = 0xdeadfaceL;
+	private static final long MAGIC_V2 = 0xffffffffdeadfaceL;
+
+	private static final long[] VALID_MAGICS = {MAGIC_V1, MAGIC_V2};
 
 	private static final SerializationFormat CURRENT_FILE_FORMAT = SerializationFormat.V2;
 
@@ -71,7 +85,8 @@ public class FlatFileStorage implements IVersionStorage
 	public enum TaggedRecordType {
 		VERSION_DATA( 0x01 ),
 		END_OF_FILE( 0xff );
-		final byte tag;
+
+		final byte tag; // don't forget to adjust RECORD_TAG_LENGTH_IN_BYTES if this data type is ever changed
 
 		TaggedRecordType(int tag) {
 			this.tag = (byte) tag;
@@ -103,6 +118,14 @@ public class FlatFileStorage implements IVersionStorage
 	public StorageStatistics getStatistics() {
 		synchronized ( storageStatistics ) {
 			return storageStatistics.createCopy();
+		}
+	}
+
+	@Override
+	public void resetStatistics()
+	{
+		synchronized( storageStatistics ) {
+			storageStatistics.reset();
 		}
 	}
 
@@ -197,31 +220,30 @@ public class FlatFileStorage implements IVersionStorage
 		}
 		return d1 == null ? d2 : d1;
 	}
+
 	private static String toKey(VersionInfo x) 
 	{
 		return x.artifact.groupId+":"+x.artifact.artifactId;
 	}
 
 	public static void main(String[] args) throws IOException {
-
-		dumpToFile( new File("/tmp/artifactTest.noCache"),new File("/tmp/artifactTest.noCache.txt") );
-		dumpToFile( new File("/tmp/artifactTest.withCache"),new File("/tmp/artifactTest.withCache.txt") );
+		dumpToFile( new File("/home/tobi/tmp/versiontracker/artifacts.json.binary"),new File("/home/tobi/tmp/versiontracker/artifacts.json.binary.txt") , Protocol.BINARY);
 	}
 
-	public static void dumpToFile(File inputFile,File outputFile) throws IOException 
+	public static void dumpToFile(File inputFile,File outputFile, Protocol  protocol) throws IOException
 	{
-		String text = dumpToString(inputFile);
+		final String text = dumpToString(inputFile, protocol);
 		try ( FileWriter writer = new FileWriter( outputFile) ) {
 			writer.write( text );
 		}
 	}
 
-	public static String dumpToString(File file) throws IOException 
+	public static String dumpToString(File file, Protocol protocol) throws IOException
 	{
 		final Function<ZonedDateTime,String> func = time -> time == null ? "n/a" : format.format(time);
 		final StringBuilder buffer = new StringBuilder();
 
-		final FlatFileStorage storage = new FlatFileStorage(file);
+		final FlatFileStorage storage = new FlatFileStorage(file, protocol);
 		for ( VersionInfo i : storage.getAllVersions() ) 
 		{
 			buffer.append("-----------------------------------").append("\n");
@@ -374,5 +396,44 @@ public class FlatFileStorage implements IVersionStorage
 				out.saveOrUpdate( in.getAllVersions() );
 			}
 		}
+	}
+
+	public static Optional<Protocol> guessFileType(File file) throws IOException
+	{
+		if ( ! file.exists() ) {
+			throw new FileNotFoundException( "File does not exist: " + file.getAbsolutePath() );
+		}
+		if ( ! file.canRead() ) {
+			throw new IOException("Cannot read file: " + file.getAbsolutePath());
+		}
+
+		// let's see if it is JSON first as valid JSON files may be smaller than MINIMUM_BINARY_FILESIZE
+		try ( InputStreamReader in = new InputStreamReader( new FileInputStream( file ) ) ) {
+			while( true)
+			{
+				final int character = in.read();
+				if ( character == -1 || ! Character.isWhitespace( character ) )
+				{
+					if ( character == '{' ) {
+						return Optional.of( Protocol.JSON );
+					}
+					break;
+				}
+			}
+		}
+
+		if ( file.length() < MINIMUM_BINARY_FILESIZE ) { // file is too small to be a binary
+			return Optional.empty();
+		}
+
+		try ( BinarySerializer ser = new BinarySerializer( BinarySerializer.IBuffer.wrap(new FileInputStream( file ) ) ) )
+		{
+			final long value = ser.readLong();
+			if ( Arrays.stream(VALID_MAGICS).anyMatch( validMagic -> value == validMagic ) )
+			{
+				return Optional.of( Protocol.BINARY );
+			}
+		}
+		return Optional.empty();
 	}
 }

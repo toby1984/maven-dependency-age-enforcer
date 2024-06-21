@@ -197,6 +197,12 @@ public class CachingStorageDecorator implements IVersionStorage
         return delegate.getStatistics();
     }
 
+    @Override
+    public void resetStatistics()
+    {
+        delegate.resetStatistics();
+    }
+
     public void startThread()
     {
         synchronized( THREAD_LOCK ) 
@@ -293,5 +299,11 @@ public class CachingStorageDecorator implements IVersionStorage
 
     public void setCacheFlushInterval(Duration cacheFlushInterval) {
         this.cacheFlushInterval = cacheFlushInterval;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "(cached) "+delegate.toString();
     }
 }

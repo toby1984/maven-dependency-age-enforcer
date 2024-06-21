@@ -37,6 +37,8 @@ public interface IVersionStorage extends AutoCloseable
 
     final class StorageStatistics
     {
+        public ZonedDateTime lastStatisticsReset = ZonedDateTime.now();
+
         public int totalArtifactCount;
         public int totalVersionCount;
 
@@ -53,6 +55,22 @@ public interface IVersionStorage extends AutoCloseable
         public ZonedDateTime mostRecentSuccess = null;
 
         public StorageStatistics() {
+        }
+
+        public void reset()
+        {
+            totalArtifactCount = 0;
+            totalVersionCount = 0;
+            storageSizeInBytes = 0;
+
+            reads.reset();
+            writes.reset();
+
+            mostRecentRequested = null;
+            mostRecentFailure = null;
+            mostRecentSuccess = null;
+
+            lastStatisticsReset = ZonedDateTime.now();
         }
 
         public Optional<ZonedDateTime> mostRecentRequested() {
@@ -76,6 +94,7 @@ public interface IVersionStorage extends AutoCloseable
             this.mostRecentSuccess = other.mostRecentSuccess;
             this.reads = other.reads.createCopy();
             this.writes = other.writes.createCopy();
+            this.lastStatisticsReset = other.lastStatisticsReset;
         }
 
         public StorageStatistics createCopy() {
@@ -110,8 +129,15 @@ public interface IVersionStorage extends AutoCloseable
      * Returns statistics about this storage.
      *
      * @return
+     * @see #resetStatistics()
      */
     StorageStatistics getStatistics();
+
+    /**
+     * Reset internal statistics.
+     * @see #getStatistics()
+     */
+    void resetStatistics();
 
     /**
      * Returns all artifact metadata that either has never been requested at all
@@ -136,45 +162,45 @@ public interface IVersionStorage extends AutoCloseable
         return result;
     }    
     
-    static boolean isStaleVersion(VersionInfo info,Duration lastSuccessDuration, Duration lastFailureDuration,ZonedDateTime now)
+    static boolean isStaleVersion(VersionInfo info,Duration minUpdateDelayAfterSuccess, Duration minUpdateDelayAfterFailure,ZonedDateTime now)
     {
-        boolean add;
+        boolean isStale;
         if ( info.lastPolledDate() == null ) { // lastSuccessDate AND  lastFailureDate are NULL
-            add = true;
+            isStale = true;
             if ( STORAGE_LOG.isDebugEnabled() ) {
-                STORAGE_LOG.debug("isStaleVersion(): [yes,never polled] "+info.artifact);
+                STORAGE_LOG.debug("isStaleVersion(): [stale,never successfully polled at all] "+info.artifact);
             }
         } 
         else if ( info.lastSuccessDate != null &&  info.lastFailureDate != null ) // both are not NULL
         {
             if ( info.lastSuccessDate.isAfter( info.lastFailureDate ) ) {
-                add = Duration.between( info.lastSuccessDate,now ).compareTo( lastSuccessDuration ) > 0;
-                if ( add && STORAGE_LOG.isDebugEnabled() ) 
+                isStale = Duration.between( info.lastSuccessDate,now ).compareTo( minUpdateDelayAfterSuccess ) > 0;
+                if ( isStale && STORAGE_LOG.isDebugEnabled() )
                 {
-                    STORAGE_LOG.debug("isStaleVersion(): [yes,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
+                    STORAGE_LOG.debug("isStaleVersion(): [stale,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
                 }                
             } else {
-                add = Duration.between( info.lastFailureDate,now ).compareTo( lastFailureDuration ) > 0;
-                if ( add && STORAGE_LOG.isDebugEnabled() ) 
+                isStale = Duration.between( info.lastFailureDate,now ).compareTo( minUpdateDelayAfterFailure ) > 0;
+                if ( isStale && STORAGE_LOG.isDebugEnabled() )
                 {
-                    STORAGE_LOG.debug("isStaleVersion(): [yes,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
+                    STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
                 }                  
             }
 
         } else if ( info.lastSuccessDate == null ) { // lastFailureDate is not null
-            add = Duration.between( info.lastFailureDate,now ).compareTo( lastFailureDuration ) > 0;
-            if ( add && STORAGE_LOG.isDebugEnabled() ) 
+            isStale = Duration.between( info.lastFailureDate,now ).compareTo( minUpdateDelayAfterFailure ) > 0;
+            if ( isStale && STORAGE_LOG.isDebugEnabled() )
             {
-                STORAGE_LOG.debug("isStaleVersion(): [yes,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
+                STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
             }             
         } else {
-            add = Duration.between( info.lastSuccessDate,now ).compareTo( lastSuccessDuration ) > 0; 
-            if ( add && STORAGE_LOG.isDebugEnabled() ) 
+            isStale = Duration.between( info.lastSuccessDate,now ).compareTo( minUpdateDelayAfterSuccess ) > 0;
+            if ( isStale && STORAGE_LOG.isDebugEnabled() )
             {
-                STORAGE_LOG.debug("isStaleVersion(): [yes,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
+                STORAGE_LOG.debug("isStaleVersion(): [stale,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
             }             
         } 
-        return add;
+        return isStale;
     }
     
     /**

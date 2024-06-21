@@ -15,10 +15,13 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
+import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
+import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 
@@ -65,13 +68,13 @@ public class BackgroundUpdater implements IBackgroundUpdater {
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt FAILED.
      */
-    private volatile Duration lastFailureDuration = Duration.ofDays( 1 );
+    private volatile Duration minUpdateDelayAfterFailure = Duration.ofDays( 1 );
     
     /**
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt was a SUCCESS.
      */
-    private volatile Duration lastSuccessDuration = Duration.ofDays( 1 );
+    private volatile Duration minUpdateDelayAfterSuccess = Duration.ofDays( 1 );
     
     /**
      * Time the background thread will sleep() before checking the backing storage 
@@ -179,7 +182,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     
     private void doUpdate() throws Exception
     {
-        final List<VersionInfo> infos = storage.getAllStaleVersions( lastSuccessDuration , lastFailureDuration, ZonedDateTime.now() );
+        final List<VersionInfo> infos = storage.getAllStaleVersions( minUpdateDelayAfterSuccess, minUpdateDelayAfterFailure, ZonedDateTime.now() );
         LOG.info("doUpdate(): Updating "+infos.size()+" stale artifacts");
         for (VersionInfo info : infos) 
         {
@@ -188,20 +191,47 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     }
 
     @Override
-    public boolean requiresUpdate(Optional<VersionInfo> info) 
+    public boolean requiresUpdate(VersionInfo info)
     {
-        if ( info.isPresent() ) {
-            boolean result = IVersionStorage.isStaleVersion(
-                    info.get(),
-                    lastSuccessDuration,
-                    lastFailureDuration,
-                    ZonedDateTime.now() );
-            if ( LOG.isDebugEnabled() ) {
-                LOG.debug("requiresUpdate(): ["+(result?"YES":"NO")+"] "+info.get().artifact);
-            }
-            return result;
+        Validate.notNull( info, "info must not be null" );
+        boolean result = IVersionStorage.isStaleVersion(
+                info,
+            minUpdateDelayAfterSuccess,
+            minUpdateDelayAfterFailure,
+                ZonedDateTime.now() );
+        if ( LOG.isDebugEnabled() ) {
+            LOG.debug("requiresUpdate(): ["+(result?"YES":"NO")+"] "+info.artifact);
         }
-        return false;
+        return result;
+    }
+
+    @Override
+    public boolean requiresUpdate(VersionInfo info, Artifact artifact) {
+
+        if ( requiresUpdate( info ) ) {
+            return true;
+        }
+        boolean updateNeeded;
+        if ( info.latestReleaseVersion == null ) {
+            updateNeeded = true;
+        } else if ( StringUtils.isNotBlank( artifact.version ) ) {
+            // when called by the Background Updater, the artifact version will be blank
+            final Optional<Version> version = info.getVersion( artifact.version );
+            updateNeeded = version.isEmpty() || ! version.get().hasReleaseDate();
+        } else {
+            updateNeeded = false;
+        }
+        if ( updateNeeded ) {
+            // note: vi.lastPolledDate() cannot be NULL here as requiresUpdate(Optional<VersionInfo>)
+            //       would've returned true in this case and we bail out early above
+            final Duration timeSinceLastUpdate = Duration.between( info.lastPolledDate(), ZonedDateTime.now() );
+            final boolean lastRequestFailed = info.lastPolledDate() == info.lastFailureDate;
+            if ( lastRequestFailed )
+            {
+                updateNeeded = timeSinceLastUpdate.compareTo( minUpdateDelayAfterFailure ) >= 0;
+            }
+        }
+        return updateNeeded;
     }
     
     public void doUpdate(VersionInfo info) {
@@ -212,7 +242,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                 // check again that the update is still needed after we've acquired the lock.
                 // Something might've already updated the artifact while we were waiting.
                 final Optional<VersionInfo> existing = storage.getVersionInfo( info.artifact );
-                if ( requiresUpdate(existing) )
+                if ( existing.map( x -> requiresUpdate(x,x.artifact) ).orElse( false ) )
                 {
                     LOG.debug("doUpdate(): Refreshing "+info.artifact);
                     synchronized ( statistics ) {
@@ -230,7 +260,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                         storage.saveOrUpdate(info);
                     }
                 } else {
-                    LOG.debug("doUpdate(): Doing nothing, concurrent update to "+info.artifact);
+                    LOG.debug("doUpdate(): Doing nothing, concurrent update to "+info.artifact+" already updated it");
                 }                
             }); 
         });
@@ -287,13 +317,13 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     public void setLastFailureDuration(Duration lastFailureDuration) {
         Validate.notNull(lastFailureDuration,"lastFailureDuration must not be NULL");
         Validate.isTrue(lastFailureDuration.compareTo( Duration.ofSeconds(1) ) >= 0 , "lastFailureDuration must be >= 1 second" );
-        this.lastFailureDuration = lastFailureDuration;
+        this.minUpdateDelayAfterFailure = lastFailureDuration;
     }
     
     public void setLastSuccessDuration(Duration lastSuccessDuration) {
         Validate.notNull(lastSuccessDuration,"lastSuccessDuration must not be NULL");
         Validate.isTrue(lastSuccessDuration.compareTo( Duration.ofSeconds(1) ) >= 0 , "lastSuccessDuration must be >= 1 second" );
-        this.lastSuccessDuration = lastSuccessDuration;
+        this.minUpdateDelayAfterSuccess = lastSuccessDuration;
     }
     
     public void setPollingInterval(Duration pollingInterval) {
@@ -306,6 +336,14 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     public Statistics getStatistics() {
         synchronized ( statistics ) {
             return statistics.createCopy();
+        }
+    }
+
+    @Override
+    public void resetStatistics()
+    {
+        synchronized ( statistics ) {
+            statistics.reset();
         }
     }
 }

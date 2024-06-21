@@ -56,6 +56,11 @@ public class VersionTrackerTest
         }
 
         @Override
+        public void resetStatistics()
+        {
+        }
+
+        @Override
         public synchronized void saveOrUpdate(VersionInfo info)
         {
             if ( ! stored.contains( info ) ) {
@@ -112,6 +117,12 @@ public class VersionTrackerTest
             }
 
             @Override
+            public void resetStatistics()
+            {
+                stats.reset();
+            }
+
+            @Override
             public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException {
                 info.lastFailureDate = ZonedDateTime.now();
                 return IVersionProvider.UpdateResult.BLACKLISTED;
@@ -127,7 +138,7 @@ public class VersionTrackerTest
         artifact.version="1.0";
         for ( int i = 0 ; i < 2 ; i++ ) 
         {
-            Map<Artifact, VersionInfo> result = tracker.getVersionInfo( Collections.singletonList( artifact ), optArtifact -> false );
+            Map<Artifact, VersionInfo> result = tracker.getVersionInfo( Collections.singletonList( artifact ), (info, art) -> false );
             Thread.sleep(1000);
             System.out.println( result );
         }

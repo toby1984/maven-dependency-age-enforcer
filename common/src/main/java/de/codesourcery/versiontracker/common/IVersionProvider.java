@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Set;
 
 /**
@@ -56,6 +57,7 @@ public interface IVersionProvider
 
     final class Statistics
     {
+        public volatile ZonedDateTime lastStatisticsReset = ZonedDateTime.now();
         public final RequestsPerHour metaDataRequests;
         public final RequestsPerHour releaseDateRequests;
 
@@ -69,6 +71,13 @@ public interface IVersionProvider
             this.metaDataRequests = new RequestsPerHour(other.metaDataRequests);
             //noinspection IncompleteCopyConstructor
             this.releaseDateRequests = new RequestsPerHour(other.releaseDateRequests);
+            this.lastStatisticsReset = other.lastStatisticsReset;
+        }
+
+        public void reset() {
+            metaDataRequests.reset();
+            releaseDateRequests.reset();
+            lastStatisticsReset = ZonedDateTime.now();
         }
 
         public Statistics createCopy() {
@@ -80,8 +89,15 @@ public interface IVersionProvider
      * Returns usage statistics.
      *
      * @return
+     * @see #resetStatistics()
      */
     Statistics getStatistics();
+
+    /**
+     * Reset usage statistics.
+     * @see #getStatistics()
+     */
+    void resetStatistics();
 
     /**
      * Try to update version information.

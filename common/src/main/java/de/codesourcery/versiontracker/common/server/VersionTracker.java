@@ -35,11 +35,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
  * This class is responsible for requesting and periodically refreshing artifact metadata as well
- * as providing this metadata to clients using the {@link #getVersionInfo(List,Predicate)} method.
+ * as providing this metadata to clients using the {@link #getVersionInfo(List,BiPredicate)} method.
  *
  * This class is thread-safe.
  * 
@@ -89,12 +90,12 @@ public class VersionTracker implements IVersionTracker
      * Try to retrieve version information for a given artifact.
      * 
      * @param artifacts
-     * @param isOutdated 
+     * @param requiresUpdate
      * @return
      * @throws InterruptedException 
      */
     @Override
-    public Map<Artifact,VersionInfo> getVersionInfo(List<Artifact> artifacts,Predicate<Optional<VersionInfo>> isOutdated) throws InterruptedException
+    public Map<Artifact,VersionInfo> getVersionInfo(List<Artifact> artifacts, BiPredicate<VersionInfo,Artifact> requiresUpdate) throws InterruptedException
     {
         final Map<Artifact,VersionInfo> resultMap = new HashMap<>();
 
@@ -103,27 +104,34 @@ public class VersionTracker implements IVersionTracker
 
         for ( Artifact artifact : artifacts ) 
         {
-            try 
+            try
             {
-                lockCache.doWhileLocked( artifact, () -> 
+                lockCache.doWhileLocked( artifact, () ->
                 {
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("getVersionInfo(): Looking for "+artifact+" in version storage");
+                    if ( LOG.isDebugEnabled() )
+                    {
+                        LOG.debug( "getVersionInfo(): Looking for " + artifact + " in version storage" );
                     }
                     final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-                    if ( result.isEmpty() || isOutdated.test( result ) )
+                    if ( result.isEmpty() || requiresUpdate.test( result.get(), artifact ) )
                     {
-                        LOG.debug("getVersionInfo(): Got "+(result.isPresent()? "outdated":"no")+" metadata for "+artifact+" yet,fetching it");
-                        updateArtifactFromServer(artifact, result.orElse( null ), resultMap, stopLatch, now );
-                    } else {
-                        LOG.debug("getVersionInfo(): [from storage] "+result.get());
+                        LOG.debug( "getVersionInfo(): Got " + (result.isPresent() ? "outdated" : "no") + " metadata for " + artifact + " yet,fetching it" );
+                        updateArtifactFromServer( artifact, result.orElse( null ), resultMap, stopLatch, now );
+                    }
+                    else
+                    {
+                        LOG.debug( "getVersionInfo(): [from storage] " + result.get() );
 
-                        synchronized(resultMap) {
-                            resultMap.put(artifact,result.get().copy());
+                        synchronized( resultMap )
+                        {
+                            resultMap.put( artifact, result.get().copy() );
                         }
-                        versionStorage.updateLastRequestDate(artifact,now);
-                    }                
-                });
+                        versionStorage.updateLastRequestDate( artifact, now );
+                    }
+                } );
+            } catch(InterruptedException e) {
+                LOG.error("getVersionInfo(): Caught unexpected exception "+e.getMessage()+" while handling "+artifact,e);
+                throw e;
             } catch (Exception e) {
                 LOG.error("getVersionInfo(): Caught unexpected exception "+e.getMessage()+" while handling "+artifact,e);
                 throw new RuntimeException("Uncaught exception "+e.getMessage()+" while handling "+artifact,e);

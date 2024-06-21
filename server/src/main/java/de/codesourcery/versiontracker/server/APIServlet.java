@@ -61,6 +61,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -207,7 +208,8 @@ public class APIServlet extends HttpServlet
             return;
         }
 
-        if ( uri.endsWith( "/simplequery") )
+        final boolean triggerRefresh = uri.endsWith( "/triggerRefresh" );
+        if ( uri.endsWith( "/simplequery") || triggerRefresh )
         {
             final Artifact a = new Artifact();
             a.artifactId = req.getParameter( "artifactId" );
@@ -225,6 +227,31 @@ public class APIServlet extends HttpServlet
             if ( a.type == null) {
                 a.type = "jar";
             }
+
+            if ( triggerRefresh ) {
+                a.version = req.getParameter( "version" );
+                if ( StringUtils.isBlank( a.version ) ) {
+                    resp.sendError( 500 , "Missing version request parameter" );
+                    return;
+                }
+                final BiPredicate<VersionInfo,Artifact> requiresUpdate;
+                if ( artifactUpdatesEnabled ) {
+                    final IBackgroundUpdater updater = impl.getBackgroundUpdater();
+                    requiresUpdate = updater::requiresUpdate;
+                } else {
+                    requiresUpdate = (optVersionInfo,art) -> false;
+                }
+                try
+                {
+                    impl.getVersionTracker().getVersionInfo( List.of(a), requiresUpdate );
+                }
+                catch( InterruptedException e )
+                {
+                    resp.sendError( 500, "Version update failed for "+a );
+                }
+                return;
+            }
+
             final List<VersionInfo> result = new ArrayList<>();
             if ( req.getParameter( "regex" ) != null ) {
                 result.addAll( storage.getAllVersions( a.groupId, a.artifactId ) );
@@ -239,6 +266,16 @@ public class APIServlet extends HttpServlet
             }
             resp.setContentType( "application/json" );
             resp.getWriter().write( JSON_MAPPER.writeValueAsString( result ) );
+            return;
+        }
+
+        if ( uri.endsWith( "/resetstatistics"))
+        {
+            LOG.info("doGet(): Resetting statistics");
+            storage.resetStatistics();
+            impl.getVersionTracker().getVersionProvider().resetStatistics();
+            impl.getBackgroundUpdater().resetStatistics();
+            redirectToHomePage( req, resp );
             return;
         }
 
@@ -267,6 +304,7 @@ public class APIServlet extends HttpServlet
 
             keyValue.accept( "Total artifacts",storageStats.storageStatistics.totalArtifactCount );
             keyValue.accept( "Total versions", storageStats.storageStatistics.totalVersionCount );
+            keyValue.accept( "Last statistics reset", APIServlet.toString(  storageStats.storageStatistics().lastStatisticsReset ) );
 
             float sizeInMB = storageStats.storageStatistics.storageSizeInBytes/(1024*1024.0f);
             keyValue.accept( "On-disk storage (MB)", new DecimalFormat("######0.0#").format( sizeInMB ) );
@@ -306,6 +344,23 @@ public class APIServlet extends HttpServlet
                 Map.of( "baseUrl", baseURL, "tableContent", fragments.toString()));
         }
         resp.getWriter().flush();
+    }
+
+    private static void redirectToHomePage(HttpServletRequest req, HttpServletResponse resp) throws IOException
+    {
+        final String scheme = req.getScheme();
+        final String host = req.getServerName();
+        final int serverPort = req.getServerPort();
+        final String servletPath = req.getContextPath();
+        final boolean isWellKnownPort = serverPort == 80 || serverPort == 443;
+
+        final String home;
+        if ( isWellKnownPort ) {
+            home = "%s://%s/%s".formatted( scheme, host, servletPath );
+        } else {
+            home = "%s://%s:%d/%s".formatted( scheme, host, serverPort, servletPath );
+        }
+        resp.sendRedirect( home );
     }
 
     private static String resolvePlaceholders(String input, Map<String,String> placeholderValues)
@@ -440,12 +495,12 @@ public class APIServlet extends HttpServlet
 
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         
-        final Predicate<Optional<VersionInfo>> requiresUpdate;
+        final BiPredicate<VersionInfo,Artifact> requiresUpdate;
         if ( artifactUpdatesEnabled ) {
             final IBackgroundUpdater updater = impl.getBackgroundUpdater();
             requiresUpdate = updater::requiresUpdate;
         } else {
-            requiresUpdate = optVersionInfo -> false;
+            requiresUpdate = (optVersionInfo,art) -> false;
         }
         final Map<Artifact,VersionInfo> results = impl.getVersionTracker().getVersionInfo( request.artifacts, requiresUpdate );        
         for ( Artifact artifact : request.artifacts ) 

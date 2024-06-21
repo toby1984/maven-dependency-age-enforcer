@@ -165,7 +165,7 @@ class APIImplTest
 
         // mock BG updater
         final IBackgroundUpdater bgUpdater = createMock( IBackgroundUpdater.class );
-        expect( bgUpdater.requiresUpdate( isA(Optional.class) ) ).andAnswer( () ->
+        expect( bgUpdater.requiresUpdate( isA(VersionInfo.class) ) ).andAnswer( () ->
         {
             Optional<VersionInfo> arg = getCurrentArgument( 0 );
             assertThat( arg ).isPresent();

@@ -63,7 +63,7 @@ public class RetrievalTest
         artifact.artifactId = "wicket-source";
         artifact.version = "7.0.0";
         artifact.type= "jar";
-        Map<Artifact, VersionInfo> map = tracker.getVersionInfo( Collections.singletonList( artifact ) , info -> true );
+        Map<Artifact, VersionInfo> map = tracker.getVersionInfo( Collections.singletonList( artifact ) , (info,art) -> true );
         VersionInfo result = map.get( artifact );
         Assertions.assertNotNull(result,"Got no result?");
     }

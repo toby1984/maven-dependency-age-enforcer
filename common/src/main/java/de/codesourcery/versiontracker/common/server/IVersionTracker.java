@@ -24,11 +24,12 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 public interface IVersionTracker extends AutoCloseable, Closeable  {
 
-    Map<Artifact, VersionInfo> getVersionInfo(List<Artifact> artifacts, Predicate<Optional<VersionInfo>> isOutdated) throws InterruptedException;
+    Map<Artifact, VersionInfo> getVersionInfo(List<Artifact> artifacts, BiPredicate<VersionInfo,Artifact> isOutdated) throws InterruptedException;
 
     IVersionStorage getStorage();
 

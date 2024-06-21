@@ -42,6 +42,13 @@ public class RequestsPerHour {
         this.mostRecentAccess = other.mostRecentAccess;
     }
 
+    public void reset() {
+        synchronized( counts ) {
+            counts.clear();
+            mostRecentAccess = 0;
+        }
+    }
+
     public RequestsPerHour createCopy() {
         synchronized ( counts ) {
             return new RequestsPerHour( this );
@@ -58,8 +65,7 @@ public class RequestsPerHour {
         }
         synchronized ( counts ) {
             mostRecentAccess = System.currentTimeMillis();
-            Integer hour = currentHour();
-            counts.compute( hour, (key, existing) -> existing == null ? count : existing + count );
+            counts.compute( currentHour(), (key, existing) -> existing == null ? count : existing + count );
         }
     }
 

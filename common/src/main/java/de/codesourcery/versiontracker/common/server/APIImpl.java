@@ -34,6 +34,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Optional;
 
@@ -99,35 +101,56 @@ public class APIImpl implements AutoCloseable
 
     protected IVersionStorage createVersionStorage()
     {
-        final File versionFile = getArtifactFileLocation();
+        File versionFile = getArtifactFileLocation();
 
-        final IVersionStorage fileStorage;
-        if ( versionFile.getName().endsWith(".json") )
+        Protocol fileType;
+        try
+        {
+            if ( versionFile.exists() && versionFile.length() > 0 )
+            {
+                fileType = FlatFileStorage.guessFileType( versionFile ).orElse( null );
+                if ( fileType == null ) {
+                    LOG.error( "createVersionStorage(): Unable to determine file type of '" + versionFile + "'" );
+                    throw new RuntimeException( "Unable to determine file type of data storage file '" + versionFile + "'" );
+                }
+            } else {
+                fileType = versionFile.getName().endsWith( ".json" ) ? Protocol.JSON : Protocol.BINARY;
+            }
+        }
+        catch( IOException e )
+        {
+            LOG.error( "createVersionStorage(): Failed to read '" + versionFile + "'", e );
+            throw new UncheckedIOException(e);
+        }
+
+        // migrate JSON file to binary
+        if ( fileType == Protocol.JSON && versionFile.exists() && versionFile.length() > 0 )
         {
             final File binaryFile = new File( versionFile.getAbsolutePath()+".binary");
-            boolean useBinaryFile = true;
-            if ( ! binaryFile.exists() && versionFile.exists() ) {
-                try {
-                    // only JSON file exists -> migrate JSON storage to binary format
+            try
+            {
+                if ( ! binaryFile.exists() )
+                {
+                    LOG.warn( "createVersionStorage(): Using JSON files for storage is deprecated, trying to convert " +
+                        versionFile.getAbsolutePath() + " -> " + binaryFile.getAbsolutePath() );
                     FlatFileStorage.convert( versionFile, Protocol.JSON, binaryFile, Protocol.BINARY );
-                    LOG.info( "init(): Converted " + versionFile.getAbsolutePath() + " -> " + binaryFile.getAbsolutePath() );
+                    LOG.info( "createVersionStorage(): Converted " + versionFile.getAbsolutePath() + " -> " + binaryFile.getAbsolutePath() );
+                } else {
+                    LOG.warn("createVersionStorage(): Configuration tells to use deprecated JSON file "+versionFile+" " +
+                        "but binary file "+binaryFile+" exists, will use the latter. Please update your configuration to use the binary file instead.");
                 }
-                catch ( Exception e ) {
-                    LOG.error( "init(): Using JSON file , failed to convert " + versionFile.getAbsolutePath() + " -> "
-                        + binaryFile.getAbsolutePath(), e );
-                    useBinaryFile = false;
-                }
+                versionFile = binaryFile;
+                fileType = Protocol.BINARY;
             }
-            if ( useBinaryFile ) {
-                LOG.info("init(): Using binary file "+binaryFile.getAbsolutePath());
-                fileStorage = new FlatFileStorage( binaryFile,Protocol.BINARY );
-            } else {
-                fileStorage = new FlatFileStorage( versionFile,Protocol.JSON );
+            catch( Exception e )
+            {
+                LOG.error( "createVersionStorage(): Using JSON file , failed to convert " + versionFile.getAbsolutePath() + " -> "
+                    + binaryFile.getAbsolutePath(), e );
             }
-        } else {
-            LOG.info("init(): Using file "+versionFile.getAbsolutePath()+" (assuming JSON format)");
-            fileStorage = new FlatFileStorage( versionFile );
         }
+
+        LOG.info("init(): Using "+fileType+" file "+versionFile.getAbsolutePath());
+        final IVersionStorage fileStorage = new FlatFileStorage( versionFile, fileType );
         return new CachingStorageDecorator( fileStorage );
     }
 

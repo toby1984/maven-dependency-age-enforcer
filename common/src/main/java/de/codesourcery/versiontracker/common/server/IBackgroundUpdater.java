@@ -15,17 +15,20 @@
  */
 package de.codesourcery.versiontracker.common.server;
 
+import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.RequestsPerHour;
 import de.codesourcery.versiontracker.common.VersionInfo;
 
 import java.io.Closeable;
+import java.time.ZonedDateTime;
 import java.util.Optional;
 
 public interface IBackgroundUpdater extends AutoCloseable, Closeable {
 
     final class Statistics {
-        public final RequestsPerHour scheduledUpdates;
 
+        public volatile ZonedDateTime lastStatisticsReset = ZonedDateTime.now();
+        public final RequestsPerHour scheduledUpdates;
 
         public Statistics() {
             scheduledUpdates = new RequestsPerHour();
@@ -33,6 +36,12 @@ public interface IBackgroundUpdater extends AutoCloseable, Closeable {
 
         public Statistics(Statistics other) {
             this.scheduledUpdates = other.scheduledUpdates.createCopy();
+            this.lastStatisticsReset = other.lastStatisticsReset;
+        }
+
+        public void reset() {
+            this.scheduledUpdates.reset();
+            this.lastStatisticsReset = ZonedDateTime.now();
         }
 
         public Statistics createCopy() {
@@ -42,7 +51,11 @@ public interface IBackgroundUpdater extends AutoCloseable, Closeable {
 
     Statistics getStatistics();
 
+    void resetStatistics();
+
     void startThread();
 
-    boolean requiresUpdate(Optional<VersionInfo> info);
+    boolean requiresUpdate(VersionInfo info);
+
+    boolean requiresUpdate(VersionInfo info, Artifact artifact);
 }

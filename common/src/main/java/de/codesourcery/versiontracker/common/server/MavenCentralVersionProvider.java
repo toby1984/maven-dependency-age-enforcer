@@ -44,7 +44,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -239,9 +239,9 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 }
 
                 // gather version numbers for which we do not know the release date yet
-                final Set<String> versionsToRequest = new HashSet<>();
+                final Set<String> versionsToQueryReleaseDatesFor = new HashSet<>();
                 additionalVersionsToFetchReleaseDatesFor.stream()
-                    .filter( x -> info.getVersion( x ).isPresent() ).forEach( versionsToRequest::add );
+                    .filter( x -> info.getVersion( x ).isPresent() ).forEach( versionsToQueryReleaseDatesFor::add );
 
                 if ( StringUtils.isNotBlank(artifact.version) )
                 {
@@ -261,30 +261,45 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 LOG.debug("update(): latest release  (metadata) = "+latestReleaseVersion);
 
                 if ( StringUtils.isNotBlank(latestSnapshotVersion) ) {
-                    versionsToRequest.add(latestSnapshotVersion);
+                    versionsToQueryReleaseDatesFor.add(latestSnapshotVersion);
                 }
                 if ( StringUtils.isNotBlank(latestReleaseVersion) ) {
-                    versionsToRequest.add(latestReleaseVersion);
+                    versionsToQueryReleaseDatesFor.add(latestReleaseVersion);
                 }
 
                 // last repository change date
                 final String lastChangeString = readString(expr.lastUpdateDate, document );
                 LOG.debug("update(): last repository change = "+lastChangeString);
 
+                versionsToQueryReleaseDatesFor.removeIf( versionNumber -> {
+                    final Optional<Version> v = info.getVersion( versionNumber );
+                    return v.isPresent() && v.get().hasReleaseDate();
+                });
+
                 final ZonedDateTime lastChangeDate = ZonedDateTime.parse( lastChangeString, DATE_FORMATTER);
                 if ( info.lastRepositoryUpdate != null && info.lastRepositoryUpdate.equals( lastChangeDate ) )
                 {
-                    info.lastSuccessDate = ZonedDateTime.now();
-                    return UpdateResult.NO_CHANGES_ON_SERVER;
+                    if ( versionsToQueryReleaseDatesFor.isEmpty() )
+                    {
+                        info.lastSuccessDate = ZonedDateTime.now();
+                        return UpdateResult.NO_CHANGES_ON_SERVER;
+                    }
+                    if ( LOG.isDebugEnabled() )
+                    {
+                        LOG.debug( "update(): Artifact index XML for "+artifact+" did not change on server but " +
+                            "some required release dates are absent , versions = "
+                         + versionsToQueryReleaseDatesFor.stream().collect( Collectors.joining(",","{","}")));
+                    }
                 }
-                if ( LOG.isDebugEnabled() ) {
-                    LOG.debug( "update(): Repository changed on server" );
-                    LOG.debug( "update(): Gathering release dates for versions " + versionsToRequest + "..." );
+                else
+                {
+                    LOG.debug( "update(): Artifact index XML changed on server" );
                 }
 
-                if ( ! versionsToRequest.isEmpty() )
+                LOG.debug( "update(): Gathering release dates for versions " + versionsToQueryReleaseDatesFor + "..." );
+                if ( ! versionsToQueryReleaseDatesFor.isEmpty() )
                 {
-                    final Map<String,Version> result = queryReleaseDates(artifact,versionsToRequest);
+                    final Map<String,Version> result = queryReleaseDates(artifact, versionsToQueryReleaseDatesFor);
                     for ( Map.Entry<String,Version> entry : result.entrySet() )
                     {
                         final Optional<Version> existing = info.getVersion( entry.getKey() );
@@ -366,7 +381,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             final Runnable r = () -> 
             {
                 try {
-                    final Optional<ZonedDateTime> v = queryReleaseDateNew(artifact,versionNumber);
+                    final Optional<ZonedDateTime> v = queryReleaseDate(artifact,versionNumber);
                     if ( v.isPresent() ) {
                         synchronized(result) {
                             result.put(versionNumber,new Version(versionNumber,v.get()) );
@@ -392,13 +407,14 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    private Optional<ZonedDateTime> queryReleaseDateNew(Artifact artifact, String versionString) throws IOException {
+    private Optional<ZonedDateTime> queryReleaseDate(Artifact artifact, String versionString) throws IOException {
 
         final URL url = newRESTUrlBuilder()
             .groupId( artifact.groupId )
             .artifactId( artifact.artifactId )
             .version( versionString )
             .classifier( artifact.classifier ).build();
+        statistics.releaseDateRequests.update();
         return performGET( url, stream -> {
             final PartialResult result = parseSonatypeResponse( stream );
             return result.getFirstResult().filter( Version::hasReleaseDate ).map( x -> x.releaseDate );
@@ -714,6 +730,14 @@ public class MavenCentralVersionProvider implements IVersionProvider
     public Statistics getStatistics() {
         synchronized ( statistics ) {
             return statistics.createCopy();
+        }
+    }
+
+    @Override
+    public void resetStatistics()
+    {
+        synchronized( statistics ) {
+            statistics.reset();
         }
     }
 }
