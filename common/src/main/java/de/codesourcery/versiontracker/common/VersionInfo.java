@@ -201,7 +201,15 @@ public class VersionInfo
        this.lastRepositoryUpdate  = other.lastRepositoryUpdate;
        this.lastRequestDate = other.lastRequestDate;
     }
-    
+
+    public Optional<Boolean> hasReleaseDate(Version versionNumber) {
+        return hasReleaseDate( versionNumber.versionString );
+    }
+
+    public Optional<Boolean> hasReleaseDate(String versionNumber) {
+        return getVersion(versionNumber).map( Version::hasReleaseDate );
+    }
+
     public Optional<Version> getVersion(String versionNumber)
     {
         // TODO: O(n) performance

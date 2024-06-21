@@ -39,6 +39,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 /**
  * Background process that periodically wakes up and initiates 
@@ -210,8 +211,12 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         if ( requiresUpdate( info ) ) {
             return true;
         }
+        final Predicate<Version> needsUpdate =v -> v == null || ! v.hasReleaseDate() || ! info.hasReleaseDate( v ).orElse( false );
         boolean updateNeeded;
-        if ( info.latestReleaseVersion == null || ! info.latestReleaseVersion.hasReleaseDate()) {
+        if ( needsUpdate.test( info.latestReleaseVersion ) )
+        {
+            updateNeeded = true;
+        } else if ( info.latestSnapshotVersion != null && needsUpdate.test( info.latestSnapshotVersion ) ) {
             updateNeeded = true;
         } else if ( StringUtils.isNotBlank( artifact.version ) ) {
             // when called by the Background Updater, the artifact version will be blank

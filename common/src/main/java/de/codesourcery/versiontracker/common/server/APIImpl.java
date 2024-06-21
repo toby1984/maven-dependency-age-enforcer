@@ -19,6 +19,7 @@ import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
+import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.QueryRequest;
@@ -160,7 +161,19 @@ public class APIImpl implements AutoCloseable
 
     // unit-testing hook
     protected IVersionProvider createVersionProvider() {
-        return new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
+
+        final Blacklist bl = new Blacklist();
+        final String v = System.getProperty( "versionTracker.blacklistedGroupIds" );
+        if ( v != null ) {
+            final String[] ids = v.split(",");
+            for ( final String id : ids ) {
+                final String groupId = id.trim();
+                bl.addIgnoredVersion( groupId, ".*", Blacklist.VersionMatcher.REGEX );
+            }
+        }
+        final MavenCentralVersionProvider result = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
+        result.setBlacklist( bl );
+        return result;
     }
 
     private static Optional<Duration> getDurationFromSystemProperties(String key) {
@@ -345,6 +358,16 @@ public class APIImpl implements AutoCloseable
             if ( info.hasVersions() )
             {
                 if ( artifact.hasReleaseVersion() ) {
+                    // FIXME: Problem here is that versionTracker.getVersionInfo()
+                    //        will only retrieve the release dates for the *TRULY* latest release/snapshot versions
+                    //        (as according to the Maven Indexer XML file) as it doesn't know about any blacklists
+                    //        that a client is using.
+                    //        In this case, the release date of that specific version may very well not have been fetched
+                    //        and hence the enforcer rule can never perform an age comparison since the release date
+                    //        always stays unknown.
+                    //
+                    //        TODO: Trigger an MavenCentralProvider#update() call just with that version number
+
                     x.latestVersion = info.findLatestReleaseVersion( request.blacklist ).orElse( null );
                     if ( LOG.isDebugEnabled() ) {
                         LOG.debug("processQuery(): latest release version from metadata: "+info.latestReleaseVersion);

@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.server;
 
 import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -110,6 +111,12 @@ public class VersionTrackerTest
         final IVersionProvider provider = new IVersionProvider() {
 
             private final Statistics stats = new Statistics();
+
+            @Override
+            public void setBlacklist(Blacklist blacklist)
+            {
+                throw new UnsupportedOperationException( "Method setBlacklist not implemented" );
+            }
 
             @Override
             public Statistics getStatistics() {

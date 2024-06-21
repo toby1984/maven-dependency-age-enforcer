@@ -73,6 +73,7 @@ import org.xml.sax.SAXException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.Version;
@@ -171,6 +172,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private final Object THREAD_POOL_LOCK=new Object();
     private ThreadPoolExecutor threadPool;
 
+    private Blacklist blacklist = new Blacklist();
+
     public MavenCentralVersionProvider()
     {
         this( DEFAULT_REPO1_BASE_URL, DEFAULT_SONATYPE_REST_API_BASE_URL);
@@ -183,7 +186,14 @@ public class MavenCentralVersionProvider implements IVersionProvider
         this.repo1BaseUrl = repo1BaseUrl+(repo1BaseUrl.trim().endsWith("/") ? "" : "/" );
         this.sonatypeRestApiBaseUrl = sonatypeRestApiBaseUrl+(sonatypeRestApiBaseUrl.trim().endsWith("/") ? "" : "/" );
     }
-    
+
+    @Override
+    public void setBlacklist(Blacklist blacklist)
+    {
+        Validate.notNull( blacklist, "blacklist must not be null" );
+        this.blacklist = blacklist;
+    }
+
     public static void main(String[] args) throws IOException
     {
         final Artifact test = new Artifact();
@@ -205,10 +215,22 @@ public class MavenCentralVersionProvider implements IVersionProvider
             .forEach( x -> System.out.println( x.versionString + " => " + x.releaseDate ) );
     }
 
+    private boolean isBlacklisted(Artifact a) {
+        return blacklist.isAllVersionsBlacklisted( a.groupId, a.artifactId );
+    }
+
     @Override
     public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException
     {
         final Artifact artifact = info.artifact;
+
+        if ( isBlacklisted( artifact ) ) {
+            if ( LOG.isDebugEnabled() ) {
+                LOG.debug( "update(): Not updating blacklisted artifact " + artifact );
+            }
+            return UpdateResult.BLACKLISTED;
+        }
+
         final URL url = new URL( repo1BaseUrl +metaDataPath( artifact ) );
 
         if ( LOG.isDebugEnabled() ) {

@@ -99,6 +99,8 @@ public interface IVersionProvider
      */
     void resetStatistics();
 
+    void setBlacklist(Blacklist blacklist);
+
     /**
      * Try to update version information.
      * 

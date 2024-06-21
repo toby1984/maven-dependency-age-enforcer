@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BlacklistTest
 {
@@ -89,6 +91,15 @@ class BlacklistTest
         a.groupId = groupId;
         a.version = version;
         return bl.isArtifactBlacklisted(a);
+    }
+
+    @Test
+    void testAllVersionBlacklisted()
+    {
+        bl.addIgnoredVersion("com.voipfuture", ".*",Blacklist.VersionMatcher.REGEX);
+        assertTrue( bl.isAllVersionsBlacklisted( "com.voipfuture", "something" ) );
+        assertTrue( bl.isAllVersionsBlacklisted( "com.voipfuture.something", "something" ) );
+        assertFalse( bl.isAllVersionsBlacklisted( "com.somethingelse", "something" ) );
     }
 
     @Test

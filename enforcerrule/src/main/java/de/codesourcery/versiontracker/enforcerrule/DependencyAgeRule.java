@@ -220,8 +220,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
 
     private boolean isTooOld(ArtifactResponse response,Age threshold)
     {
-        if ( response.hasCurrentVersion() &&
-                response.hasLatestVersion() )
+        if ( response.hasCurrentVersion() && response.hasLatestVersion() )
         {
             if ( response.currentVersion.hasReleaseDate() && response.latestVersion.hasReleaseDate() &&
                  ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&

@@ -72,6 +72,7 @@ public class ArtifactResponse
 
 	public Artifact artifact;
 	public Version currentVersion;
+	// TODO: Rename to 'latestReleasedVersion' version, snapshots are not considered
 	public Version latestVersion;
 	public UpdateAvailable updateAvailable;
 
