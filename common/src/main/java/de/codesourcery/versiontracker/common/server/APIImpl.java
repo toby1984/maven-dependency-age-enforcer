@@ -64,6 +64,8 @@ public class APIImpl implements AutoCloseable
 
     private String repo1BaseUrl = MavenCentralVersionProvider.DEFAULT_REPO1_BASE_URL;
     private String restApiBaseUrl = MavenCentralVersionProvider.DEFAULT_SONATYPE_REST_API_BASE_URL;
+    private de.codesourcery.versiontracker.common.server.Configuration configuration =
+        new de.codesourcery.versiontracker.common.server.Configuration();
 
     public enum Mode
     {
@@ -172,7 +174,7 @@ public class APIImpl implements AutoCloseable
             }
         }
         final MavenCentralVersionProvider result = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
-        result.setBlacklist( bl );
+        result.setConfiguration( configuration );
         return result;
     }
 
@@ -181,34 +183,12 @@ public class APIImpl implements AutoCloseable
         if ( v != null ) {
             try
             {
-                return Optional.of( parseDurationString( v ) );
+                return Optional.of( de.codesourcery.versiontracker.common.server.Configuration.parseDurationString( v ) );
             } catch(Exception ex) {
                 throw new RuntimeException( "Invalid duration value '" + v + "' for system property '" + key + "' : "+ex.getMessage() );
             }
         }
         return Optional.empty();
-    }
-
-    private static Duration parseDurationString(String s) {
-        Validate.notBlank( s, "s must not be null or blank");
-        final Pattern p = Pattern.compile( "^([0-9]+)([smhd])$" , Pattern.CASE_INSENSITIVE);
-        final Matcher m = p.matcher( s.trim() );
-        if ( ! m.matches() ) {
-            throw new IllegalArgumentException( "Invalid syntax" );
-        }
-        int seconds = Integer.parseInt(m.group(1));
-        switch( m.group(2) ) {
-            case "d":
-                seconds *= 24;
-            case "h":
-                seconds *= 60;
-            case "m":
-                seconds *= 60;
-            case "s":
-                break;
-            default: throw new RuntimeException( "Unhandled switch/case: " + m.group( 2 ) );
-        }
-        return Duration.ofSeconds( seconds );
     }
 
     // unit-testing hook
@@ -234,7 +214,14 @@ public class APIImpl implements AutoCloseable
             return;
         }
 
-        initialized = true;
+        try
+        {
+            configuration.load();
+        }
+        catch( IOException e )
+        {
+            throw new UncheckedIOException( e );
+        }
 
         versionStorage  = createVersionStorage();
         versionProvider = createVersionProvider();
@@ -303,6 +290,7 @@ public class APIImpl implements AutoCloseable
                 }
             }
         }
+        initialized = true;
     }
 
     private File getArtifactFileLocation()

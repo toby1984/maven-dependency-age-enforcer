@@ -150,6 +150,10 @@ public class VersionInfo
     public Optional<Version> findLatestReleaseVersion(Blacklist blacklist) {
     	return findLatestVersion(Artifact::isReleaseVersion,Artifact.VERSION_COMPARATOR,blacklist);
     }
+
+    public boolean removeVersionsIf(Predicate<Version> p) {
+        return versions.removeIf( p );
+    }
     
     private Optional<Version> findLatestVersion(Predicate<String> versionPredicate,Comparator<String> versionComparator,Blacklist blacklist) {
     	
@@ -173,12 +177,15 @@ public class VersionInfo
     	return latest;
     }
     
-    public void maybeAddVersion( Version v ) 
+    public void addVersion(Version v )
     {
         // TODO: O(n) performance
         for ( Version existing : versions ) 
         {
             if ( existing.versionString.equals( v.versionString ) ) {
+                if ( v.hasReleaseDate() && ! existing.hasReleaseDate() ) {
+                    existing.releaseDate = v.releaseDate;
+                }
                 return;
             }
         }

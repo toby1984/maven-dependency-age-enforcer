@@ -227,7 +227,9 @@ public class FlatFileStorage implements IVersionStorage
 	}
 
 	public static void main(String[] args) throws IOException {
-		dumpToFile( new File("/home/tobi/tmp/versiontracker/artifacts.json.binary"),new File("/home/tobi/tmp/versiontracker/artifacts.json.binary.txt") , Protocol.BINARY);
+		final String in = "/home/tobi/tmp/versiontracker/artifacts.json.binary";
+		final String out = in + ".txt";
+		dumpToFile( new File( in ), new File( out ), guessFileType( new File( in ) ).orElseThrow() );
 	}
 
 	public static void dumpToFile(File inputFile,File outputFile, Protocol  protocol) throws IOException

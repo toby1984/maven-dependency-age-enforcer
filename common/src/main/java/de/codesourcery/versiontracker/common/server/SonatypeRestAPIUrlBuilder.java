@@ -39,7 +39,7 @@ public final class SonatypeRestAPIUrlBuilder
 {
     private static final Logger LOG = LogManager.getLogger( SonatypeRestAPIUrlBuilder.class );
 
-    private static final int DEFAULT_MAX_RESULT_COUNT = 10000;
+    private static final int DEFAULT_MAX_RESULT_COUNT = 300;
 
     // internal parameter names
     private enum InternalParameter {

@@ -330,10 +330,6 @@ public class APIServlet extends HttpServlet
             keyValue.accept( "Repo metadata fetches (current hour)", repoStats.metaDataRequests.getCountForCurrentHour()+"\n");
             keyValue.accept( "Repo metadata fetches (last 24h)", repoStats.metaDataRequests.getCountForLast24Hours()+"\n");
 
-            keyValue.accept( "Repo release date fetch (most recent)", repoStats.releaseDateRequests.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
-            keyValue.accept( "Repo release date fetches (current hour)", repoStats.releaseDateRequests.getCountForCurrentHour()+"\n");
-            keyValue.accept( "Repo release date fetches (last 24h)", repoStats.releaseDateRequests.getCountForLast24Hours()+"\n");
-
             final IBackgroundUpdater.Statistics bgStats = impl.getBackgroundUpdater().getStatistics();
             keyValue.accept( "Background update (most recent)", bgStats.scheduledUpdates.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
             keyValue.accept( "Background updates (current hour)", bgStats.scheduledUpdates.getCountForCurrentHour()+"\n");

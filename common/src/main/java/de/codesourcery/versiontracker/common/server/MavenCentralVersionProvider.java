@@ -31,7 +31,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +43,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -73,7 +72,6 @@ import org.xml.sax.SAXException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.Version;
@@ -134,7 +132,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
         private final XPathExpression latestSnapshot;
         private final XPathExpression latestRelease;
         private final XPathExpression lastUpdateDate;
-        private final XPathExpression versionsXPath;
 
         public MyExpressions()
         {
@@ -145,7 +142,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 latestSnapshot = xpath.compile("/metadata/versioning/latest[text()]");
                 latestRelease = xpath.compile("/metadata/versioning/release[text()]");
                 lastUpdateDate = xpath.compile("/metadata/versioning/lastUpdated");
-                versionsXPath = xpath.compile("/metadata/versioning/versions/version");
             } catch (XPathExpressionException e) {
                 throw new RuntimeException(e);
             }
@@ -172,7 +168,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private final Object THREAD_POOL_LOCK=new Object();
     private ThreadPoolExecutor threadPool;
 
-    private Blacklist blacklist = new Blacklist();
+    private Configuration configuration = new Configuration();
 
     public MavenCentralVersionProvider()
     {
@@ -188,17 +184,17 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     @Override
-    public void setBlacklist(Blacklist blacklist)
+    public void setConfiguration(Configuration configuration)
     {
-        Validate.notNull( blacklist, "blacklist must not be null" );
-        this.blacklist = blacklist;
+        Validate.notNull( configuration, "configuration must not be null" );
+        this.configuration = configuration;
     }
 
     public static void main(String[] args) throws IOException
     {
         final Artifact test = new Artifact();
-        test.groupId = "org.apache.wicket";
-        test.artifactId = "wicket-core";
+        test.groupId = "org.apache.tomcat";
+        test.artifactId = "tomcat";
 
         VersionInfo data = new VersionInfo();
         data.artifact = test;
@@ -216,7 +212,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     private boolean isBlacklisted(Artifact a) {
-        return blacklist.isAllVersionsBlacklisted( a.groupId, a.artifactId );
+        return configuration.getBlacklist().isAllVersionsBlacklisted( a.groupId, a.artifactId );
     }
 
     @Override
@@ -228,6 +224,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             if ( LOG.isDebugEnabled() ) {
                 LOG.debug( "update(): Not updating blacklisted artifact " + artifact );
             }
+            info.lastSuccessDate = ZonedDateTime.now();
             return UpdateResult.BLACKLISTED;
         }
 
@@ -245,107 +242,67 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 }
                 final Document document = parseXML( stream );
 
-                // note: XPath evaluation is not thread-safe, so we have to use a ThreadLocal here
-                final MyExpressions expr = expressions.get();
-                final Set<String> versionFromMetaData = new HashSet<>( readStrings( expr.versionsXPath , document ) );
-                for ( String version : versionFromMetaData ) {
-                    info.maybeAddVersion( new Version(version,null) );
-                }
-
-                for (Iterator<Version> it = info.versions.iterator(); it.hasNext();) {
-                    final Version v = it.next();
-                    if ( ! versionFromMetaData.contains( v.versionString ) ) {
+                final List<Version> allVersions = queryAllVersions( info.artifact );
+                info.removeVersionsIf( v -> {
+                    final boolean remove = allVersions.stream().noneMatch( x -> x.versionString.equals( v.versionString ) );
+                    if ( remove ) {
                         LOG.warn("update(): Version "+v+" is gone from metadata.xml of "+info.artifact+" ?");
-                        it.remove();
                     }
-                }
-
-                // gather version numbers for which we do not know the release date yet
-                final Set<String> versionsToQueryReleaseDatesFor = new HashSet<>();
-                additionalVersionsToFetchReleaseDatesFor.stream()
-                    .filter( x -> info.getVersion( x ).isPresent() ).forEach( versionsToQueryReleaseDatesFor::add );
-
-                if ( StringUtils.isNotBlank(artifact.version) )
-                {
-                    if ( info.getVersion( artifact.version).isEmpty() )
-                    {
-                        info.lastFailureDate = ZonedDateTime.now();
-                        LOG.error("update(): metadata xml contained no version '"+artifact.version+"' for artifact "+info.artifact);
-                        return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
-                    }
-                }
+                    return remove;
+                } );
+                allVersions.forEach( info::addVersion );
 
                 // parse latest snapshot & release versions from metadata
-                String latestSnapshotVersion = readString(expr.latestSnapshot, document );
-                String latestReleaseVersion = readString(expr.latestRelease, document );
+                final MyExpressions expr = expressions.get();
+                final String latestSnapshotVersion = readString(expr.latestSnapshot, document );
+                if ( StringUtils.isNotBlank( latestSnapshotVersion ) ) {
+                    info.getVersion( latestSnapshotVersion )
+                        .or( () -> Optional.of( new Version(latestSnapshotVersion, null) ) )
+                        .ifPresent( x -> info.latestSnapshotVersion = x );
+                }
+
+                final String latestReleaseVersion = readString(expr.latestRelease, document );
+                if ( StringUtils.isNotBlank( latestReleaseVersion ) ) {
+                    info.getVersion( latestReleaseVersion )
+                        .or( () -> Optional.of( new Version(latestReleaseVersion, null) ) )
+                        .ifPresent( x -> info.latestReleaseVersion = x );
+                }
 
                 LOG.debug("update(): latest snapshot (metadata) = "+latestSnapshotVersion);
                 LOG.debug("update(): latest release  (metadata) = "+latestReleaseVersion);
-
-                if ( StringUtils.isNotBlank(latestSnapshotVersion) ) {
-                    versionsToQueryReleaseDatesFor.add(latestSnapshotVersion);
-                }
-                if ( StringUtils.isNotBlank(latestReleaseVersion) ) {
-                    versionsToQueryReleaseDatesFor.add(latestReleaseVersion);
-                }
 
                 // last repository change date
                 final String lastChangeString = readString(expr.lastUpdateDate, document );
                 LOG.debug("update(): last repository change = "+lastChangeString);
 
-                versionsToQueryReleaseDatesFor.removeIf( versionNumber -> {
-                    final Optional<Version> v = info.getVersion( versionNumber );
-                    return v.isPresent() && v.get().hasReleaseDate();
-                });
+                if ( StringUtils.isNotBlank( artifact.version ) && info.getVersion( artifact.version ).isEmpty() )
+                {
+                    info.lastFailureDate = ZonedDateTime.now();
+                    LOG.error( "update(): Found no metadata about version '" + artifact.version + "'of  artifact " + info.artifact );
+                    return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
+                }
 
                 final ZonedDateTime lastChangeDate = ZonedDateTime.parse( lastChangeString, DATE_FORMATTER);
-                if ( info.lastRepositoryUpdate != null && info.lastRepositoryUpdate.equals( lastChangeDate ) )
-                {
-                    if ( versionsToQueryReleaseDatesFor.isEmpty() )
-                    {
-                        info.lastSuccessDate = ZonedDateTime.now();
-                        return UpdateResult.NO_CHANGES_ON_SERVER;
-                    }
-                    if ( LOG.isDebugEnabled() )
-                    {
-                        LOG.debug( "update(): Artifact index XML for "+artifact+" did not change on server but " +
-                            "some required release dates are absent , versions = "
-                         + versionsToQueryReleaseDatesFor.stream().collect( Collectors.joining(",","{","}")));
-                    }
-                }
-                else
-                {
-                    LOG.debug( "update(): Artifact index XML changed on server" );
-                }
+                final ZonedDateTime previousUpdate = info.lastRepositoryUpdate;
 
-                LOG.debug( "update(): Gathering release dates for versions " + versionsToQueryReleaseDatesFor + "..." );
-                if ( ! versionsToQueryReleaseDatesFor.isEmpty() )
-                {
-                    final Map<String,Version> result = queryReleaseDates(artifact, versionsToQueryReleaseDatesFor);
-                    for ( Map.Entry<String,Version> entry : result.entrySet() )
-                    {
-                        final Optional<Version> existing = info.getVersion( entry.getKey() );
-                        if ( existing.isPresent() )
-                        {
-                            existing.get().releaseDate = entry.getValue().releaseDate;
-                            LOG.debug("update(): Updated existing version to "+existing.get());
-                        } else {
-                            final Version newVersion = entry.getValue();
-                            info.versions.add( newVersion );
-                            LOG.debug("update(): Adding NEW version "+ newVersion );
-                        }
-                    }
-                }
-                info.artifact = artifact;
-                if ( StringUtils.isNotBlank( latestReleaseVersion ) ) {
-                    info.getVersion( latestReleaseVersion ).ifPresent( x -> info.latestReleaseVersion = x );
-                }
-                if ( StringUtils.isNotBlank( latestSnapshotVersion ) ) {
-                    info.getVersion( latestSnapshotVersion ).ifPresent( x -> info.latestSnapshotVersion = x );
-                }
                 info.lastRepositoryUpdate = lastChangeDate;
                 info.lastSuccessDate = ZonedDateTime.now();
-                return UpdateResult.UPDATED;
+
+                final Function<UpdateResult,UpdateResult> check = result -> {
+                    if ( StringUtils.isNotBlank( artifact.version ) && info.getVersion( artifact.version ).isEmpty() )
+                    {
+                        LOG.error( "update(): Found no metadata about version '" + artifact.version + "'of  artifact " + info.artifact );
+                        return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
+                    }
+                    return result;
+                };
+
+                if ( previousUpdate != null && previousUpdate.equals( lastChangeDate ) )
+                {
+                    return check.apply( UpdateResult.NO_CHANGES_ON_SERVER );
+                }
+                LOG.debug( "update(): Artifact index XML changed on server" );
+                return check.apply(UpdateResult.UPDATED);
             } );
         } 
         catch(Exception e) 
@@ -436,7 +393,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
             .artifactId( artifact.artifactId )
             .version( versionString )
             .classifier( artifact.classifier ).build();
-        statistics.releaseDateRequests.update();
         return performGET( url, stream -> {
             final PartialResult result = parseSonatypeResponse( stream );
             return result.getFirstResult().filter( Version::hasReleaseDate ).map( x -> x.releaseDate );

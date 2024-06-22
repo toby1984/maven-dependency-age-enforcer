@@ -211,19 +211,19 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         if ( requiresUpdate( info ) ) {
             return true;
         }
-        final Predicate<Version> needsUpdate =v -> v == null || ! v.hasReleaseDate() || ! info.hasReleaseDate( v ).orElse( false );
-        boolean updateNeeded;
-        if ( needsUpdate.test( info.latestReleaseVersion ) )
-        {
+        boolean updateNeeded = false;
+        if ( info.versions.stream().anyMatch( x -> ! x.hasReleaseDate() ) ) {
             updateNeeded = true;
-        } else if ( info.latestSnapshotVersion != null && needsUpdate.test( info.latestSnapshotVersion ) ) {
+        }
+        if ( info.latestReleaseVersion != null && ! info.latestReleaseVersion.hasReleaseDate() ) {
             updateNeeded = true;
-        } else if ( StringUtils.isNotBlank( artifact.version ) ) {
-            // when called by the Background Updater, the artifact version will be blank
-            final Optional<Version> version = info.getVersion( artifact.version );
-            updateNeeded = version.isEmpty() || ! version.get().hasReleaseDate();
-        } else {
-            updateNeeded = false;
+        }
+        if ( info.latestSnapshotVersion != null && ! info.latestSnapshotVersion.hasReleaseDate() ) {
+            updateNeeded = true;
+        }
+        final Optional<Version> version = info.getVersion( artifact.version );
+        if (  version.isEmpty() || ! version.get().hasReleaseDate() ) {
+            updateNeeded = true;
         }
         if ( updateNeeded ) {
             // note: vi.lastPolledDate() cannot be NULL here as requiresUpdate(Optional<VersionInfo>)

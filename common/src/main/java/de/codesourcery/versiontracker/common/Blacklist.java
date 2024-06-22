@@ -30,7 +30,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-public class Blacklist implements IBlacklistCheck 
+public class Blacklist
 {
     private static final NeverMatcher NEVER_MATCHER = new NeverMatcher();
 
@@ -145,6 +145,12 @@ public class Blacklist implements IBlacklistCheck
         return ! globalIgnores.isEmpty() || ! groupIdIgnores.isEmpty() || ! artifactIgnores.isEmpty();
     }
 
+    public void clear() {
+        globalIgnores.clear();
+        groupIdIgnores.clear();
+        artifactIgnores.clear();
+    }
+
     @Override
     public boolean equals(Object other)
     {
@@ -204,7 +210,7 @@ public class Blacklist implements IBlacklistCheck
             matcher.serialize(serializer);
         }
     }
-    
+
     public boolean isAllVersionsBlacklisted(String groupId,String artifactId) {
     	if ( containsNeverMatcher(globalIgnores) ) {
     		return true;
@@ -274,7 +280,6 @@ public class Blacklist implements IBlacklistCheck
         }
     }
     
-    @Override
     public boolean isArtifactBlacklisted(Artifact artifact)
     {
         Validate.notBlank( artifact.groupId , "group ID must not be NULL or blank");
@@ -332,7 +337,6 @@ public class Blacklist implements IBlacklistCheck
         return mostSpecificMatch == null ? Collections.emptyList() : groupIdIgnores.get( mostSpecificMatch );
     }
 
-    @Override
     public boolean isVersionBlacklisted(String groupId, String artifactId, String version)
     {
         Validate.notBlank( groupId , "groupId must not be NULL or blank");

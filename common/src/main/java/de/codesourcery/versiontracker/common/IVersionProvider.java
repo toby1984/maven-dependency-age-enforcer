@@ -18,6 +18,7 @@ package de.codesourcery.versiontracker.common;
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Set;
+import de.codesourcery.versiontracker.common.server.Configuration;
 
 /**
  * Responsible for retrieving artifact metadata and applying it to a {@link VersionInfo} instance.
@@ -59,24 +60,20 @@ public interface IVersionProvider
     {
         public volatile ZonedDateTime lastStatisticsReset = ZonedDateTime.now();
         public final RequestsPerHour metaDataRequests;
-        public final RequestsPerHour releaseDateRequests;
 
         public Statistics() {
             this.metaDataRequests = new RequestsPerHour();
-            this.releaseDateRequests = new RequestsPerHour();
         }
 
         public Statistics(Statistics other) {
             //noinspection IncompleteCopyConstructor
             this.metaDataRequests = new RequestsPerHour(other.metaDataRequests);
             //noinspection IncompleteCopyConstructor
-            this.releaseDateRequests = new RequestsPerHour(other.releaseDateRequests);
             this.lastStatisticsReset = other.lastStatisticsReset;
         }
 
         public void reset() {
             metaDataRequests.reset();
-            releaseDateRequests.reset();
             lastStatisticsReset = ZonedDateTime.now();
         }
 
@@ -99,7 +96,7 @@ public interface IVersionProvider
      */
     void resetStatistics();
 
-    void setBlacklist(Blacklist blacklist);
+    void setConfiguration(Configuration configuration);
 
     /**
      * Try to update version information.
