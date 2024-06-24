@@ -33,7 +33,7 @@ public class Configuration
 {
     private static final Logger LOG = LogManager.getLogger( Configuration.class );
     private static final String DEFAULT_CONFIG_FILE_LOCATION = "classpath:/versionTracker.json";
-    private static final String CONFIG_FILE_LOCATION_SYS_PROPERTY = "versionTracker.configFile";
+    public static final String CONFIG_FILE_LOCATION_SYS_PROPERTY = "versionTracker.configFile";
 
     private Blacklist blacklist = new Blacklist();
     /**
