@@ -195,16 +195,20 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         }
         boolean updateNeeded = false;
         if ( info.versions.stream().anyMatch( x -> ! x.hasReleaseDate() ) ) {
+            LOG.debug( "requiresUpdate(): Updating {} because at least one version has no release date yet", artifact );
             updateNeeded = true;
         }
         if ( info.latestReleaseVersion != null && ! info.latestReleaseVersion.hasReleaseDate() ) {
+            LOG.debug( "requiresUpdate(): Updating {} because the latest release version has no release date yet", artifact );
             updateNeeded = true;
         }
         if ( info.latestSnapshotVersion != null && ! info.latestSnapshotVersion.hasReleaseDate() ) {
+            LOG.debug( "requiresUpdate(): Updating {} because the latest snapshot version has no release date yet", artifact );
             updateNeeded = true;
         }
         final Optional<Version> version = info.getVersion( artifact.version );
-        if ( info.versions.isEmpty() || version.isPresent() && ! version.get().hasReleaseDate() ) {
+        if ( version.isEmpty() || ! version.get().hasReleaseDate() ) {
+            LOG.debug( "requiresUpdate(): Updating {} because the version {} has no release date yet", artifact, artifact.version );
             updateNeeded = true;
         }
         if ( updateNeeded ) {
