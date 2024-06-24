@@ -19,9 +19,10 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
-import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.FileNotFoundException;
@@ -43,6 +44,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 @WireMockTest
 public class MavenCentralVersionProviderTest {
 
+    private ConfigurationProvider configProvider;
+
+    @BeforeEach
+    void setup() {
+        configProvider = new ConfigurationProvider();
+    }
+
+    @AfterEach
+    void tearDown() throws InterruptedException
+    {
+        configProvider.close();
+    }
+
     @Test
     public void testScrapingOnlyLatestVersions(WireMockRuntimeInfo webServer) throws IOException {
         doTest(webServer, false );
@@ -59,6 +73,7 @@ public class MavenCentralVersionProviderTest {
         final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
 
         final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
+        provider.setConfigurationProvider( configProvider );
 
         final VersionInfo info = new VersionInfo();
         info.artifact = new Artifact();
