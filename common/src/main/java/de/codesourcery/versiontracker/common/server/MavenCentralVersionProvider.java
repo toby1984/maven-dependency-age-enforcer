@@ -197,7 +197,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
-        final UpdateResult result = new MavenCentralVersionProvider().update( data, xxxx );
+        final UpdateResult result = new MavenCentralVersionProvider().update( data, false );
         long end = System.currentTimeMillis();
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);

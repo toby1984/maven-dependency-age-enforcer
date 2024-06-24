@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.easymock.EasyMock.anyBoolean;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.expectLastCall;
@@ -67,11 +68,9 @@ class APIImplTest
 
         // mock version provider
         final IVersionProvider versionProvider = createMock( IVersionProvider.class );
-        expect( versionProvider.update( isA( VersionInfo.class ), xxxx ) ).andAnswer( () -> {
+        expect( versionProvider.update( isA( VersionInfo.class ), anyBoolean() ) ).andAnswer( () -> {
 
             final VersionInfo versionInfo = getCurrentArgument( 0 );
-            final Set<String> additionalVersionsToFetchReleaseDatesFor = getCurrentArgument( 1 );
-            assertThat( additionalVersionsToFetchReleaseDatesFor ).containsOnly( "1.0.0" );
 
             assertThat( versionInfo.artifact.artifactId ).isEqualTo( art1.artifactId );
             assertThat( versionInfo.artifact.groupId ).isEqualTo( art1.groupId );
@@ -143,7 +142,6 @@ class APIImplTest
             // verify assertions
             assertThat( response.artifacts ).hasSize( 1 );
             final ArtifactResponse resp1 = response.artifacts.get( 0 );
-            resp1.updateAvailable = ArtifactResponse.UpdateAvailable.YES;
             assertThat( resp1.artifact ).isEqualTo( art1 );
             assertThat( resp1.latestVersion ).isEqualTo( latestRelease );
             assertThat( resp1.currentVersion.versionString ).isEqualTo( art1.version );

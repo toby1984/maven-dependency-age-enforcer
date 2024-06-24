@@ -237,7 +237,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     }
                     try
                     {
-                        provider.update(info, xxxx );
+                        provider.update(info, false );
                     }
                     finally
                     {

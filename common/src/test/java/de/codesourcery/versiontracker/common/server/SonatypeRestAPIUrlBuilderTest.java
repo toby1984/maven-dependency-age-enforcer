@@ -28,7 +28,7 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testQuerySingleVersion() throws IOException
     {
-        assertEquals( url( "https://search.maven.org/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3A+version&rows=10000&wt=json" ),
+        assertEquals( url( "https://search.maven.org/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3A+version&rows=300&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )
@@ -39,7 +39,7 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testQueryAllVersions() throws IOException
     {
-        assertEquals( url( "https://search.maven.org/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact&core=gav&rows=10000&wt=json" ),
+        assertEquals( url( "https://search.maven.org/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact&core=gav&rows=300&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )

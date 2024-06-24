@@ -191,7 +191,7 @@ public class VersionTracker implements IVersionTracker
 
                         try 
                         {
-                            versionProvider.update( newInfo, xxxx );
+                            versionProvider.update( newInfo, true );
                         }
                         catch (Exception e) 
                         {

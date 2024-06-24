@@ -103,7 +103,9 @@ public interface IVersionProvider
      * This method must be <b>thread-safe</b>.
      *
      * @param info
-     * @param force
+     * @param force whether to fetch version information even if the Maven indexer XML indicates we already have the latest data.
+     *              This is mostly useful to work around a bug in previous versions that would not properly retrieve release dates
+     *              for all available versions.
      * @return
      * @throws IOException
      */
