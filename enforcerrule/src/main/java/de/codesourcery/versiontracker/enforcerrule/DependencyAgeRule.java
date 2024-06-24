@@ -333,11 +333,12 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 } else {
                     getLog().debug("Project depends on "+a);
                 }
-                if ( bl == null || ! bl.isAllVersionsBlacklisted( a.groupId, a.artifactId) ) {
+                if ( bl == null || !( bl.isAllVersionsBlacklisted( a.groupId, a.artifactId ) ||
+                    bl.isVersionBlacklisted( a.groupId, a.artifactId, a.version ) ) ) {
                     artifacts.add( a );
                 } else {
                     if ( verbose ) {
-                        getLog().warn("All artifact versions ignored by blacklist: "+a);
+                        getLog().warn("Artifact ignored because of blacklist: "+a);
                     }
                 }
             }
