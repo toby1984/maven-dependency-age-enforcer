@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -36,7 +35,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 
 /**
  * This class is responsible for requesting and periodically refreshing artifact metadata as well
@@ -193,7 +191,7 @@ public class VersionTracker implements IVersionTracker
 
                         try 
                         {
-                            versionProvider.update( newInfo, Set.of( artifact.version ) );
+                            versionProvider.update( newInfo, xxxx );
                         }
                         catch (Exception e) 
                         {

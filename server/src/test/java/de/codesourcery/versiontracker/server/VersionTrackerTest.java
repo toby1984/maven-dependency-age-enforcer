@@ -16,7 +16,6 @@
 package de.codesourcery.versiontracker.server;
 
 import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -34,7 +33,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class VersionTrackerTest
@@ -130,7 +128,7 @@ public class VersionTrackerTest
             }
 
             @Override
-            public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException {
+            public UpdateResult update(VersionInfo info, boolean force) throws IOException {
                 info.lastFailureDate = ZonedDateTime.now();
                 return IVersionProvider.UpdateResult.BLACKLISTED;
             }

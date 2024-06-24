@@ -17,7 +17,6 @@ package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
-import java.util.Set;
 import de.codesourcery.versiontracker.common.server.Configuration;
 
 /**
@@ -100,14 +99,13 @@ public interface IVersionProvider
 
     /**
      * Try to update version information.
-     * 
+     * <p>
      * This method must be <b>thread-safe</b>.
-     * 
+     *
      * @param info
-     * @param additionalVersionsToFetchReleaseDatesFor versions on top of latest snapshot/latest release version for which
-     *                                                 the release date should be scraped
-     * @return 
-     * @throws IOException 
+     * @param force
+     * @return
+     * @throws IOException
      */
-    UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException;
+    UpdateResult update(VersionInfo info, boolean force) throws IOException;
 }

@@ -24,13 +24,9 @@ import de.codesourcery.versiontracker.common.VersionInfo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URL;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.Set;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
@@ -105,7 +101,7 @@ public class MavenCentralVersionProviderTest {
             stubFor( get( expectedRestURL2 ).willReturn( ok( jsonResponse2 ) ) );
         }
 
-        final IVersionProvider.UpdateResult result = provider.update( info, scrapeAdditionalReleaseDates ? Set.of( "3.11" ) : Collections.emptySet() );
+        final IVersionProvider.UpdateResult result = provider.update( info, xxxx );
         assertThat(result).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
         assertThat(info.versions).isNotEmpty();
         assertThat(info.versions).containsExactlyInAnyOrder( Version.of("3.11"), Version.of("3.11.1"), Version.of("3.12.0") );

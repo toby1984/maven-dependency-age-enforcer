@@ -67,7 +67,7 @@ class APIImplTest
 
         // mock version provider
         final IVersionProvider versionProvider = createMock( IVersionProvider.class );
-        expect( versionProvider.update( isA( VersionInfo.class ), isA( Set.class ) ) ).andAnswer( () -> {
+        expect( versionProvider.update( isA( VersionInfo.class ), xxxx ) ).andAnswer( () -> {
 
             final VersionInfo versionInfo = getCurrentArgument( 0 );
             final Set<String> additionalVersionsToFetchReleaseDatesFor = getCurrentArgument( 1 );

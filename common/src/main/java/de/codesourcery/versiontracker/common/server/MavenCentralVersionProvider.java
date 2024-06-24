@@ -29,9 +29,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -199,7 +197,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
-        final UpdateResult result = new MavenCentralVersionProvider().update( data, Collections.emptySet() );
+        final UpdateResult result = new MavenCentralVersionProvider().update( data, xxxx );
         long end = System.currentTimeMillis();
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);
@@ -216,7 +214,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     @Override
-    public UpdateResult update(VersionInfo info, Set<String> additionalVersionsToFetchReleaseDatesFor) throws IOException
+    public UpdateResult update(VersionInfo info, boolean force) throws IOException
     {
         final Artifact artifact = info.artifact;
 
@@ -242,6 +240,26 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 }
                 final Document document = parseXML( stream );
 
+                // parse latest snapshot & release versions from metadata
+                final MyExpressions expr = expressions.get();
+
+                // last repository change date
+                final String lastChangeString = readString(expr.lastUpdateDate, document );
+                LOG.debug("update(): last repository change = "+lastChangeString);
+
+                final ZonedDateTime lastChangeDate = ZonedDateTime.parse( lastChangeString, DATE_FORMATTER);
+                final ZonedDateTime previousUpdate = info.lastRepositoryUpdate;
+
+                if ( previousUpdate != null && previousUpdate.equals( lastChangeDate ) ) {
+                    if ( ! force ) {
+                        return UpdateResult.NO_CHANGES_ON_SERVER;
+                    }
+                    LOG.debug( "update(): Forced artifact update" );
+                } else {
+                    LOG.debug( "update(): Artifact index XML changed on server" );
+                }
+
+                // get all versions
                 final List<Version> allVersions = queryAllVersions( info.artifact );
                 info.removeVersionsIf( v -> {
                     final boolean remove = allVersions.stream().noneMatch( x -> x.versionString.equals( v.versionString ) );
@@ -252,8 +270,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 } );
                 allVersions.forEach( info::addVersion );
 
-                // parse latest snapshot & release versions from metadata
-                final MyExpressions expr = expressions.get();
                 final String latestSnapshotVersion = readString(expr.latestSnapshot, document );
                 if ( StringUtils.isNotBlank( latestSnapshotVersion ) ) {
                     info.getVersion( latestSnapshotVersion )
@@ -271,38 +287,15 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 LOG.debug("update(): latest snapshot (metadata) = "+latestSnapshotVersion);
                 LOG.debug("update(): latest release  (metadata) = "+latestReleaseVersion);
 
-                // last repository change date
-                final String lastChangeString = readString(expr.lastUpdateDate, document );
-                LOG.debug("update(): last repository change = "+lastChangeString);
-
-                if ( StringUtils.isNotBlank( artifact.version ) && info.getVersion( artifact.version ).isEmpty() )
-                {
-                    info.lastFailureDate = ZonedDateTime.now();
-                    LOG.error( "update(): Found no metadata about version '" + artifact.version + "'of  artifact " + info.artifact );
-                    return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
-                }
-
-                final ZonedDateTime lastChangeDate = ZonedDateTime.parse( lastChangeString, DATE_FORMATTER);
-                final ZonedDateTime previousUpdate = info.lastRepositoryUpdate;
-
                 info.lastRepositoryUpdate = lastChangeDate;
                 info.lastSuccessDate = ZonedDateTime.now();
 
-                final Function<UpdateResult,UpdateResult> check = result -> {
-                    if ( StringUtils.isNotBlank( artifact.version ) && info.getVersion( artifact.version ).isEmpty() )
-                    {
-                        LOG.error( "update(): Found no metadata about version '" + artifact.version + "'of  artifact " + info.artifact );
-                        return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
-                    }
-                    return result;
-                };
-
-                if ( previousUpdate != null && previousUpdate.equals( lastChangeDate ) )
+                if ( StringUtils.isNotBlank( artifact.version ) && info.getVersion( artifact.version ).isEmpty() )
                 {
-                    return check.apply( UpdateResult.NO_CHANGES_ON_SERVER );
+                    LOG.error( "update(): Found no metadata about version '" + artifact.version + "'of  artifact " + info.artifact );
+                    return UpdateResult.ARTIFACT_VERSION_NOT_FOUND;
                 }
-                LOG.debug( "update(): Artifact index XML changed on server" );
-                return check.apply(UpdateResult.UPDATED);
+                return UpdateResult.UPDATED;
             } );
         } 
         catch(Exception e) 

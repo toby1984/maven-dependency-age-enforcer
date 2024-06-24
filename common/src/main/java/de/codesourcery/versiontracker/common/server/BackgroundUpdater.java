@@ -21,7 +21,6 @@ import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.SharedLockCache.ThrowingRunnable;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 
@@ -29,7 +28,6 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -39,7 +37,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
 
 /**
  * Background process that periodically wakes up and initiates 
@@ -65,23 +62,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     // GuardedBy( statistics )
     private final Statistics statistics = new Statistics();
     
-    /**
-     * Time to wait before retrying artifact metadata retrieval if the last
-     * attempt FAILED.
-     */
-    private volatile Duration minUpdateDelayAfterFailure = Duration.ofDays( 1 );
-    
-    /**
-     * Time to wait before retrying artifact metadata retrieval if the last
-     * attempt was a SUCCESS.
-     */
-    private volatile Duration minUpdateDelayAfterSuccess = Duration.ofDays( 1 );
-    
-    /**
-     * Time the background thread will sleep() before checking the backing storage 
-     * for stale artifact metadata.  
-     */
-    public volatile Duration executionInterval = Duration.ofMinutes( 1 );
+    public volatile Configuration configuration = new Configuration();
     
     private final IVersionStorage storage;
     private final IVersionProvider provider;
@@ -109,7 +90,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     doUpdate();
                     synchronized( SLEEP_LOCK ) 
                     {
-                        SLEEP_LOCK.wait( executionInterval.toMillis() );
+                        SLEEP_LOCK.wait( configuration.getBgUpdateCheckInterval().toMillis() );
                     }
                 }
                 regularShutdown = true; 
@@ -183,7 +164,8 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     
     private void doUpdate() throws Exception
     {
-        final List<VersionInfo> infos = storage.getAllStaleVersions( minUpdateDelayAfterSuccess, minUpdateDelayAfterFailure, ZonedDateTime.now() );
+        final List<VersionInfo> infos = storage.getAllStaleVersions( configuration.getMinUpdateDelayAfterSuccess(),
+            configuration.getMinUpdateDelayAfterFailure(), ZonedDateTime.now() );
         LOG.info("doUpdate(): Updating "+infos.size()+" stale artifacts");
         for (VersionInfo info : infos) 
         {
@@ -196,8 +178,8 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         Validate.notNull( info, "info must not be null" );
         boolean result = IVersionStorage.isStaleVersion(
                 info,
-            minUpdateDelayAfterSuccess,
-            minUpdateDelayAfterFailure,
+            configuration.getMinUpdateDelayAfterSuccess(),
+            configuration.getMinUpdateDelayAfterFailure(),
                 ZonedDateTime.now() );
         if ( LOG.isDebugEnabled() ) {
             LOG.debug("requiresUpdate(): ["+(result?"YES":"NO")+"] "+info.artifact);
@@ -233,7 +215,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             // do not hammer the server if the last attempt already failed
             if ( lastRequestFailed )
             {
-                updateNeeded = timeSinceLastUpdate.compareTo( minUpdateDelayAfterFailure ) >= 0;
+                updateNeeded = timeSinceLastUpdate.compareTo( configuration.getMinUpdateDelayAfterFailure() ) >= 0;
             }
         }
         return updateNeeded;
@@ -255,7 +237,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     }
                     try
                     {
-                        provider.update(info, Collections.emptySet());
+                        provider.update(info, xxxx );
                     }
                     finally
                     {
@@ -319,22 +301,10 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         threadPool.shutdownNow();
     }
 
-    public void setMinUpdateDelayAfterFailure(Duration minUpdateDelayAfterFailure) {
-        Validate.notNull(minUpdateDelayAfterFailure,"minUpdateDelayAfterFailure must not be NULL");
-        Validate.isTrue(minUpdateDelayAfterFailure.compareTo( Duration.ofSeconds(1) ) >= 0 , "minUpdateDelayAfterFailure must be >= 1 second" );
-        this.minUpdateDelayAfterFailure = minUpdateDelayAfterFailure;
-    }
-    
-    public void setMinUpdateDelayAfterSuccess(Duration minUpdateDelayAfterSuccess) {
-        Validate.notNull(minUpdateDelayAfterSuccess,"minUpdateDelayAfterSuccess must not be NULL");
-        Validate.isTrue(minUpdateDelayAfterSuccess.compareTo( Duration.ofSeconds(1) ) >= 0 , "minUpdateDelayAfterSuccess must be >= 1 second" );
-        this.minUpdateDelayAfterSuccess = minUpdateDelayAfterSuccess;
-    }
-    
-    public void setPollingInterval(Duration pollingInterval) {
-        Validate.notNull(pollingInterval,"pollingInterval must not be NULL");
-        Validate.isTrue(pollingInterval.compareTo( Duration.ofSeconds(1) ) >= 0 , "pollingInterval must be >= 1 second" );
-        this.executionInterval = pollingInterval;
+    public void setConfiguration(Configuration configuration)
+    {
+        Validate.notNull( configuration, " must not be null" );
+        this.configuration = configuration;
     }
 
     @Override

@@ -92,12 +92,17 @@ public class Configuration
 
             this.minUpdateDelayAfterFailure = getDuration( props, "updateDelayAfterFailure", minUpdateDelayAfterFailure );
             this.minUpdateDelayAfterSuccess = getDuration( props, "updateDelayAfterSuccess", minUpdateDelayAfterSuccess );
-            this.bgUpdateCheckInterval = getDuration( props, "bgUpdateCheckInterval", bgUpdateCheckInterval );
+            this.bgUpdateCheckInterval = getDuration( props, "bgUpdateCheckInterval" , bgUpdateCheckInterval );
+
+            LOG.info( "min. update delay after failure = " + minUpdateDelayAfterFailure );
+            LOG.info( "min. update delay after success = " + minUpdateDelayAfterSuccess );
+            LOG.info( "bg update check interval = " + bgUpdateCheckInterval );
 
             this.blacklist.clear();
             final String blacklistedGroupIds = props.getProperty("blacklistedGroupIds");
             if ( StringUtils.isNotBlank( blacklistedGroupIds ) )
             {
+                LOG.info( "Blacklisted group IDs: " + blacklistedGroupIds );
                 final String[] ids = blacklistedGroupIds.split( "[, ]" );
                 for ( final String id : ids )
                 {
@@ -107,16 +112,16 @@ public class Configuration
         }
     }
 
-    private String getProperty(String overrideProp, String defaultProp) {
-        String result = System.getProperty( overrideProp );
+    private String getProperty(Properties props, String property) {
+        String result = System.getProperty( "versionTracker."+property );
         if ( result != null ) {
             return result;
         }
-        // TODO: Implement me!
+        return props.getProperty( property );
     }
 
     private Duration getDuration(Properties props, String key, Duration defaultValue) {
-        final String value = props.getProperty( key );
+        final String value = getProperty( props, key );
         if ( value == null ) {
             return defaultValue;
         }

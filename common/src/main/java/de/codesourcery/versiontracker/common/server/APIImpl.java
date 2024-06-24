@@ -193,13 +193,8 @@ public class APIImpl implements AutoCloseable
 
     // unit-testing hook
     protected IBackgroundUpdater createBackgroundUpdater(SharedLockCache lockCache) {
-        final Optional<Duration> delayAfterFailure = getDurationFromSystemProperties( "versionTracker.delayAfterFailure" );
-        final Optional<Duration> delayAfterSuccess = getDurationFromSystemProperties( "versionTracker.delayAfterSuccess" );
-        final Optional<Duration> checkInterval = getDurationFromSystemProperties( "versionTracker.bgUpdate.checkDelay" );
         final BackgroundUpdater result = new BackgroundUpdater( versionStorage, versionProvider, lockCache );
-        delayAfterFailure.ifPresent( result::setMinUpdateDelayAfterFailure );
-        delayAfterSuccess.ifPresent( result::setMinUpdateDelayAfterSuccess );
-        checkInterval.ifPresent( result::setPollingInterval );
+        result.setConfiguration( configuration );
         return result;
     }
 
@@ -214,6 +209,8 @@ public class APIImpl implements AutoCloseable
             return;
         }
 
+        // loading configuration must be the very first thing
+        // done here as methods further down will inject it
         try
         {
             configuration.load();
