@@ -204,18 +204,22 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             updateNeeded = true;
         }
         final Optional<Version> version = info.getVersion( artifact.version );
-        if (  version.isEmpty() || ! version.get().hasReleaseDate() ) {
+        if ( info.versions.isEmpty() || version.isPresent() && ! version.get().hasReleaseDate() ) {
             updateNeeded = true;
         }
         if ( updateNeeded ) {
             // note: vi.lastPolledDate() cannot be NULL here as requiresUpdate(Optional<VersionInfo>)
             //       would've returned true in this case and we bail out early above
             final Duration timeSinceLastUpdate = Duration.between( info.lastPolledDate(), ZonedDateTime.now() );
-            final boolean lastRequestFailed = info.lastPolledDate() == info.lastFailureDate;
-            // do not hammer the server if the last attempt already failed
-            if ( lastRequestFailed )
-            {
-                updateNeeded = timeSinceLastUpdate.compareTo( configuration.getMinUpdateDelayAfterFailure() ) >= 0;
+
+            Duration duration = configuration.getMinUpdateDelayAfterSuccess();
+            boolean lastPollFailed = info.lastFailureDate != null && info.lastPolledDate() == info.lastFailureDate;
+            if ( lastPollFailed) {
+                duration = configuration.getMinUpdateDelayAfterFailure();
+            }
+            if ( timeSinceLastUpdate.compareTo( duration ) < 0 ) {
+                LOG.debug( "Not performing metadata update as last poll " + (lastPollFailed ? "failed" : "succeeded") + " at " + info.lastPolledDate() + " " +
+                    "which happened less than " + duration + " ago" );
             }
         }
         return updateNeeded;
