@@ -166,7 +166,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private final Object THREAD_POOL_LOCK=new Object();
     private ThreadPoolExecutor threadPool;
 
-    private Configuration configuration = new Configuration();
+    private ConfigurationProvider configurationProvider;
 
     public MavenCentralVersionProvider()
     {
@@ -182,10 +182,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     @Override
-    public void setConfiguration(Configuration configuration)
+    public void setConfigurationProvider(ConfigurationProvider configurationProvider)
     {
-        Validate.notNull( configuration, "configuration must not be null" );
-        this.configuration = configuration;
+        Validate.notNull( configurationProvider, "configurationProvider must not be null" );
+        this.configurationProvider = configurationProvider;
     }
 
     public static void main(String[] args) throws IOException
@@ -210,7 +210,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     private boolean isBlacklisted(Artifact a) {
-        return configuration.getBlacklist().isAllVersionsBlacklisted( a.groupId, a.artifactId );
+        return configurationProvider.getConfiguration().getBlacklist().isAllVersionsBlacklisted( a.groupId, a.artifactId );
     }
 
     @Override

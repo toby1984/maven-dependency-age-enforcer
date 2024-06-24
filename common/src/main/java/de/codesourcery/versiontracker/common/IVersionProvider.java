@@ -18,6 +18,7 @@ package de.codesourcery.versiontracker.common;
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import de.codesourcery.versiontracker.common.server.Configuration;
+import de.codesourcery.versiontracker.common.server.ConfigurationProvider;
 
 /**
  * Responsible for retrieving artifact metadata and applying it to a {@link VersionInfo} instance.
@@ -95,7 +96,7 @@ public interface IVersionProvider
      */
     void resetStatistics();
 
-    void setConfiguration(Configuration configuration);
+    void setConfigurationProvider(ConfigurationProvider configuration);
 
     /**
      * Try to update version information.

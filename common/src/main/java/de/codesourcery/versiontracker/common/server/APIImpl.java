@@ -64,8 +64,7 @@ public class APIImpl implements AutoCloseable
 
     private String repo1BaseUrl = MavenCentralVersionProvider.DEFAULT_REPO1_BASE_URL;
     private String restApiBaseUrl = MavenCentralVersionProvider.DEFAULT_SONATYPE_REST_API_BASE_URL;
-    private de.codesourcery.versiontracker.common.server.Configuration configuration =
-        new de.codesourcery.versiontracker.common.server.Configuration();
+    private final ConfigurationProvider configurationProvider = new ConfigurationProvider();
 
     public enum Mode
     {
@@ -174,7 +173,7 @@ public class APIImpl implements AutoCloseable
             }
         }
         final MavenCentralVersionProvider result = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
-        result.setConfiguration( configuration );
+        result.setConfigurationProvider( configurationProvider );
         return result;
     }
 
@@ -194,7 +193,7 @@ public class APIImpl implements AutoCloseable
     // unit-testing hook
     protected IBackgroundUpdater createBackgroundUpdater(SharedLockCache lockCache) {
         final BackgroundUpdater result = new BackgroundUpdater( versionStorage, versionProvider, lockCache );
-        result.setConfiguration( configuration );
+        result.setConfigurationProvider( configurationProvider );
         return result;
     }
 
@@ -209,16 +208,8 @@ public class APIImpl implements AutoCloseable
             return;
         }
 
-        // loading configuration must be the very first thing
-        // done here as methods further down will inject it
-        try
-        {
-            configuration.load();
-        }
-        catch( IOException e )
-        {
-            throw new UncheckedIOException( e );
-        }
+        // force configuration load so we know it's sane
+        configurationProvider.getConfiguration();
 
         versionStorage  = createVersionStorage();
         versionProvider = createVersionProvider();
@@ -298,6 +289,13 @@ public class APIImpl implements AutoCloseable
             LOG.info("getArtifactFileLocation(): Using artifacts file location from '"+SYSTEM_PROPERTY_ARTIFACT_FILE+"' JVM property");
             return new File( location );
         }
+
+        final Optional<File> dataStore = configurationProvider.getConfiguration().getDataStorageFile();
+        if ( dataStore.isPresent() ) {
+            LOG.info("getArtifactFileLocation(): Using artifacts file location from configuration file: "+dataStore.get());
+            return dataStore.get();
+        }
+
         location = System.getProperty("user.home");
         if ( StringUtils.isNotBlank( location) ) 
         {

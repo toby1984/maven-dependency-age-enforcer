@@ -17,9 +17,15 @@ package de.codesourcery.versiontracker.common.server;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
 import java.time.Duration;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +34,7 @@ import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import de.codesourcery.versiontracker.common.Blacklist;
+import de.codesourcery.versiontracker.common.Version;
 
 public class Configuration
 {
@@ -35,7 +42,7 @@ public class Configuration
     private static final String DEFAULT_CONFIG_FILE_LOCATION = "classpath:/versionTracker.json";
     public static final String CONFIG_FILE_LOCATION_SYS_PROPERTY = "versionTracker.configFile";
 
-    private Blacklist blacklist = new Blacklist();
+    private volatile Blacklist blacklist = new Blacklist();
     /**
      * Time to wait before retrying artifact metadata retrieval if the last
      * attempt FAILED.
@@ -54,6 +61,103 @@ public class Configuration
      */
     private volatile Duration bgUpdateCheckInterval = Duration.ofMinutes( 1 );
 
+    private volatile File dataStore;
+
+    public final ZonedDateTime timestamp = ZonedDateTime.now();
+
+    public interface IResource {
+        boolean exists();
+        InputStream open() throws IOException;
+        Optional<ZonedDateTime> lastChangeDate();
+    }
+
+    private static final class ClasspathResource implements IResource {
+
+        public final String classpath;
+
+        private ClasspathResource(String classpath)
+        {
+            Validate.notBlank( classpath, "classpath must not be null or blank");
+            this.classpath = classpath;
+        }
+
+        @Override
+        public boolean exists()
+        {
+            try ( InputStream in = Configuration.class.getResourceAsStream( classpath ) ) {
+                return in != null;
+            } catch(Exception e) {
+                return false;
+            }
+        }
+
+        @Override
+        public InputStream open() throws IOException
+        {
+            InputStream in = Configuration.class.getResourceAsStream( classpath );
+            if ( in == null ) {
+                throw new FileNotFoundException( "Failed to open classpath resource " + this );
+            }
+            return in;
+        }
+
+        @Override
+        public Optional<ZonedDateTime> lastChangeDate()
+        {
+            // TODO: Implement me
+            throw new UnsupportedOperationException( "Method lastChangeDate not implemented" );
+        }
+
+        @Override
+        public String toString()
+        {
+            return "classpath:"+classpath;
+        }
+    }
+    private static final class FileResource implements IResource {
+
+        public final File file;
+
+        private FileResource(File file)
+        {
+            Validate.notNull( file, "file must not be null" );
+            this.file = file;
+        }
+
+        @Override
+        public boolean exists()
+        {
+            return file.exists();
+        }
+
+        @Override
+        public InputStream open() throws IOException
+        {
+            return new FileInputStream( file );
+        }
+
+        @Override
+        public Optional<ZonedDateTime> lastChangeDate()
+        {
+            try
+            {
+                final FileTime time = Files.getLastModifiedTime( file.toPath() );
+                return Optional.of( time.toInstant().atZone( ZoneId.systemDefault() ) );
+            }
+            catch( IOException e )
+            {
+                LOG.warn( "Failed to get file modification time from '" + file + "': " + e.getMessage() );
+                return Optional.empty();
+            }
+        }
+
+        @Override
+        public String toString()
+        {
+            return "file:"+file.getAbsolutePath();
+        }
+    }
+
     public Blacklist getBlacklist()
     {
         return blacklist;
@@ -61,10 +165,25 @@ public class Configuration
 
     public void load() throws IOException {
 
+        final Optional<IResource> resource = getResource(true);
+        if ( resource.isEmpty())
+        {
+            LOG.info( "Using built-in configuration.");
+            return;
+        }
+        LOG.info( "Loading configuration from " + resource );
+        load( resource.get() );
+    }
+
+    public static Optional<IResource> getResource(boolean verbose) throws IOException
+    {
         final boolean fromSystemProperty;
         String location = System.getProperty( CONFIG_FILE_LOCATION_SYS_PROPERTY );
         if ( location != null ) {
-            LOG.info( "Configuration (system property '" + CONFIG_FILE_LOCATION_SYS_PROPERTY + "') = " + location );
+            if ( verbose )
+            {
+                LOG.info( "Configuration (system property '" + CONFIG_FILE_LOCATION_SYS_PROPERTY + "') = " + location );
+            }
             fromSystemProperty = true;
             if ( ! location.toLowerCase().startsWith("file:") )
             {
@@ -72,48 +191,60 @@ public class Configuration
             }
         } else {
             location = DEFAULT_CONFIG_FILE_LOCATION;
-            LOG.info( "Configuration (default location) " + location );
+            if ( verbose )
+            {
+                LOG.info( "Configuration (default location) " + location );
+            }
             fromSystemProperty = false;
         }
 
-        final InputStream in;
+        final IResource resource;
         if ( location.toLowerCase().startsWith("file:" ) ) {
-            final File f = new File(location.substring( "file:".length() ));
-            if ( ! f.exists() ) {
+            resource = new FileResource( new File( location.substring( "file:".length() ) ) );
+            if ( ! resource.exists() ) {
                 if ( ! fromSystemProperty ) {
-                    LOG.info( "No configuration found in default location (" + DEFAULT_CONFIG_FILE_LOCATION + ")" );
-                    return;
+                    if ( verbose )
+                    {
+                        LOG.info( "No configuration found in default location (" + DEFAULT_CONFIG_FILE_LOCATION + ")" );
+                    }
+                    return Optional.empty();
                 }
             }
-            in = new FileInputStream( f );
         } else if ( location.toLowerCase().startsWith("classpath:" ) ) {
-            in = Configuration.class.getResourceAsStream( location.substring( "classpath:".length() ) );
-            if ( in == null ) {
+            resource = new ClasspathResource( location.substring( "classpath:".length() ) );
+            if ( ! resource.exists() ) {
                 if ( fromSystemProperty ) {
                     LOG.error("Failed to load configuration from '"+location+"'");
                     throw new IOException("Failed to load configuration from '"+location+"'");
                 }
-                LOG.info("Using built-in configuration.");
-                return;
+                return Optional.empty();
             }
         } else {
             final String msg = "Invalid config file location '" + location + "', needs to be prefixed with 'classpath:' or 'file:'";
             LOG.error( msg );
             throw new IOException( msg );
         }
-        try ( in ) {
+        return Optional.of( resource );
+    }
+
+    public void load(IResource resource) throws IOException
+    {
+        try ( InputStream in = resource.open() ) {
             final Properties props = new Properties();
             props.load( in );
 
+            final String ds = props.getProperty( "dataStorage" );
+            this.dataStore = ds != null ? new File(ds): null;
             this.minUpdateDelayAfterFailure = getDuration( props, "updateDelayAfterFailure", minUpdateDelayAfterFailure );
             this.minUpdateDelayAfterSuccess = getDuration( props, "updateDelayAfterSuccess", minUpdateDelayAfterSuccess );
             this.bgUpdateCheckInterval = getDuration( props, "bgUpdateCheckInterval" , bgUpdateCheckInterval );
 
+            LOG.info( "data storage= " + dataStore);
             LOG.info( "min. update delay after failure = " + minUpdateDelayAfterFailure );
             LOG.info( "min. update delay after success = " + minUpdateDelayAfterSuccess );
             LOG.info( "bg update check interval = " + bgUpdateCheckInterval );
 
-            this.blacklist.clear();
+            final Blacklist newBlacklist = new Blacklist();
             final String blacklistedGroupIds = props.getProperty("blacklistedGroupIds");
             if ( StringUtils.isNotBlank( blacklistedGroupIds ) )
             {
@@ -121,8 +252,9 @@ public class Configuration
                 final String[] ids = blacklistedGroupIds.split( "[, ]" );
                 for ( final String id : ids )
                 {
-                    this.blacklist.addIgnoredVersion( id, ".*", Blacklist.VersionMatcher.REGEX );
+                    newBlacklist.addIgnoredVersion( id, ".*", Blacklist.VersionMatcher.REGEX );
                 }
+                this.blacklist = newBlacklist;
             }
         }
     }
@@ -198,5 +330,15 @@ public class Configuration
             default: throw new RuntimeException( "Unhandled switch/case: " + m.group( 2 ) );
         }
         return Duration.ofSeconds( seconds );
+    }
+
+    public void setDataStorageFile(File dataStore)
+    {
+        this.dataStore = dataStore;
+    }
+
+    public Optional<File> getDataStorageFile()
+    {
+        return Optional.ofNullable( dataStore );
     }
 }

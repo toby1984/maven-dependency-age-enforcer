@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.server;
 
+import de.codesourcery.versiontracker.client.api.IAPIClient;
 import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.Version;
@@ -77,11 +78,11 @@ public class FlatFileStorageTest
 	@Test
 	public void testStoreAndLoadEmptyJSON() throws IOException
 	{
-		FlatFileStorage storage = new FlatFileStorage(file);
+		FlatFileStorage storage = new FlatFileStorage(file, IAPIClient.Protocol.JSON);
 		List<VersionInfo> data = new ArrayList<>();
 		storage.saveOrUpdate( data );
 
-		storage = new FlatFileStorage(file);
+		storage = new FlatFileStorage(file, IAPIClient.Protocol.JSON);
 		List<VersionInfo> loaded = storage.getAllVersions();
 		assertEquals(0,loaded.size());
 	}
@@ -117,10 +118,10 @@ public class FlatFileStorageTest
 		final VersionInfo info = createData();
 		final VersionInfo copy = info.copy();
 
-		FlatFileStorage storage = new FlatFileStorage(file);
+		FlatFileStorage storage = new FlatFileStorage(file, IAPIClient.Protocol.JSON);
 		storage.saveOrUpdate(info);
 
-		storage = new FlatFileStorage(file);
+		storage = new FlatFileStorage(file, IAPIClient.Protocol.JSON);
 		final List<VersionInfo> loaded = storage.getAllVersions();
 		assertEquals(1,loaded.size());
 		assertEquals( copy , loaded.get(0) );
@@ -132,10 +133,10 @@ public class FlatFileStorageTest
 		final VersionInfo info = createData();
 		final VersionInfo copy = info.copy();
 
-		FlatFileStorage storage = new FlatFileStorage(file);
+		FlatFileStorage storage = new FlatFileStorage(file, IAPIClient.Protocol.JSON);
 		storage.saveOrUpdate( Collections.singletonList( info ));
 
-		storage = new FlatFileStorage(file);
+		storage = new FlatFileStorage(file, IAPIClient.Protocol.JSON);
 		final List<VersionInfo> loaded = storage.getAllVersions();
 		assertEquals(1,loaded.size());
 		assertEquals( copy , loaded.get(0) );
@@ -157,7 +158,7 @@ public class FlatFileStorageTest
 		for ( int i = 0 ; i < 80 ; i++ ) {
 
 			long start = System.currentTimeMillis();
-			try ( FlatFileStorage storage = new FlatFileStorage(tmp) ) {
+			try ( FlatFileStorage storage = new FlatFileStorage(tmp, IAPIClient.Protocol.JSON) ) {
 				List<VersionInfo> results = storage.getAllVersions();
 				long end = System.currentTimeMillis();
 				if ( i >= 60 ) {

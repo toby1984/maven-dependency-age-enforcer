@@ -15,6 +15,7 @@
  */
 package de.codesourcery.versiontracker.server;
 
+import de.codesourcery.versiontracker.client.api.IAPIClient;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactMap;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -152,7 +153,7 @@ public class CachingStorageDecoratorTest
         }
         try 
         {
-            final FlatFileStorage storage = new FlatFileStorage( file );
+            final FlatFileStorage storage = new FlatFileStorage( file, IAPIClient.Protocol.JSON );
             final List<VersionInfo> items = createVersionInfos(rnd,ITEMS_TO_GENERATE);
             
             final long start = System.currentTimeMillis();
@@ -187,7 +188,7 @@ public class CachingStorageDecoratorTest
             file.delete();
         }
         
-        try ( CachingStorageDecorator storage = new CachingStorageDecorator( new FlatFileStorage( file ) ) ) 
+        try ( CachingStorageDecorator storage = new CachingStorageDecorator( new FlatFileStorage( file , IAPIClient.Protocol.JSON) ) )
         {
             storage.setCacheFlushInterval( Duration.ofMillis( 500 ) );
             storage.startThread();
@@ -214,7 +215,7 @@ public class CachingStorageDecoratorTest
             file.delete();
         }
         
-        final CachingStorageDecorator storage = new CachingStorageDecorator( new FlatFileStorage( file ) );
+        final CachingStorageDecorator storage = new CachingStorageDecorator( new FlatFileStorage( file , IAPIClient.Protocol.JSON) );
         storage.startThread();
         long start = 0; 
         try 

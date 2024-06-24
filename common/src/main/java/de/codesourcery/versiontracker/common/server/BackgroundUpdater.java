@@ -62,7 +62,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     // GuardedBy( statistics )
     private final Statistics statistics = new Statistics();
     
-    public volatile Configuration configuration = new Configuration();
+    public ConfigurationProvider configurationProvider;
     
     private final IVersionStorage storage;
     private final IVersionProvider provider;
@@ -90,7 +90,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     doUpdate();
                     synchronized( SLEEP_LOCK ) 
                     {
-                        SLEEP_LOCK.wait( configuration.getBgUpdateCheckInterval().toMillis() );
+                        SLEEP_LOCK.wait( configurationProvider.getConfiguration().getBgUpdateCheckInterval().toMillis() );
                     }
                 }
                 regularShutdown = true; 
@@ -164,8 +164,9 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     
     private void doUpdate() throws Exception
     {
-        final List<VersionInfo> infos = storage.getAllStaleVersions( configuration.getMinUpdateDelayAfterSuccess(),
-            configuration.getMinUpdateDelayAfterFailure(), ZonedDateTime.now() );
+        final Configuration config = configurationProvider.getConfiguration();
+        final List<VersionInfo> infos = storage.getAllStaleVersions( config.getMinUpdateDelayAfterSuccess(),
+            config.getMinUpdateDelayAfterFailure(), ZonedDateTime.now() );
         LOG.info("doUpdate(): Updating "+infos.size()+" stale artifacts");
         for (VersionInfo info : infos) 
         {
@@ -176,6 +177,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     private boolean requiresUpdate(VersionInfo info)
     {
         Validate.notNull( info, "info must not be null" );
+        final Configuration configuration = configurationProvider.getConfiguration();
         boolean result = IVersionStorage.isStaleVersion(
                 info,
             configuration.getMinUpdateDelayAfterSuccess(),
@@ -216,6 +218,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             //       would've returned true in this case and we bail out early above
             final Duration timeSinceLastUpdate = Duration.between( info.lastPolledDate(), ZonedDateTime.now() );
 
+            final Configuration configuration = configurationProvider.getConfiguration();
             Duration duration = configuration.getMinUpdateDelayAfterSuccess();
             boolean lastPollFailed = info.lastFailureDate != null && info.lastPolledDate() == info.lastFailureDate;
             if ( lastPollFailed) {
@@ -224,6 +227,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             if ( timeSinceLastUpdate.compareTo( duration ) < 0 ) {
                 LOG.debug( "Not performing metadata update as last poll " + (lastPollFailed ? "failed" : "succeeded") + " at " + info.lastPolledDate() + " " +
                     "which happened less than " + duration + " ago" );
+                return false;
             }
         }
         return updateNeeded;
@@ -245,7 +249,8 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     }
                     try
                     {
-                        provider.update(info, false );
+                        final IVersionProvider.UpdateResult result = provider.update( info, info.versions.stream().anyMatch( x -> ! x.hasReleaseDate() ) );
+                        LOG.trace( "doUpdate(): Updating {} yielded {}", info.artifact, result );
                     }
                     finally
                     {
@@ -309,10 +314,10 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         threadPool.shutdownNow();
     }
 
-    public void setConfiguration(Configuration configuration)
+    public void setConfigurationProvider(ConfigurationProvider provider)
     {
-        Validate.notNull( configuration, " must not be null" );
-        this.configuration = configuration;
+        Validate.notNull( provider, "ConfigurationProvider must not be null" );
+        this.configurationProvider = provider;
     }
 
     @Override

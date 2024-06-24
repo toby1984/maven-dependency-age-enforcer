@@ -99,11 +99,6 @@ public class FlatFileStorage implements IVersionStorage
 	// @GuardedBy( storageStatistics )
 	private final StorageStatistics storageStatistics = new StorageStatistics();
 
-	public FlatFileStorage(File file) 
-	{
-		this(file,Protocol.JSON);
-	}
-
 	@Override
 	public String toString() {
 		return "FlatFileStorage[ " + file.getAbsolutePath() + " ]";
