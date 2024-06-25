@@ -177,13 +177,13 @@ public interface IVersionStorage extends AutoCloseable
                 isStale = Duration.between( info.lastSuccessDate,now ).compareTo( minUpdateDelayAfterSuccess ) > 0;
                 if ( isStale && STORAGE_LOG.isDebugEnabled() )
                 {
-                    STORAGE_LOG.debug("isStaleVersion(): [stale,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
+                    STORAGE_LOG.debug("isStaleVersion(): [stale,lastSuccessDate "+info.lastSuccessDate+" is more than "+minUpdateDelayAfterSuccess+" ago] "+info.artifact);
                 }                
             } else {
                 isStale = Duration.between( info.lastFailureDate,now ).compareTo( minUpdateDelayAfterFailure ) > 0;
                 if ( isStale && STORAGE_LOG.isDebugEnabled() )
                 {
-                    STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
+                    STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" is more than "+minUpdateDelayAfterFailure+" ago] "+info.artifact);
                 }                  
             }
 
@@ -191,13 +191,13 @@ public interface IVersionStorage extends AutoCloseable
             isStale = Duration.between( info.lastFailureDate,now ).compareTo( minUpdateDelayAfterFailure ) > 0;
             if ( isStale && STORAGE_LOG.isDebugEnabled() )
             {
-                STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" too long ago] "+info.artifact);
+                STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" is more than "+minUpdateDelayAfterFailure+" ago] "+info.artifact);
             }             
         } else {
             isStale = Duration.between( info.lastSuccessDate,now ).compareTo( minUpdateDelayAfterSuccess ) > 0;
             if ( isStale && STORAGE_LOG.isDebugEnabled() )
             {
-                STORAGE_LOG.debug("isStaleVersion(): [stale,lastSuccessDate "+info.lastSuccessDate+" too long ago] "+info.artifact);
+                STORAGE_LOG.debug("isStaleVersion(): [stale,lastSuccessDate "+info.lastSuccessDate+" is more than "+minUpdateDelayAfterSuccess+" ago] "+info.artifact);
             }             
         } 
         return isStale;

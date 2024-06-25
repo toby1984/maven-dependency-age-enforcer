@@ -252,6 +252,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
                 if ( previousUpdate != null && previousUpdate.equals( lastChangeDate ) ) {
                     if ( ! force ) {
+                        LOG.debug( "update(): No changes on server.");
+                        info.lastSuccessDate = ZonedDateTime.now();
                         return UpdateResult.NO_CHANGES_ON_SERVER;
                     }
                     LOG.debug( "update(): Forced artifact update" );
