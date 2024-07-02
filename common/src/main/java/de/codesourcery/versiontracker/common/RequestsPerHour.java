@@ -34,6 +34,9 @@ public class RequestsPerHour {
     // @GuardedBy( counts )
     private long mostRecentAccess;
 
+    // @GuardedBy( counts )
+    private int previousHour = -1;
+
     public RequestsPerHour() {
     }
 
@@ -65,7 +68,14 @@ public class RequestsPerHour {
         }
         synchronized ( counts ) {
             mostRecentAccess = System.currentTimeMillis();
-            counts.compute( currentHour(), (key, existing) -> existing == null ? count : existing + count );
+            final int hour = currentHour();
+            if ( previousHour == -1 || previousHour != hour ) {
+                // reset the counter whenever we advance to the next hour
+                counts.compute( hour, (key, existing) -> count );
+            } else {
+                counts.compute( hour, (key, existing) -> existing == null ? count : existing + count );
+            }
+            previousHour = hour;
         }
     }
 

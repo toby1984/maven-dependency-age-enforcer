@@ -88,6 +88,22 @@ By default the servlet will store all retrieved artifact metadata as a binary fi
 
 Note: You can request status information by sending a HTTP GET request to the HTTP endpoint where you deployed the servlet (default is HTML output but you can append "?json" to the URL to get a JSON response).
 
+### Servlet configuration
+
+The servlet supports some basic configuration that can be passed via a properties file pointed to by the 'versionTracker.configFile' system property.
+The configuration file currently supports the following keys:
+
+| Key                        | Value                                      | Description                                                                                                                                                              |
+|----------------------------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| dataStorage                | filesystem, path                           | Points to file where artifact metadata should be stored                                                                                                                  | 
+| updateDelayAfterFailure    | duration                                   | How long to wait before attempting to fetch artifact metadata after the previous attempt failed                                                                          |
+| minUpdateDelayAfterSuccess | duration                                   | How long to wait before attempting to fetch artifact metadata after the previous attempt succeeded                                                                       |
+| bgUpdateCheckInterval      | duration                                   | How long to wait before checking whether cached artifact metadata is stale and should be refreshed                                                                       |
+| blacklistedGroupIds        | comma-separated list of artifact group IDs | Artifact group IDs for which metadata should never be retrieved from Maven Central. Group IDs are prefix matches so 'com.test' will also match 'com.test.something' etc. | 
+
+Durations need to satisfy the regex `^[0-9]+[smhd]$` where s=seconds, m=minutes, h=hours, d=days.
+The servlet uses a background thread that periodically iterates over all cached artifact metadata and checks whether it needs to be refreshed from Maven Central again. 
+
 ![screenshot](https://github.com/toby1984/maven-dependency-version-enforcer/blob/master/server_screenshot.png)
 
 ### Using Docker

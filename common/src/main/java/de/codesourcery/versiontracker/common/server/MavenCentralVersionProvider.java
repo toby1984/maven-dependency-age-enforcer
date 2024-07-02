@@ -234,10 +234,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
         try
         {
+            synchronized ( statistics ) {
+                statistics.metaDataRequests.update();
+            }
             return performGET(url, stream -> {
-                synchronized ( statistics ) {
-                    statistics.metaDataRequests.update();
-                }
                 final Document document = parseXML( stream );
 
                 // parse latest snapshot & release versions from metadata
