@@ -184,7 +184,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
             configuration.getMinUpdateDelayAfterFailure(),
                 ZonedDateTime.now() );
         if ( LOG.isDebugEnabled() ) {
-            LOG.debug("requiresUpdate(): ["+(result?"YES":"NO")+"] "+info.artifact);
+            LOG.debug( "requiresUpdate(): Stale (" + info.artifact + ") ? " + (result ? "YES" : "NO") );
         }
         return result;
     }

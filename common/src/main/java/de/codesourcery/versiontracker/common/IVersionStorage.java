@@ -187,13 +187,14 @@ public interface IVersionStorage extends AutoCloseable
                 }                  
             }
 
-        } else if ( info.lastSuccessDate == null ) { // lastFailureDate is not null
+        } else if ( info.lastSuccessDate == null ) { // polling never succeeded yet
             isStale = Duration.between( info.lastFailureDate,now ).compareTo( minUpdateDelayAfterFailure ) > 0;
             if ( isStale && STORAGE_LOG.isDebugEnabled() )
             {
                 STORAGE_LOG.debug("isStaleVersion(): [stale,lastFailureDate "+info.lastFailureDate+" is more than "+minUpdateDelayAfterFailure+" ago] "+info.artifact);
             }             
         } else {
+            // polling has always succeeded
             isStale = Duration.between( info.lastSuccessDate,now ).compareTo( minUpdateDelayAfterSuccess ) > 0;
             if ( isStale && STORAGE_LOG.isDebugEnabled() )
             {
