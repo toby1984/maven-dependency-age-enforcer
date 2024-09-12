@@ -31,6 +31,16 @@ public interface IVersionTracker extends AutoCloseable, Closeable  {
 
     Map<Artifact, VersionInfo> getVersionInfo(List<Artifact> artifacts, BiPredicate<VersionInfo,Artifact> isOutdated) throws InterruptedException;
 
+    /**
+     * Force fetching artifact information from Maven Central again.
+     *
+     * @param groupId
+     * @param artifactId
+     * @return version information, possibly but not necessarily updated
+     * @throws InterruptedException
+     */
+    VersionInfo forceUpdate(String groupId, String artifactId) throws InterruptedException;
+
     IVersionStorage getStorage();
 
     IVersionProvider getVersionProvider();

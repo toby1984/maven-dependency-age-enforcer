@@ -73,7 +73,10 @@ const search = {
 
     const enc = encodeURIComponent;
 
-    let url = '/triggerRefresh?groupId=' + enc(groupId) + '&artifactId=' + enc(artifactId) + '&version=' + enc(version);
+    let url = '/triggerRefresh?groupId=' + enc(groupId) + '&artifactId=' + enc(artifactId);
+    if ( version ) {
+      url += '&version=' + enc(version);
+    }
     if ( classifier ) {
       url += '&classifier=' + enc(classifier);
     }
@@ -107,6 +110,11 @@ const search = {
 
     const baseURL = document.getElementById("baseUrl").href;
     const enc = encodeURIComponent;
+
+    const htmlSafe = unsafe => unsafe.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const safeGroupId = htmlSafe(groupId);
+    const safeArtfactId = htmlSafe(artifactId);
+
     const searchURI = baseURL+"/simplequery?artifactId=" +
         enc(artifactId) + "&groupId=" + enc(groupId) +
         (classifier ? "&classifier=" + enc(classifier) : "");
@@ -127,19 +135,16 @@ const search = {
             }
             return v1 === v2 ? 0 : 1;
         });
+
         rows = item.versions.map(version => {
 
           let buttonHtml = "";
           if ( ! version.releaseDate ) {
 
-            const htmlSafe = unsafe => unsafe.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-
-            const safeGroupId = htmlSafe(groupId.trim());
-            const safeArtfactId = htmlSafe(artifactId.trim());
             const safeVersion = htmlSafe(version.versionString.trim());
             const safeClassifier = ( classifier ? ', "' + htmlSafe(classifier.trim()) + '"' : "" )
 
-            buttonHtml = `<button onclick="search.triggerRefresh( '${safeGroupId}', '${safeArtfactId}', '${safeVersion}' ${safeClassifier} )">Refresh</button>`;
+            buttonHtml = `<button onclick="search.triggerRefresh( '${safeGroupId}', '${safeArtfactId}', '${safeVersion}' ${safeClassifier} )">Refresh from Maven Central</button>`;
           }
           return "<tr>" +
               "<td>" + version.versionString + "</td>" +
@@ -149,7 +154,9 @@ const search = {
               "</tr>"
         }).reduce((previous, current) => previous + current, "");
 
-        table1 = "<table>"+
+        const refreshArtifactButton = `<button onclick="search.triggerRefresh( '${safeGroupId}', '${safeArtfactId}' )">Refresh from Maven Central</button>`;
+
+        table1 = refreshArtifactButton+"<br /><table>"+
             "<tr><td><b>Last Request Date: </b></td><td>"+search.formatDate( item.lastRequestDate )+"</td></tr>" +
             "<tr><td><b>Creation Date</b>: </td><td>"+search.formatDate( item.creationDate )+"</td></tr>" +
             "<tr><td><b>Last Success Date: </b></td><td>"+search.formatDate( item.lastSuccessDate )+"</td></tr>" +

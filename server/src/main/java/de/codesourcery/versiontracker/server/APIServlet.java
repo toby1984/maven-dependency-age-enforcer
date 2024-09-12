@@ -230,10 +230,6 @@ public class APIServlet extends HttpServlet
 
             if ( triggerRefresh ) {
                 a.version = req.getParameter( "version" );
-                if ( StringUtils.isBlank( a.version ) ) {
-                    resp.sendError( 500 , "Missing version request parameter" );
-                    return;
-                }
                 final BiPredicate<VersionInfo,Artifact> requiresUpdate;
                 if ( artifactUpdatesEnabled ) {
                     final IBackgroundUpdater updater = impl.getBackgroundUpdater();
@@ -243,10 +239,16 @@ public class APIServlet extends HttpServlet
                 }
                 try
                 {
-                    impl.getVersionTracker().getVersionInfo( List.of(a), requiresUpdate );
+                    if ( StringUtils.isNotBlank( a.version ) )
+                    {
+                        impl.getVersionTracker().getVersionInfo( List.of( a ), requiresUpdate );
+                    } else {
+                        impl.getVersionTracker().forceUpdate( a.groupId, a.artifactId );
+                    }
                 }
-                catch( InterruptedException e )
+                catch( Exception e )
                 {
+                    LOG.error( "Caught exception while trying to force version update for "+a, e );
                     resp.sendError( 500, "Version update failed for "+a );
                 }
                 return;

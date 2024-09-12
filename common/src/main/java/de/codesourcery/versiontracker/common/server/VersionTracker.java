@@ -141,6 +141,24 @@ public class VersionTracker implements IVersionTracker
         return resultMap;
     }
 
+    @Override
+    public VersionInfo forceUpdate(String groupId, String artifactId) throws InterruptedException
+    {
+        Validate.notBlank( groupId, "groupId must not be null or blank");
+        Validate.notBlank( artifactId, "artifactId must not be null or blank");
+
+        final Artifact a = new Artifact();
+        a.groupId = groupId;
+        a.artifactId = artifactId;
+        LOG.info( "forceUpdate(): Forced update of " + a );
+
+        final DynamicLatch updateFinished = new DynamicLatch();
+        final Map<Artifact, VersionInfo> map = new HashMap<>();
+        updateArtifactFromServer( a, null, map, updateFinished, ZonedDateTime.now() );
+        updateFinished.await();
+        return map.get( a );
+    }
+
     private void updateArtifactFromServer(Artifact artifact,
                                           VersionInfo existing,
                                           Map<Artifact, VersionInfo> resultMap,
@@ -160,13 +178,13 @@ public class VersionTracker implements IVersionTracker
                 {
                     if ( LOG.isDebugEnabled() ) {
                         LOG.debug("updateArtifact(): Waiting to lock "+artifact);
-                    }                    
-                    lockCache.doWhileLocked(artifact,() -> 
+                    }
+                    lockCache.doWhileLocked(artifact,() ->
                     {
                         if ( LOG.isDebugEnabled() ) {
                             LOG.debug("updateArtifact(): Got lock for "+artifact);
-                        }                         
-                        final VersionInfo newInfo; 
+                        }
+                        final VersionInfo newInfo;
                         if ( existing != null)
                         {
                             if ( LOG.isDebugEnabled() ) {
