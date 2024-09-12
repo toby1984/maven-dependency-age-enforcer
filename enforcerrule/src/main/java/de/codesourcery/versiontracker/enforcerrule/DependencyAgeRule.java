@@ -227,7 +227,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                  response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
             {
                 final ZonedDateTime now = currentTime();
-                final Duration age = Duration.between( response.latestVersion.releaseDate , now );
+                final Duration age = Duration.between( response.currentVersion.releaseDate, response.latestVersion.releaseDate );
                 if ( threshold.isExceeded( age, now) )
                 {
                     final String msg = "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold;
