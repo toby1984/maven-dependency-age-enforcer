@@ -223,26 +223,29 @@ public class DependencyAgeRule extends AbstractEnforcerRule
         if ( response.hasCurrentVersion() && response.hasLatestVersion() )
         {
             if ( response.currentVersion.hasReleaseDate() && response.latestVersion.hasReleaseDate() &&
-                 ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
-                 response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
+                ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
+                response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
             {
+                // version currently in use is older than the latest version
                 final ZonedDateTime now = currentTime();
-                final Duration age = Duration.between( response.currentVersion.releaseDate, response.latestVersion.releaseDate );
+                // TODO: The following check is only meaningful if the maxAge threshold is smaller than the
+                //       project's release interval, otherwise the check will never fail...
+                final Duration age = Duration.between( response.latestVersion.releaseDate, now );
                 if ( threshold.isExceeded( age, now) )
                 {
                     final String msg = "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold;
                     getLog().debug(msg);
                     return true;
                 }
-            } 
-            else 
+            }
+            else
             {
                 if( ! response.currentVersion.hasReleaseDate() ) {
                     getLog().warn("Unable to determine current release date for version '"+response.currentVersion.versionString+"' of "+response.artifact);
                 }
                 if( ! response.latestVersion.hasReleaseDate() ) {
                     getLog().warn("Unable to determine latest release date for version '"+response.latestVersion.versionString+"' of "+response.artifact);
-                }                
+                }
             }
         }
         return false;
