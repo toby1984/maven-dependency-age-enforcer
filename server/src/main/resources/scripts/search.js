@@ -127,11 +127,46 @@ const search = {
       if ( json && json.length > 0 )
       {
         const item = json[0];
+
+        function componentCompare(a,b) {
+
+          function hasOnlyDigits(value) {
+            return /^\d+$/.test(value);
+          }
+
+          if ( hasOnlyDigits(a) && hasOnlyDigits(b) ) {
+            let na = parseInt(a);
+            let nb = parseInt(b);
+            return na-nb;
+          }
+          if ( hasOnlyDigits(a) ) {
+            return -1;
+          }
+          if ( hasOnlyDigits(b) ) {
+            return 1;
+          }
+          return a.localeCompare(b);
+        }
+
         item.versions.sort( (a,b) => {
+            // reverse sort, latest version number comes first
             const v1 = a.versionString;
             const v2 = b.versionString;
             if ( v1 != null && v2 != null ) {
-              return v2.localeCompare(v1); // reverse sort
+              // compare component-wise
+              const componentRegEx = /[_\-\\.]/
+              const p1 = a.versionString.split(componentRegEx);
+              const p2 = b.versionString.split(componentRegEx);
+              const minLen = Math.min(p1.length, p2.length);
+              for ( let i = 0 ; i < minLen ; i++ ) {
+                const a = p1[i];
+                const b = p2[i];
+                let cmp = componentCompare(b,a);
+                if ( cmp !== 0 ) {
+                  return cmp;
+                }
+              }
+              return p1.length - p2.length;
             }
             return v1 === v2 ? 0 : 1;
         });
@@ -149,6 +184,7 @@ const search = {
           return "<tr>" +
               "<td>" + version.versionString + "</td>" +
               "<td>" + search.formatDate( version.releaseDate ) +
+              "<td>" + search.formatDate( version.firstSeenByServer ) +
               buttonHtml +
               "</td>" +
               "</tr>"
@@ -164,7 +200,7 @@ const search = {
       } else {
         rows = "<tr><td colspan='2'>Artifact not found/not queried yet.</td>";
       }
-      container.innerHTML = table1+ "<table><thead><tr><th>Version</th><th>Release Date</th></tr></thead>"+rows+"</table>";
+      container.innerHTML = table1+ "<table><thead><tr><th>Version</th><th>Release Date</th><th>First Seen By Server</th></tr></thead>"+rows+"</table>";
 
     }, function(error) {
       if ( console && console.trace ) {

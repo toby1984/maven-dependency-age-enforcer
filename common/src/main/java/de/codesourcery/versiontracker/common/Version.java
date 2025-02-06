@@ -32,6 +32,9 @@ public class Version
     public String versionString;
     public ZonedDateTime releaseDate;
 
+    // local time at which this application first discovered this version
+    public ZonedDateTime firstSeenByServer;
+
     public Version() {
     }
 
@@ -44,16 +47,22 @@ public class Version
         return new Version( s );
     }
 
-    public void serialize(BinarySerializer serializer, SerializationFormat fileFormat) throws IOException
+    public void serialize(BinarySerializer serializer, SerializationFormat serializationFormat) throws IOException
     {
         serializer.writeString( versionString );
         serializer.writeZonedDateTime(releaseDate);
+        if ( serializationFormat.isAtLeast( SerializationFormat.V3 ) ) {
+            serializer.writeZonedDateTime(firstSeenByServer);
+        }
     }
 
-    public static Version deserialize(BinarySerializer serializer, SerializationFormat fileFormatVersion) throws IOException {
+    public static Version deserialize(BinarySerializer serializer, SerializationFormat serializationFormat) throws IOException {
         final Version result = new Version();
         result.versionString = serializer.readString();
         result.releaseDate = serializer.readZonedDateTime();
+        if ( serializationFormat.isAtLeast( SerializationFormat.V3 ) ) {
+            result.firstSeenByServer = serializer.readZonedDateTime();
+        }
         return result;
     }
 
@@ -78,11 +87,19 @@ public class Version
         this.releaseDate = releaseDate;
     }
 
+    public Version(String versionString, ZonedDateTime releaseDate, ZonedDateTime firstSeenByServer)
+    {
+        this( versionString, releaseDate );
+        Validate.notNull( firstSeenByServer, "firstSeenByServer must not be null" );
+        this.firstSeenByServer = firstSeenByServer;
+    }
+
     public Version(Version other)
     {
         Validate.notNull( other, "other must not be null" );
         this.versionString = other.versionString;
         this.releaseDate = other.releaseDate;
+        this.firstSeenByServer = other.firstSeenByServer;
     }
     
     public boolean hasReleaseDate() {

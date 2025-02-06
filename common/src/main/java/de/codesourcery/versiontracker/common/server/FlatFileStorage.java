@@ -35,7 +35,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -78,8 +77,6 @@ public class FlatFileStorage implements IVersionStorage
 
 	private static final long[] VALID_MAGICS = {MAGIC_V1, MAGIC_V2};
 
-	private static final SerializationFormat CURRENT_FILE_FORMAT = SerializationFormat.V2;
-
 	private static final ObjectMapper mapper = JSONHelper.newObjectMapper();
 
 	public enum TaggedRecordType {
@@ -93,6 +90,10 @@ public class FlatFileStorage implements IVersionStorage
 		}
 	}
 
+	private final SerializationFormat serializationFormatToWrite;
+	// serialization format we've detected the last time we've
+	// read the data file
+	public SerializationFormat lastFileReadSerializationVersion;
 	private final Protocol protocol;
 	private final File file;
 
@@ -105,8 +106,13 @@ public class FlatFileStorage implements IVersionStorage
 	}
 
 	public FlatFileStorage(File file, Protocol protocol) {
+		this( file, protocol, SerializationFormat.latest() );
+	}
+
+	public FlatFileStorage(File file, Protocol protocol, SerializationFormat serializationFormatToWrite) {
 		this.file = file;
 		this.protocol = protocol;
+		this.serializationFormatToWrite = serializationFormatToWrite;
 	}
 
 	@Override
@@ -131,7 +137,11 @@ public class FlatFileStorage implements IVersionStorage
 			return new ArrayList<>(0);
 		}
 
-		final List<VersionInfo>  result;
+        if ( LOG.isDebugEnabled() )
+        {
+            LOG.debug( "getAllVersions(): Loading data from {} file: {}", protocol, file.getAbsolutePath() );
+        }
+        final List<VersionInfo>  result;
 		if ( protocol == Protocol.BINARY )
 		{
 			try ( BufferedInputStream in = new BufferedInputStream( new FileInputStream(file) ) )
@@ -146,11 +156,12 @@ public class FlatFileStorage implements IVersionStorage
 							result.add( VersionInfo.deserialize( serializer, SerializationFormat.V1 ) );
 						}
 					} else if ( magic == MAGIC_V2 ) {
-						final short version = serializer.readShort();
-						if ( version != CURRENT_FILE_FORMAT.version ) {
-							throw new IOException( "Unsupported file format version: " + version+", expected "+ CURRENT_FILE_FORMAT );
-						}
-						byte tag;
+						lastFileReadSerializationVersion = SerializationFormat.fromVersionNumber( serializer.readShort() );
+                        if ( LOG.isDebugEnabled() )
+                        {
+                            LOG.debug( "getAllVersions(): File {} uses {}", file.getAbsolutePath(), lastFileReadSerializationVersion );
+                        }
+                        byte tag;
 						result = new ArrayList<>();
 						while ( ( tag = serializer.readByte()) != TaggedRecordType.END_OF_FILE.tag )  {
 							final int recordLength = serializer.readInt();
@@ -160,10 +171,11 @@ public class FlatFileStorage implements IVersionStorage
 								serializer.readBytes( payload );
 								final BinarySerializer tmp = new BinarySerializer( BinarySerializer.IBuffer.wrap( payload ) );
 								while ( ! tmp.isEOF() ) {
-									result.add( VersionInfo.deserialize( tmp, SerializationFormat.V2 ) );
+									result.add( VersionInfo.deserialize( tmp, lastFileReadSerializationVersion ) );
 								}
 							} else if ( recordLength > 0 ){
-								// skip record
+								// skip unknown records
+								LOG.warn( "getAllVersions(): Skipping unknown record with type 0x"+Integer.toHexString( tag & 0xff ));
 								serializer.buffer.skip( recordLength );
 							}
 						}
@@ -182,7 +194,26 @@ public class FlatFileStorage implements IVersionStorage
 		ZonedDateTime mostRecentFailure = null;
 		ZonedDateTime mostRecentSuccess = null;
 		int totalVersionCount = 0;
+
+		// field 'firstSeenByServer' got added with SerializationFormatVersion.V3.
+		// populate with current date when reading such a database
+		final boolean assignMissingFirstSeenDate = lastFileReadSerializationVersion != null &&
+			lastFileReadSerializationVersion.isBefore( SerializationFormat.V3 );
+
+		boolean dataMigrated = false;
+		final ZonedDateTime now = ZonedDateTime.now();
 		for ( final VersionInfo versionInfo : result ) {
+
+			if ( assignMissingFirstSeenDate ) {
+                for ( Version version : versionInfo.versions )
+                {
+                    if ( version.firstSeenByServer == null )
+                    {
+                        version.firstSeenByServer = version.hasReleaseDate() ? version.releaseDate : now;
+                        dataMigrated = true;
+                    }
+                }
+            }
 			totalVersionCount += versionInfo.versions.size();
 			if ( versionInfo.lastRequestDate != null ) {
 				mostRecentRequested = max( versionInfo.lastRequestDate, mostRecentRequested );
@@ -193,6 +224,11 @@ public class FlatFileStorage implements IVersionStorage
 			if ( versionInfo.lastSuccessDate != null ) {
 				mostRecentSuccess = max( versionInfo.lastSuccessDate, mostRecentSuccess );
 			}
+		}
+
+		if ( dataMigrated ) {
+			LOG.debug("getAllVersions(): Migrated "+result.size()+" database entries from "+lastFileReadSerializationVersion+" => "+ serializationFormatToWrite );
+			writeToDisk( result );
 		}
 
 		// update statistics
@@ -330,7 +366,7 @@ public class FlatFileStorage implements IVersionStorage
 					try ( final BinarySerializer serializer = new BinarySerializer( BinarySerializer.IBuffer.wrap( out ) ) )
 					{
 						serializer.writeLong( MAGIC_V2 );
-						serializer.writeShort( CURRENT_FILE_FORMAT.version );
+						serializer.writeShort( serializationFormatToWrite.version );
 
 						// write
 						if ( ! allItems.isEmpty() ) {
@@ -338,7 +374,7 @@ public class FlatFileStorage implements IVersionStorage
 							final ByteArrayOutputStream tmpOut = new ByteArrayOutputStream();
 							try ( BinarySerializer serializer2 = new BinarySerializer( BinarySerializer.IBuffer.wrap( tmpOut ) ) ) {
 								for ( VersionInfo info : allItems ) {
-									info.serialize( serializer2, CURRENT_FILE_FORMAT );
+									info.serialize( serializer2, serializationFormatToWrite );
 								}
 							}
 							final byte[] payload = tmpOut.toByteArray();
