@@ -49,11 +49,11 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -225,7 +225,28 @@ public class DependencyAgeRule extends AbstractEnforcerRule
         return Optional.ofNullable( v.firstSeenByServer ).or( () -> Optional.ofNullable( v.releaseDate ) );
     }
 
-    private boolean isTooOld(ArtifactResponse response,Age threshold)
+    private static final class ThresholdCheckResponse {
+        public final Age threshold;
+        public final boolean thresholdExceeded;
+        public final Duration actualAge;
+
+        public ThresholdCheckResponse(boolean thresholdExceeded, Age threshold, Duration actualAge)
+        {
+            if ( thresholdExceeded ) {
+                Validate.isTrue( threshold != null, "threshold must not be null" );
+                Validate.isTrue( actualAge != null, "actualAge must not be null" );
+            }
+            this.thresholdExceeded = thresholdExceeded;
+            this.threshold = threshold;
+            this.actualAge = actualAge;
+        }
+
+        public static ThresholdCheckResponse thresholdNotExceeded(Age threshold) {
+            return new ThresholdCheckResponse( false, threshold, null );
+        }
+    }
+
+    private ThresholdCheckResponse isTooOld(ArtifactResponse response,Age threshold)
     {
         if ( response.hasCurrentVersion() && response.hasLatestVersion() )
         {
@@ -233,23 +254,42 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             final Optional<ZonedDateTime> latestVersionReleaseDate = getReleaseDate( response.latestVersion );
             if ( currentVersionReleaseDate.isPresent() &&
                 latestVersionReleaseDate.isPresent() &&
-                ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
+                ! Version.sameVersionNumber( response.currentVersion, response.latestVersion ) &&
                 currentVersionReleaseDate.get().compareTo( latestVersionReleaseDate.get() ) <= 0 )
             {
                 // => version currently in use is different from the latest one
 
                 /*
-                 * Note that the implementation of getReleaseDate(Version) primarily
-                 * returns the 'firstSeenByServer' timestamp and only falls back
+                 * Note that the implementation of getReleaseDate(Version) first tries to
+                 * return the 'firstSeenByServer' timestamp and only falls back
                  * to the actual release date if that one is unavailable because the remote API endpoint runs
                  * an ancient version.
                  */
-                final Duration age = Duration.between( currentVersionReleaseDate.get(), latestVersionReleaseDate.get() );
                 final ZonedDateTime now = currentTime();
-                if ( threshold.isExceeded( age, now) )
+
+                // 1. Perform check solely based on firstSeenDate (fallback: release date) of latest version
+                //
+                // This check alone is not sufficient as a project that releases faster than the
+                // threshold age will never trigger the 'age exceeded' condition.
+                Duration age = Duration.between( currentVersionReleaseDate.get(), now );
+                if ( threshold.isExceeded( age, now ) )
                 {
                     getLog().debug( "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold );
-                    return true;
+                    return new ThresholdCheckResponse( true, threshold, age );
+                }
+
+                // 2. To avoid never triggering we're also going to check whether we're more than
+                //    one version behind the latest one because if we are, we'll check
+                //    the age between the current version and the
+                if ( response.secondLatestVersion != null &&
+                    ! Version.sameVersionNumber( response.currentVersion, response.secondLatestVersion ) )
+                {
+                    age = Duration.between( currentVersionReleaseDate.get(), latestVersionReleaseDate.get() );
+                    if ( threshold.isExceeded( age, now ) )
+                    {
+                        getLog().debug( "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold );
+                        return new ThresholdCheckResponse( true, threshold, age );
+                    }
                 }
             }
             else
@@ -262,7 +302,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 }
             }
         }
-        return false;
+        return ThresholdCheckResponse.thresholdNotExceeded( threshold );
     }
 
     @Override
@@ -391,7 +431,8 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             } 
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
-            ZonedDateTime earliestOffendingRelease = null;
+
+            Duration largestThresholdViolation = null;
             for ( ArtifactResponse artifact : result )
             {
                 if ( artifact.updateAvailable == UpdateAvailable.NOT_FOUND ) {
@@ -399,17 +440,20 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                     getLog().warn( "Failed to find metadata for artifact "+artifact.artifact);
                     continue;
                 }
-                final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( artifact, parsedMaxAge );
-                final boolean warnAgeExceeded = parsedWarnAge != null && isTooOld( artifact, parsedWarnAge );
-                failBecauseAgeExceeded |= maxAgeExceeded;
-                if ( warnAgeExceeded && ! maxAgeExceeded ) {
+                ThresholdCheckResponse maxAgeExceeded =
+                    parsedMaxAge != null ? isTooOld( artifact, parsedMaxAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
+                ThresholdCheckResponse warnAgeExceeded =
+                    parsedWarnAge != null ? isTooOld( artifact, parsedWarnAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
+
+                failBecauseAgeExceeded |= maxAgeExceeded.thresholdExceeded;
+                if ( warnAgeExceeded.thresholdExceeded && ! maxAgeExceeded.thresholdExceeded ) {
                     printMessage(artifact,false); // log warning
-                    ZonedDateTime releaseDate = artifact.latestVersion.firstSeenByServer;
-                    if ( earliestOffendingRelease == null || releaseDate.isBefore( earliestOffendingRelease) ) {
-                        earliestOffendingRelease = releaseDate;
+                    final Duration violation = warnAgeExceeded.actualAge;
+                    if ( largestThresholdViolation == null || violation.compareTo( largestThresholdViolation ) > 0 ) {
+                        largestThresholdViolation = violation;
                     }
                 }
-                if ( maxAgeExceeded) 
+                if ( maxAgeExceeded.thresholdExceeded )
                 {
                     printMessage(artifact,true); // log error
                 }
@@ -420,11 +464,25 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             if ( artifactsNotFound && failOnMissingArtifacts ) {
                 fail("Failed to find metadata for one or more dependencies of this project");
             }
-            if ( earliestOffendingRelease != null && parsedMaxAge != null )
+            if ( largestThresholdViolation != null && parsedMaxAge != null )
             {
+                // warnAge has been exceeded but not maxAge,  predict failure time
                 final ZonedDateTime now = ZonedDateTime.now();
-                final ZonedDateTime failureTime = earliestOffendingRelease.plus( parsedMaxAge.toPeriod() );
-                final Duration remainingTime = Duration.between(now,failureTime);
+
+                // we cannot calculate the difference between two
+                // Periods so we need to turn those into
+                // timestamps and compare those.
+                // NOTE: This will make things fuzzy when dealing with any unit larger than 'weeks'
+                //       as months & years have varying lengths
+                final Period pWarn = parsedWarnAge.toPeriod();
+                final Period pMax = parsedMaxAge.toPeriod();
+                final Temporal t1 = pWarn.subtractFrom( now );
+                final Temporal t2 = pMax.subtractFrom( now );
+
+                // since pWarn < pMax   =>  t2 < t1
+                final Duration remainingTime = Duration.between( t2, t1 );
+                final ZonedDateTime failureTime = now.plus( remainingTime );
+
                 final long millis = remainingTime.toMillis();
                 final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
                 getLog().warn("===========================================");

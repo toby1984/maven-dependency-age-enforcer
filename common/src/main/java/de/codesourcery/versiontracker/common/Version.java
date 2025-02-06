@@ -66,6 +66,11 @@ public class Version
         return result;
     }
 
+    public static boolean sameVersionNumber(Version v1, Version v2)
+    {
+        return Objects.equals( v1.versionString, v2.versionString );
+    }
+
     public static boolean sameFields(Version a,Version b)
     {
     	if ( a == null ||b == null ) {
