@@ -149,6 +149,7 @@ const search = {
           return "<tr>" +
               "<td>" + version.versionString + "</td>" +
               "<td>" + search.formatDate( version.releaseDate ) +
+              "<td>" + search.formatDate( version.firstSeenByServer ) +
               buttonHtml +
               "</td>" +
               "</tr>"
@@ -164,7 +165,7 @@ const search = {
       } else {
         rows = "<tr><td colspan='2'>Artifact not found/not queried yet.</td>";
       }
-      container.innerHTML = table1+ "<table><thead><tr><th>Version</th><th>Release Date</th></tr></thead>"+rows+"</table>";
+      container.innerHTML = table1+ "<table><thead><tr><th>Version</th><th>Release Date</th><th>First Seen By Server</th></tr></thead>"+rows+"</table>";
 
     }, function(error) {
       if ( console && console.trace ) {

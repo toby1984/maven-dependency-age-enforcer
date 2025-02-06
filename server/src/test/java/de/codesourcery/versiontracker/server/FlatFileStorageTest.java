@@ -15,17 +15,6 @@
  */
 package de.codesourcery.versiontracker.server;
 
-import de.codesourcery.versiontracker.client.api.IAPIClient;
-import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
-import de.codesourcery.versiontracker.common.Artifact;
-import de.codesourcery.versiontracker.common.Version;
-import de.codesourcery.versiontracker.common.VersionInfo;
-import de.codesourcery.versiontracker.common.server.FlatFileStorage;
-import org.apache.commons.io.IOUtils;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -37,6 +26,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import org.apache.commons.io.IOUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import de.codesourcery.versiontracker.client.api.IAPIClient;
+import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
+import de.codesourcery.versiontracker.common.Artifact;
+import de.codesourcery.versiontracker.common.Version;
+import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.FlatFileStorage;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -67,12 +68,17 @@ public class FlatFileStorageTest
 	public void testStoreAndLoadEmptyBinary() throws IOException
 	{
 		FlatFileStorage storage = new FlatFileStorage(file, Protocol.BINARY);
+		Assertions.assertNull( storage.lastFileReadSerializationVersion );
+
 		List<VersionInfo> data = new ArrayList<>();
 		storage.saveOrUpdate( data );
 
 		storage = new FlatFileStorage(file, Protocol.BINARY);
+		Assertions.assertNull( storage.lastFileReadSerializationVersion );
+
 		List<VersionInfo> loaded = storage.getAllVersions();
 		assertEquals(0,loaded.size());
+		assertEquals( SerializationFormat.latest(), storage.lastFileReadSerializationVersion );
 	}
 
 	@Test
@@ -110,6 +116,28 @@ public class FlatFileStorageTest
 		info.lastRepositoryUpdate = now.plus(Duration.ofSeconds(6));
 		info.versions = new ArrayList<>( Arrays.asList(a,b,c) );
 		return info;
+	}
+
+	@Test
+	public void testMigrationFromSerializationFormatV2toV3SetsFirstSeenDate() throws IOException
+	{
+		final VersionInfo info = createData();
+		final VersionInfo copy = info.copy();
+
+		FlatFileStorage storage = new FlatFileStorage(file, Protocol.BINARY, SerializationFormat.V2);
+		storage.saveOrUpdate(info);
+
+		storage = new FlatFileStorage(file, IAPIClient.Protocol.BINARY);
+		final List<VersionInfo> loaded = storage.getAllVersions();
+		assertEquals( SerializationFormat.V2, storage.lastFileReadSerializationVersion );
+
+		for ( final VersionInfo v : loaded )
+		{
+			Assertions.assertTrue( v.versions.size() > 1 );
+			Assertions.assertTrue( v.versions.stream().allMatch( x -> x.firstSeenByServer != null ) );
+		}
+		assertEquals(1,loaded.size());
+		assertEquals( copy , loaded.get(0) );
 	}
 
 	@Test

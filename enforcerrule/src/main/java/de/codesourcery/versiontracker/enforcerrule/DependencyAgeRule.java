@@ -24,6 +24,7 @@ import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
 import de.codesourcery.versiontracker.common.Blacklist;
 import de.codesourcery.versiontracker.common.Blacklist.VersionMatcher;
+import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.xsd.IgnoreVersion;
 import de.codesourcery.versiontracker.xsd.Rule;
 import de.codesourcery.versiontracker.xsd.Ruleset;
@@ -53,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -209,32 +211,44 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 };
             }
 
-            public boolean isExceeded(Duration duration, ZonedDateTime now) {
-                final Duration thisDuration = Duration.between( now, now.plus( toPeriod() ) );
-                return duration.compareTo( thisDuration ) > 0;
+            public boolean isExceeded(Duration elapsed, ZonedDateTime now) {
+                final Duration threshold = Duration.between( now, now.plus( toPeriod() ) );
+                return elapsed.compareTo( threshold ) > 0;
             }
         }
 
     public DependencyAgeRule() {
     }
 
+    private Optional<ZonedDateTime> getReleaseDate(Version  v) {
+        // older server versions will not provide the 'firstSeenByServer' field
+        return Optional.ofNullable( v.firstSeenByServer ).or( () -> Optional.ofNullable( v.releaseDate ) );
+    }
+
     private boolean isTooOld(ArtifactResponse response,Age threshold)
     {
         if ( response.hasCurrentVersion() && response.hasLatestVersion() )
         {
-            if ( response.currentVersion.hasReleaseDate() && response.latestVersion.hasReleaseDate() &&
+            final Optional<ZonedDateTime> currentVersionReleaseDate = getReleaseDate( response.currentVersion );
+            final Optional<ZonedDateTime> latestVersionReleaseDate = getReleaseDate( response.latestVersion );
+            if ( currentVersionReleaseDate.isPresent() &&
+                latestVersionReleaseDate.isPresent() &&
                 ! Objects.equals( response.currentVersion.versionString, response.latestVersion.versionString ) &&
-                response.currentVersion.releaseDate.compareTo( response.latestVersion.releaseDate ) <= 0 )
+                currentVersionReleaseDate.get().compareTo( latestVersionReleaseDate.get() ) <= 0 )
             {
-                // version currently in use is older than the latest version
+                // => version currently in use is different from the latest one
+
+                /*
+                 * Note that the implementation of getReleaseDate(Version) primarily
+                 * returns the 'firstSeenByServer' timestamp and only falls back
+                 * to the actual release date if that one is unavailable because the remote API endpoint runs
+                 * an ancient version.
+                 */
+                final Duration age = Duration.between( currentVersionReleaseDate.get(), latestVersionReleaseDate.get() );
                 final ZonedDateTime now = currentTime();
-                // TODO: The following check is only meaningful if the maxAge threshold is smaller than the
-                //       project's release interval, otherwise the check will never fail...
-                final Duration age = Duration.between( response.latestVersion.releaseDate, now );
                 if ( threshold.isExceeded( age, now) )
                 {
-                    final String msg = "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold;
-                    getLog().debug(msg);
+                    getLog().debug( "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold );
                     return true;
                 }
             }
@@ -378,25 +392,26 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
             ZonedDateTime earliestOffendingRelease = null;
-            for ( ArtifactResponse resp : result ) 
+            for ( ArtifactResponse artifact : result )
             {
-                if ( resp.updateAvailable == UpdateAvailable.NOT_FOUND ) {
+                if ( artifact.updateAvailable == UpdateAvailable.NOT_FOUND ) {
                     artifactsNotFound = true;
-                    getLog().warn( "Failed to find metadata for artifact "+resp.artifact);
+                    getLog().warn( "Failed to find metadata for artifact "+artifact.artifact);
                     continue;
                 }
-                final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( resp, parsedMaxAge );
-                final boolean warnAgeExceeded = parsedWarnAge != null && isTooOld( resp, parsedWarnAge );
+                final boolean maxAgeExceeded = parsedMaxAge != null && isTooOld( artifact, parsedMaxAge );
+                final boolean warnAgeExceeded = parsedWarnAge != null && isTooOld( artifact, parsedWarnAge );
                 failBecauseAgeExceeded |= maxAgeExceeded;
                 if ( warnAgeExceeded && ! maxAgeExceeded ) {
-                    printMessage(resp,false); // log warning
-                    if ( earliestOffendingRelease == null || resp.latestVersion.releaseDate.isBefore( earliestOffendingRelease) ) {
-                        earliestOffendingRelease = resp.latestVersion.releaseDate;
+                    printMessage(artifact,false); // log warning
+                    ZonedDateTime releaseDate = artifact.latestVersion.firstSeenByServer;
+                    if ( earliestOffendingRelease == null || releaseDate.isBefore( earliestOffendingRelease) ) {
+                        earliestOffendingRelease = releaseDate;
                     }
                 }
                 if ( maxAgeExceeded) 
                 {
-                    printMessage(resp,true); // log error
+                    printMessage(artifact,true); // log error
                 }
             }
             if ( failBecauseAgeExceeded ) {
