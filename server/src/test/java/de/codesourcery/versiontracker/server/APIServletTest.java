@@ -15,6 +15,17 @@
  */
 package de.codesourcery.versiontracker.server;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.Objects;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
@@ -27,17 +38,7 @@ import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.Objects;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -153,7 +154,7 @@ public class APIServletTest {
 			for (int i = 0; i < SOURCE_QUERIES.length; i++) {
 				
 				final String query = SOURCE_QUERIES[i];
-				jsonQueries[i] = query.getBytes("UTF8");
+				jsonQueries[i] = query.getBytes( StandardCharsets.UTF_8 );
 //				System.out.println("JSON: ("+query.length()+") "+query);
 			    final QueryRequest request = (QueryRequest) APIServlet.parse( query, JSONHelper.newObjectMapper() );
 			    
@@ -225,7 +226,7 @@ public class APIServletTest {
 
 			final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 			final IBuffer dataOut = IBuffer.wrap( byteOut );
-			expected.serialize( new BinarySerializer( dataOut ) );
+			expected.serialize( new BinarySerializer( dataOut ) , SerializationFormat.V1 );
 			QueryResponse actual = (QueryResponse) APIResponse.deserialize( new BinarySerializer( IBuffer.wrap( byteOut.toByteArray() ) ) );
 
 			if ( !Objects.equals( expected, actual ) ) {
@@ -275,10 +276,13 @@ public class APIServletTest {
         for ( int i = 0 ; i < TOTAL_TEST_ITERATIONS ; i++ ) {
             final long start = System.currentTimeMillis();
 
-			for ( final byte[] binaryQuery : binaryQueries ) {
-				final ByteArrayOutputStream out = new ByteArrayOutputStream();
-				servlet.processRequest( new ByteArrayInputStream( binaryQuery ), out, Protocol.BINARY );
-			}
+            for ( int j = 0, binaryQueriesLength = binaryQueries.length; j < binaryQueriesLength; j++ )
+            {
+                final byte[] binaryQuery = binaryQueries[j];
+                final ByteArrayOutputStream out = new ByteArrayOutputStream();
+				System.out.println("Processing #"+j);
+                servlet.processRequest( new ByteArrayInputStream( binaryQuery ), out, Protocol.BINARY );
+            }
             
             final long end = System.currentTimeMillis();
             if ( i >= WARMUP_ITERATIONS ) {

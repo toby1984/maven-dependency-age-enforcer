@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,13 +49,14 @@ public class JSONHelper
 	{
 	    final JsonNode tree = mapper.readTree( jsonString );
 	    final String cmd = tree.get( "command").asText();
-	    final String clientVersion = tree.get( "clientVersion").asText();
 		final APIRequest.Command command = APIRequest.Command.fromString(cmd);
 
 		final APIRequest result = switch ( command ) {
 			case QUERY -> mapper.readValue( jsonString, QueryRequest.class );
 		};
-		result.clientVersion = clientVersion;
+		if ( result.clientVersion == null ) {
+			throw new IOException( "Internal error, client version not set - Jackson deserialization failed?" );
+		}
 		return result;
 	}
 	
@@ -73,6 +75,46 @@ public class JSONHelper
 	    final SimpleModule module = new SimpleModule();
 	    module.addSerializer(ZonedDateTime.class,new ZonedDateTimeSerializer());
 	    module.addDeserializer(ZonedDateTime.class, new ZonedDateTimeDeserializer());
+
+		module.addDeserializer( ClientVersion.class, new StdDeserializer<>(ClientVersion.class)
+		{
+			@Override
+			public ClientVersion deserialize(JsonParser jsonParser, DeserializationContext ctxt) throws IOException
+			{
+				final JsonNode node = jsonParser.getCodec().readTree( jsonParser );
+				final String clientVersion = node.asText();
+				return ClientVersion.fromVersionNumber( clientVersion );
+			}
+		});
+		module.addSerializer( ClientVersion.class, new StdSerializer<>( ClientVersion.class )
+		{
+			@Override
+			public void serialize(ClientVersion value, JsonGenerator generator, SerializerProvider provider) throws IOException
+			{
+				generator.writeFieldName("clientVersion");
+				generator.writeString( value.versionString );
+			}
+		} );
+
+		module.addDeserializer( ServerVersion.class, new StdDeserializer<>(ServerVersion.class)
+		{
+			@Override
+			public ServerVersion deserialize(JsonParser jsonParser, DeserializationContext ctxt) throws IOException
+			{
+				final JsonNode node = jsonParser.getCodec().readTree( jsonParser );
+				final String clientVersion = node.asText();
+				return ServerVersion.fromVersionNumber( clientVersion );
+			}
+		});
+		module.addSerializer( ServerVersion.class, new StdSerializer<>( ServerVersion.class )
+		{
+			@Override
+			public void serialize(ServerVersion value, JsonGenerator generator, SerializerProvider provider) throws IOException
+			{
+				generator.writeString( value.versionString );
+			}
+		} );
+
 	    result.registerModule(module);
 
 	    result.setSerializationInclusion( Include.NON_NULL );

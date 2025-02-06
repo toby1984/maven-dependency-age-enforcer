@@ -27,7 +27,7 @@ public abstract class AbstractAPIClient implements IAPIClient
     
     protected final QueryRequest toQueryRequest(List<Artifact> artifacts,Blacklist blacklist) 
     {
-        final QueryRequest request = new QueryRequest();
+        final QueryRequest request = new QueryRequest(IAPIClient.CLIENT_VERSION);
         request.clientVersion = CLIENT_VERSION;
         request.artifacts = artifacts;
         request.blacklist = blacklist;

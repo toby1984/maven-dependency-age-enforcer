@@ -39,7 +39,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -358,16 +360,44 @@ public class APIImpl implements AutoCloseable
                      * In either case, the client should probably perform some kind of rate limiting so we don't
                      * get banned because we're hammering the server.
                      */
-                    x.latestVersion = info.findLatestReleaseVersion( request.blacklist ).orElse( null );
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("processQuery(): latest release version from metadata: "+info.latestReleaseVersion);
-                        LOG.debug("processQuery(): Calculated latest release version: "+x.latestVersion);
+                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isReleaseVersion, request.blacklist );
+                    if ( ! versions.isEmpty() )
+                    {
+                        if ( versions.size() > 1 ) {
+                            // list sorted descending by release date so latest version comes first
+                            x.secondLatestVersion = versions.get( 1 );
+                        }
+
+                        x.latestVersion = versions.get(0);
+                        if ( LOG.isDebugEnabled() )
+                        {
+                            LOG.debug( "processQuery(): latest release version from metadata: " + info.latestReleaseVersion );
+                            LOG.debug( "processQuery(): Calculated latest release version: " + x.latestVersion );
+                        }
+                        if ( !Objects.equals( x.latestVersion, info.latestReleaseVersion ) )
+                        {
+                            LOG.warn( "processQuery(): Artifact " + info.artifact + " - latest release by date: " + x.latestVersion + ", latest according to meta data: " + info.latestReleaseVersion );
+                        }
                     }
                 } else {
-                    x.latestVersion = info.findLatestSnapshotVersion( request.blacklist ).orElse( null );
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("processQuery(): latest release version from metadata: "+info.latestSnapshotVersion);
-                        LOG.debug("processQuery(): Calculated latest snapshot version: "+x.latestVersion);
+                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isSnapshotVersion, request.blacklist );
+                    if ( ! versions.isEmpty() )
+                    {
+                        if ( versions.size() > 1 ) {
+                            // list sorted descending by release date so latest version comes first
+                            x.secondLatestVersion = versions.get( 1 );
+                        }
+
+                        x.latestVersion = versions.get( 0 );
+                        if ( LOG.isDebugEnabled() )
+                        {
+                            LOG.debug( "processQuery(): latest release version from metadata: " + info.latestSnapshotVersion );
+                            LOG.debug( "processQuery(): Calculated latest snapshot version: " + x.latestVersion );
+                        }
+                        if ( ! Objects.equals( x.latestVersion, info.latestSnapshotVersion ) )
+                        {
+                            LOG.warn( "processQuery(): Artifact " + info.artifact + " - latest SNAPSHOT release by date: " + x.latestVersion + ", latest SNAPSHOT release according to meta data: " + info.latestSnapshotVersion );
+                        }
                     }
                 }
 

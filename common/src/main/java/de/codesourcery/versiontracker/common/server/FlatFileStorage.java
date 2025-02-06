@@ -141,6 +141,7 @@ public class FlatFileStorage implements IVersionStorage
         {
             LOG.debug( "getAllVersions(): Loading data from {} file: {}", protocol, file.getAbsolutePath() );
         }
+		final boolean assignMissingFirstSeenDate;
         final List<VersionInfo>  result;
 		if ( protocol == Protocol.BINARY )
 		{
@@ -184,8 +185,14 @@ public class FlatFileStorage implements IVersionStorage
 					}
 				}
 			}
+			// field 'firstSeenByServer' got added with SerializationFormatVersion.V3.
+			// populate with current date when reading such a database
+			assignMissingFirstSeenDate = lastFileReadSerializationVersion.isBefore( SerializationFormat.V3 );
 		} else if ( protocol == Protocol.JSON ) {
 			result = mapper.readValue(file,new TypeReference<>() {});
+			// field 'firstSeenByServer' got added with SerializationFormatVersion.V3.
+			// populate with current date when reading such a database
+			assignMissingFirstSeenDate = true;
 		} else {
 			throw new RuntimeException( "Unhandled protocol " + protocol );
 		}
@@ -194,11 +201,6 @@ public class FlatFileStorage implements IVersionStorage
 		ZonedDateTime mostRecentFailure = null;
 		ZonedDateTime mostRecentSuccess = null;
 		int totalVersionCount = 0;
-
-		// field 'firstSeenByServer' got added with SerializationFormatVersion.V3.
-		// populate with current date when reading such a database
-		final boolean assignMissingFirstSeenDate = lastFileReadSerializationVersion != null &&
-			lastFileReadSerializationVersion.isBefore( SerializationFormat.V3 );
 
 		boolean dataMigrated = false;
 		final ZonedDateTime now = ZonedDateTime.now();

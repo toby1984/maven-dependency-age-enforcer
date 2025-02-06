@@ -144,37 +144,41 @@ public class VersionInfo
     }
     
     public Optional<Version> findLatestSnapshotVersion(Blacklist blacklist) {
-    	return findLatestVersion(Artifact::isSnapshotVersion,Artifact.VERSION_COMPARATOR,blacklist);
+    	return findLatestVersion(Artifact::isSnapshotVersion, blacklist);
     }
     
     public Optional<Version> findLatestReleaseVersion(Blacklist blacklist) {
-    	return findLatestVersion(Artifact::isReleaseVersion,Artifact.VERSION_COMPARATOR,blacklist);
+    	return findLatestVersion(Artifact::isReleaseVersion, blacklist);
     }
 
     public boolean removeVersionsIf(Predicate<Version> p) {
         return versions.removeIf( p );
     }
+
+    private Predicate<Version> blacklistPredicate(Blacklist blacklist) {
+        return version -> blacklist != null && blacklist.isVersionBlacklisted( artifact.groupId, artifact.artifactId, version.versionString );
+    }
+
+    public List<Version> getVersionsSortedDescendingByReleaseDate(Predicate<String> versionPredicate, Blacklist blacklist)
+    {
+        final Predicate<Version> isBlacklisted = blacklistPredicate(blacklist);
+        final List<Version> result = new ArrayList<>();
+        for ( final Version v : versions )
+        {
+            if ( versionPredicate.test(v.versionString) && ! isBlacklisted.test( v ) ) {
+                result.add(v);
+            }
+        }
+        result.sort( Comparator.comparing( (Version a) -> a.firstSeenByServer ).reversed() );
+        return result;
+    }
     
-    private Optional<Version> findLatestVersion(Predicate<String> versionPredicate,Comparator<String> versionComparator,Blacklist blacklist) {
-    	
-    	Optional<Version> latest = Optional.empty();
-    	final Predicate<Version> isBlacklisted = v -> blacklist != null &&
-    			blacklist.isVersionBlacklisted(artifact.groupId, artifact.artifactId, v.versionString );
-    	
-    	for ( Version v : versions ) 
-    	{
-    		if ( versionPredicate.test( v.versionString ) ) 
-    		{ 
-    			if ( ! isBlacklisted.test( v ) ) {
-    				if ( latest.isEmpty() || versionComparator.compare(v.versionString,latest.get().versionString) > 0 ) {
-    					latest = Optional.of( v );
-    				}
-    			} else {
-    				LOG.debug("findLatestVersion(): [BLACKLISTED] "+artifact.groupId+":"+artifact.artifactId+":"+v.versionString);
-    			}
-    		}
-    	}
-    	return latest;
+    private Optional<Version> findLatestVersion(Predicate<String> versionPredicate, Blacklist blacklist) {
+        final List<Version> list = getVersionsSortedDescendingByReleaseDate( versionPredicate, blacklist );
+        if ( list.isEmpty() ) {
+            return Optional.empty();
+        }
+        return Optional.of( list.get(0) );
     }
     
     public void addVersion(Version v )

@@ -128,7 +128,7 @@ public class BinarySerializer implements AutoCloseable,Closeable
         {
             int result = maybeReadByte();
             if ( result == -1 ) {
-                throw new EOFException();
+                throw new EOFException("Premature end of input, expected at least one more byte");
             }
             return (byte) result;
         }

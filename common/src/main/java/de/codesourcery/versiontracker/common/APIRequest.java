@@ -17,9 +17,12 @@ package de.codesourcery.versiontracker.common;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import de.codesourcery.versiontracker.client.api.IAPIClient;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * Abstract base-class for all API requests.
@@ -57,33 +60,36 @@ public abstract class APIRequest
 			throw new IllegalArgumentException("Unknown command '"+s+"'");
 		}		
 	}
-	
-	public String clientVersion;
+
+	public ClientVersion clientVersion;
 	public final Command command;
-	
+
 	public APIRequest(APIRequest.Command cmd) {
 		Validate.notNull( cmd, "cmd must not be null" );
 		this.command = cmd;
 	}
-	
-	public final void serialize(BinarySerializer serializer) throws IOException {
-	    serializer.writeString( clientVersion );
-	    serializer.writeString( command.text );
-	    doSerialize( serializer );
+
+	public APIRequest(APIRequest.Command cmd, ClientVersion clientVersion) {
+		this(cmd);
+		this.clientVersion = clientVersion;
 	}
 	
-	protected abstract void doSerialize(BinarySerializer serializer) throws IOException; 
+	public final void serialize(BinarySerializer serializer) throws IOException {
+	    serializer.writeString( clientVersion.versionString );
+	    serializer.writeString( command.text );
+	    doSerialize( serializer, clientVersion.serializationFormat );
+	}
+	
+	protected abstract void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException;
 	
 	public static APIRequest deserialize(BinarySerializer serializer) throws IOException 
 	{
 	    final String version = serializer.readString();
-        if ( ! IAPIClient.CLIENT_VERSION.equals( version ) ) {
-            throw new IOException("Unknown client version: '"+version+"'");
-        }
-        
+		final ClientVersion actualVersion = ClientVersion.fromVersionNumber( version );
+
 	    final Command cmd = APIRequest.Command.fromString( serializer.readString() );
 		return switch ( cmd ) {
-			case QUERY -> QueryRequest.doDeserialize( serializer );
+			case QUERY -> QueryRequest.doDeserialize( serializer, actualVersion );
 		};
 	}
 }

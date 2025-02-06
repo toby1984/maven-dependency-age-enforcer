@@ -16,6 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 
 /**
  * Abstract base-class for all API responses.
@@ -27,32 +28,35 @@ public abstract class APIResponse
     /**
      * Server protocol version.
      */
-    public static final String SERVER_VERSION = "1.0";
+    public static final ServerVersion SERVER_VERSION = ServerVersion.latest();
     
-	public String serverVersion;
+	public ServerVersion serverVersion;
 	public APIRequest.Command command;
 	
    public APIResponse(APIRequest.Command cmd) {
-        this.serverVersion = SERVER_VERSION;
-        this.command = cmd;
+       this.command = cmd;
+   }
+
+   public APIResponse(APIRequest.Command cmd, ServerVersion serverVersion) {
+       this(cmd);
+       this.serverVersion = serverVersion;
     }
 	
-    public final void serialize(BinarySerializer serializer) throws IOException {
-        serializer.writeString( serverVersion );
+    public final void serialize(BinarySerializer serializer, SerializationFormat format) throws IOException {
+        serializer.writeString( serverVersion.versionString );
         serializer.writeString( command.text );
-        doSerialize(serializer);
+        doSerialize(serializer, format);
     }	
     
-    protected abstract void doSerialize(BinarySerializer serializer) throws IOException;
+    protected abstract void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException;
     
     public static APIResponse deserialize(BinarySerializer serializer) throws IOException {
         final String serverVersion = serializer.readString();
-        if ( ! SERVER_VERSION.equals( serverVersion ) ) {
-            throw new IOException("Unknown server version: '"+serverVersion+"'");
-        }
+        final ServerVersion version = ServerVersion.fromVersionNumber( serverVersion );
+
         final APIRequest.Command  cmd = APIRequest.Command.fromString( serializer.readString() );
         return switch ( cmd ) {
-            case QUERY -> QueryResponse.doDeserialize( serializer );
+            case QUERY -> QueryResponse.doDeserialize( serializer, version.serializationFormat );
         };
     }
 }

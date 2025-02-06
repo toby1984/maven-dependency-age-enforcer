@@ -18,6 +18,9 @@ package de.codesourcery.versiontracker.common;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 
 /**
  * API request that looks for updates for a given set of artifacts.
@@ -28,10 +31,14 @@ public class QueryRequest extends APIRequest
 {
     public List<Artifact> artifacts = new ArrayList<>();
     public Blacklist blacklist;
-    
-	public QueryRequest() 
+
+	public QueryRequest() {
+		this( null );
+	}
+
+	public QueryRequest(@JsonProperty("clientVersion") ClientVersion clientVersion)
 	{
-		super(Command.QUERY);
+		super(Command.QUERY, clientVersion);
 	}
 	
 	public boolean equals(Object obj) 
@@ -54,18 +61,17 @@ public class QueryRequest extends APIRequest
 	}
 
     @Override
-    protected void doSerialize(BinarySerializer serializer) throws IOException 
+    protected void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException
     {
         serializer.writeInt( artifacts.size() );
         for ( Artifact a : artifacts ) {
             a.serialize( serializer );
         }
-        // TODO: Serialize blacklist
-        blacklist.serialize( serializer );
+		blacklist.serialize( serializer );
     }
     
-    static QueryRequest doDeserialize(BinarySerializer serializer) throws IOException {
-        final QueryRequest result = new QueryRequest();
+    static QueryRequest doDeserialize(BinarySerializer serializer, ClientVersion version) throws IOException {
+        final QueryRequest result = new QueryRequest(version);
         for ( int count = serializer.readInt() ; count > 0 ; count--) 
         {
             final Artifact artifact = Artifact.deserialize( serializer );

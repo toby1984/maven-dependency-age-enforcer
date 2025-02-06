@@ -73,6 +73,8 @@ public class ArtifactResponse
 	public Artifact artifact;
 	public Version currentVersion;
 	// TODO: This is actually the latest non-snapshot version that is not blacklisted by the client
+	public Version secondLatestVersion; // the version released right before the latest Version
+	// TODO: This is actually the latest non-snapshot version that is not blacklisted by the client
 	public Version latestVersion;
 	public UpdateAvailable updateAvailable;
 
@@ -123,6 +125,14 @@ public class ArtifactResponse
             serializer.writeBoolean( false );
         }
 
+		if ( fileFormat.isAtLeast(SerializationFormat.V3) ) {
+			if ( secondLatestVersion != null ) {
+				serializer.writeBoolean( true );
+				secondLatestVersion.serialize( serializer, fileFormat );
+			} else {
+				serializer.writeBoolean( false );
+			}
+		}
         serializer.writeString( updateAvailable == null ? null : updateAvailable.text );
     }
     
@@ -139,6 +149,12 @@ public class ArtifactResponse
         if ( isPresent ) {
             response.latestVersion = Version.deserialize(serializer, fileFormat);
         }
+		if ( fileFormat.isAtLeast(SerializationFormat.V3) ) {
+			isPresent = serializer.readBoolean();
+			if ( isPresent ) {
+				response.secondLatestVersion = Version.deserialize(serializer, fileFormat);
+			}
+		}
         final String updAvailable = serializer.readString();
         response.updateAvailable = updAvailable == null ? null : UpdateAvailable.fromString( updAvailable );
         return response;

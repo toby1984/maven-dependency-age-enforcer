@@ -18,11 +18,13 @@ package de.codesourcery.versiontracker.server;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
+import de.codesourcery.versiontracker.common.APIResponse;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
 import de.codesourcery.versiontracker.common.BinarySerializer;
 import de.codesourcery.versiontracker.common.BinarySerializer.IBuffer;
+import de.codesourcery.versiontracker.common.ClientVersion;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
@@ -34,6 +36,7 @@ import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.IBackgroundUpdater;
+import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,6 +57,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -460,7 +464,7 @@ public class APIServlet extends HttpServlet
                 final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
                 final IBuffer outBuffer = IBuffer.wrap( byteArrayOutputStream );
                 final BinarySerializer outSerializer = new BinarySerializer( outBuffer );
-                response.serialize( outSerializer );
+                response.serialize( outSerializer, query.clientVersion.serializationFormat );
                 yield byteArrayOutputStream.toByteArray();
             }
         };
@@ -489,7 +493,7 @@ public class APIServlet extends HttpServlet
     private QueryResponse processQuery(QueryRequest request) throws InterruptedException
     {
         QueryResponse result = new QueryResponse();
-        result.serverVersion = "1.0";
+        result.serverVersion = APIResponse.SERVER_VERSION;
 
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         
@@ -513,16 +517,40 @@ public class APIServlet extends HttpServlet
             if ( info != null && info.hasVersions() ) 
             {
                 if ( artifact.hasReleaseVersion() ) {
-                    x.latestVersion = info.findLatestReleaseVersion( request.blacklist ).orElse( null );
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("processQuery(): latest release version from metadata: "+info.latestReleaseVersion);
-                        LOG.debug("processQuery(): Calculated latest release version: "+x.latestVersion);
+                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isReleaseVersion, request.blacklist );
+                    if ( ! versions.isEmpty() )
+                    {
+                        if ( versions.size() > 1 ) {
+                            x.secondLatestVersion = versions.get(1);
+                        }
+                        x.latestVersion = versions.get(0);
+                        if ( LOG.isDebugEnabled() )
+                        {
+                            LOG.debug( "processQuery(): latest release version from metadata: " + info.latestReleaseVersion );
+                            LOG.debug( "processQuery(): Calculated latest release version: " + x.latestVersion );
+                        }
+                        if ( !Objects.equals( x.latestVersion, info.latestReleaseVersion ) )
+                        {
+                            LOG.warn( "processQuery(): Artifact " + info.artifact + " - latest release by date: " + x.latestVersion + ", latest according to meta data: " + info.latestReleaseVersion );
+                        }
                     }
                 } else {
-                    x.latestVersion = info.findLatestSnapshotVersion( request.blacklist ).orElse( null );
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debug("processQuery(): latest release version from metadata: "+info.latestSnapshotVersion);
-                        LOG.debug("processQuery(): Calculated latest snapshot version: "+x.latestVersion);
+                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isSnapshotVersion, request.blacklist );
+                    if ( ! versions.isEmpty() )
+                    {
+                        if ( versions.size() > 1 ) {
+                            x.secondLatestVersion = versions.get(1);
+                        }
+                        x.latestVersion = versions.get(0);
+                        if ( LOG.isDebugEnabled() )
+                        {
+                            LOG.debug( "processQuery(): latest release version from metadata: " + info.latestSnapshotVersion );
+                            LOG.debug( "processQuery(): Calculated latest snapshot version: " + x.latestVersion );
+                        }
+                        if ( !Objects.equals( x.latestVersion, info.latestSnapshotVersion ) )
+                        {
+                            LOG.warn( "processQuery(): Artifact " + info.artifact + " - latest SNAPSHOT release by date: " + x.latestVersion + ", latest SNAPSHOT release according to meta data: " + info.latestSnapshotVersion );
+                        }
                     }
                 }
 

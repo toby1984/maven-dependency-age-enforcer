@@ -55,19 +55,19 @@ public class QueryResponse extends APIResponse
 	}
 	
     @Override
-    protected void doSerialize(BinarySerializer serializer) throws IOException 
+    protected void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException
     {
         serializer.writeInt( artifacts.size() );
         for ( ArtifactResponse resp : artifacts ) {
-            resp.serialize(serializer, SerializationFormat.V1 );
+            resp.serialize(serializer, format );
         }
     }
 
-    public static APIResponse doDeserialize(BinarySerializer serializer) throws IOException {
+    public static APIResponse doDeserialize(BinarySerializer serializer, SerializationFormat format) throws IOException {
         final QueryResponse result = new QueryResponse();
         for ( int count = serializer.readInt() ; count > 0 ; count-- ) 
         {
-            result.artifacts.add( ArtifactResponse.deserialize( serializer, SerializationFormat.V1 ) );
+            result.artifacts.add( ArtifactResponse.deserialize( serializer, format ) );
         }
         return result;
     }

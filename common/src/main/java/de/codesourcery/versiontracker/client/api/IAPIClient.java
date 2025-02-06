@@ -18,6 +18,7 @@ package de.codesourcery.versiontracker.client.api;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.Blacklist;
+import de.codesourcery.versiontracker.common.ClientVersion;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +34,7 @@ public interface IAPIClient extends AutoCloseable
     /**
      * Client protocol version.
      */
-    String CLIENT_VERSION = "1.0";
+    ClientVersion CLIENT_VERSION = ClientVersion.latest();
     
     enum Protocol {
         JSON((byte) 0xab),

@@ -17,6 +17,7 @@ package de.codesourcery.versiontracker.common.server;
 
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
+import de.codesourcery.versiontracker.common.ClientVersion;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.QueryRequest;
@@ -49,8 +50,8 @@ class APIImplTest
     @Test
     public void testDataUnavailableFromStorage() throws Exception
     {
-        final Version latestRelease = new Version( "1.0.1", date( "2022-07-05 11:12:13" ) );
-        final Version latestSnapshot = new Version( "1.0.2-SNAPSHOT", date( "2022-07-15 11:12:13" ) );
+        final Version latestRelease = new Version( "1.0.1", date( "2022-07-05 11:12:13" ), date( "2022-07-05 11:12:13" ) );
+        final Version latestSnapshot = new Version( "1.0.2-SNAPSHOT", date( "2022-07-15 11:12:13" ), date( "2022-07-15 11:12:13" ) );
 
         final Artifact art1 = new Artifact();
         art1.groupId = "de.codesourcery";
@@ -77,7 +78,7 @@ class APIImplTest
             assertThat( versionInfo.artifact.version ).isEqualTo( art1.version);
             assertThat( versionInfo.versions ).isEmpty();
 
-            versionInfo.versions.add( new Version( "1.0.0", date( "2022-07-01 11:12:13" ) ) );
+            versionInfo.versions.add( new Version( "1.0.0", date( "2022-07-01 11:12:13" ), date( "2022-07-01 11:12:13" ) ) );
             versionInfo.versions.add( latestRelease );
             versionInfo.versions.add( latestSnapshot );
 
@@ -134,7 +135,7 @@ class APIImplTest
             api.init( false, false );
 
             // actual test execution
-            final QueryRequest query = new QueryRequest();
+            final QueryRequest query = new QueryRequest( ClientVersion.V1);
             query.artifacts = List.of( art1 );
 
             final QueryResponse response = api.processQuery( query );
@@ -181,9 +182,9 @@ class APIImplTest
         final VersionInfo versionInfo = new VersionInfo();
         versionInfo.artifact = art1;
         versionInfo.versions = new ArrayList<>();
-        versionInfo.versions.add( new Version( "1.0.0", date( "2022-07-01 11:12:13" ) ) );
-        final Version latestRelease = new Version( "1.0.1", date( "2022-07-05 11:12:13" ) );
-        final Version latestSnapshot = new Version( "1.0.2-SNAPSHOT", date( "2022-07-15 11:12:13" ) );
+        versionInfo.versions.add( new Version( "1.0.0", date( "2022-07-01 11:12:13" ), date( "2022-07-01 11:12:13" ) ) );
+        final Version latestRelease = new Version( "1.0.1", date( "2022-07-05 11:12:13" ), date( "2022-07-05 11:12:13" ) );
+        final Version latestSnapshot = new Version( "1.0.2-SNAPSHOT", date( "2022-07-15 11:12:13" ), date( "2022-07-15 11:12:13" ) );
         versionInfo.versions.add( latestRelease );
         versionInfo.versions.add( latestSnapshot );
         versionInfo.latestReleaseVersion = latestRelease;
@@ -235,7 +236,7 @@ class APIImplTest
             api.init( false, false );
 
             // actual test execution
-            final QueryRequest query = new QueryRequest();
+            final QueryRequest query = new QueryRequest(ClientVersion.V1);
             query.artifacts = List.of( art1 );
 
             final QueryResponse response = api.processQuery( query );
