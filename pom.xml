@@ -458,7 +458,7 @@
                 <version>[3.8.4,)</version>
               </requireMavenVersion>
               <requireJavaVersion>
-                <version>[1.8,)</version>
+                <version>(17,18)</version>
               </requireJavaVersion>
               <requirePluginVersions>
                 <message>You must explicitly set version numbers for all plugins used in your pom.xml !</message>
