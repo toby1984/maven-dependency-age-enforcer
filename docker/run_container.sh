@@ -53,4 +53,4 @@ if [ "$REBUILD" != "0" ] ; then
 fi
 
 # docker run -itd --rm -p 8888:8080 $IMAGE_NAME
-docker run -it ${DOCKER_OPTS} --rm --mount type=bind,src=./data,dst=/data -p 8888:8080 $IMAGE_NAME
+docker run -it ${DOCKER_OPTS} --rm --mount type=bind,src=./data,dst=/data -p 8888:8080 -p 8889:8889 $IMAGE_NAME

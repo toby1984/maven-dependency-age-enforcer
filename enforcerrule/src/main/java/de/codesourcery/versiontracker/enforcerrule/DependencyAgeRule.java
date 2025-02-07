@@ -257,7 +257,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 ! Version.sameVersionNumber( response.currentVersion, response.latestVersion ) &&
                 currentVersionReleaseDate.get().compareTo( latestVersionReleaseDate.get() ) <= 0 )
             {
-                // => current version is not the latst one
+                // => current version is not the latest one
 
                 /*
                  * Note that the implementation of getReleaseDate(Version) first tries to
@@ -267,29 +267,34 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                  */
                 final ZonedDateTime now = currentTime();
 
-                // 1. Perform check solely based on firstSeenDate (fallback: release date) of latest version
+                Duration age = null;
+                if ( response.secondLatestVersion != null )
+                {
+                    if ( Version.sameVersionNumber( response.currentVersion, response.secondLatestVersion ) )
+                    {
+                        getLog().debug( thresholdName + ": We're on the second-latest version.");
+                        // we're one version behind
+                        age = Duration.between( latestVersionReleaseDate.get(), now );
+                        if ( threshold.isExceeded( age, now ) )
+                        {
+                            getLog().debug( thresholdName + " threshold (I) exceeded for " + response.artifact + ", age is " + formatDuration( age ) + " but threshold is " + threshold );
+                            return new ThresholdCheckResponse( true, threshold, age );
+                        }
+                        return ThresholdCheckResponse.thresholdNotExceeded( threshold );
+                    }
+                    // we can't tell how far behind we are, we just know that
+                    // we're neither on the latest nor second-latest version
+                }
+
+                // Perform check solely based on firstSeenDate (fallback: release date) of latest version
                 //
                 // This check alone is not sufficient as a project that releases faster than the
                 // threshold age will never trigger the 'age exceeded' condition.
-                Duration age = Duration.between( currentVersionReleaseDate.get(), now );
+                age = Duration.between( currentVersionReleaseDate.get(), now );
                 if ( threshold.isExceeded( age, now ) )
                 {
-                    getLog().debug( thresholdName + " threshold (I) exceeded for " + response.artifact + ", age is " + formatDuration(age) + " but threshold is " + threshold );
+                    getLog().debug( thresholdName + " threshold (II) exceeded for " + response.artifact + ", age is " + formatDuration(age) + " but threshold is " + threshold );
                     return new ThresholdCheckResponse( true, threshold, age );
-                }
-
-                // 2. To avoid never triggering we're also going to check whether we're more than
-                //    one version behind the latest one because if we are, we'll check
-                //    the age between the current version and the
-                if ( response.secondLatestVersion != null &&
-                    ! Version.sameVersionNumber( response.currentVersion, response.secondLatestVersion ) )
-                {
-                    age = Duration.between( currentVersionReleaseDate.get(), latestVersionReleaseDate.get() );
-                    if ( threshold.isExceeded( age, now ) )
-                    {
-                        getLog().debug( thresholdName + " threshold (II) exceeded for " + response.artifact + ", age is " + formatDuration(age) + " but threshold is " + threshold );
-                        return new ThresholdCheckResponse( true, threshold, age );
-                    }
                 }
             }
             else

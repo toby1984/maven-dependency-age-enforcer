@@ -162,7 +162,11 @@ public class ArtifactResponse
     
 	@Override
 	public String toString() {
-	    return "ArtifactResponse[ updateAvailable: "+updateAvailable+", current_version: "+currentVersion+" latest_version: "+latestVersion+", artifact: "+artifact+" ]";
+	    return "ArtifactResponse[ updateAvailable: "+updateAvailable+"," +
+			   " current_version: "+currentVersion+"," +
+			   " latest_version: "+latestVersion+"," +
+			   " 2nd_latest_version: "+secondLatestVersion+"," +
+			   " artifact: "+artifact+" ]";
 	}
 	
 	public boolean hasCurrentVersion() {
