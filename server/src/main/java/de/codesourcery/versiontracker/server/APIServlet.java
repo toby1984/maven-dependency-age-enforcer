@@ -30,6 +30,7 @@ import de.codesourcery.versiontracker.common.JSONHelper;
 import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.RequestsPerHour;
+import de.codesourcery.versiontracker.common.ServerVersion;
 import de.codesourcery.versiontracker.common.Utils;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
@@ -489,8 +490,13 @@ public class APIServlet extends HttpServlet
     // TODO: Code almost duplicated in APIImpl#processQuery(QueryRequest) - remove duplication !
     private QueryResponse processQuery(QueryRequest request) throws InterruptedException
     {
-        QueryResponse result = new QueryResponse();
-        result.serverVersion = APIResponse.SERVER_VERSION;
+        final QueryResponse result = new QueryResponse();
+
+        // Do no cause older clients to crash by reporting a server version they do not know about
+        result.serverVersion = switch(request.clientVersion) {
+            case V1 -> ServerVersion.V1;
+            default -> ServerVersion.latest();
+        };
 
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         
