@@ -37,13 +37,15 @@ public interface IAPIClient extends AutoCloseable
     ClientVersion CLIENT_VERSION = ClientVersion.latest();
     
     enum Protocol {
-        JSON((byte) 0xab),
-        BINARY((byte) 0xba);
+        JSON((byte) 0xab, "application/json"),
+        BINARY((byte) 0xba, "application/octet-stream");
         
         public final byte id;
+        public final String mimeType;
 
-        Protocol(byte id) {
+        Protocol(byte id, String mimeType) {
             this.id = id;
+            this.mimeType = mimeType;
         }
         
         public static Protocol fromByte(byte id) {
@@ -57,7 +59,7 @@ public interface IAPIClient extends AutoCloseable
         }
     }
     
-    static byte[] toWireFormat(byte[] input,Protocol protocol)
+    static byte[] prependProtocolIdentifier(byte[] input, Protocol protocol)
     {
         final byte[] tmp = new byte[ input.length+1 ];
         tmp[0] = protocol.id;

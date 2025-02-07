@@ -136,8 +136,13 @@ public class RemoteApiClient extends AbstractAPIClient
     {
         final HttpPost httppost = new HttpPost( endpointUrl );
 
-        final byte[] tmp = IAPIClient.toWireFormat(input,protocol);
-        httppost.setEntity(new ByteArrayEntity(tmp, ContentType.APPLICATION_OCTET_STREAM));
+        final String mimeType = protocol.mimeType;
+        httppost.setHeader( "Content-Type", mimeType );
+        httppost.setHeader( "Accept", mimeType );
+
+        // add protocol identifier as first byte
+        final byte[] tmp = IAPIClient.prependProtocolIdentifier(input,protocol);
+        httppost.setEntity(new ByteArrayEntity(tmp, ContentType.create( protocol.mimeType ) ));
 
         if ( ! debugPrinted ) 
         {

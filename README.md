@@ -146,7 +146,7 @@ While the enforcer rule by default speaks a binary protocol (much faster than ja
 ## Example query
 
     {
-       "clientVersion":"1.0",
+       "clientVersion":"2.0",
        "command":"query",
        "artifacts":[
           {
@@ -229,61 +229,33 @@ While the enforcer rule by default speaks a binary protocol (much faster than ja
 ## Example response 
 
     {
-       "serverVersion":"1.0",
+       "serverVersion":"2.0",
        "command":"query",
        "artifacts":[
           {
              "artifact":{
                 "groupId":"org.junit.jupiter",
                 "version":"5.9.0-M1",
-                "artifactId":"junit-jupiter",
-                "type":"jar"
-             },
-             "updateAvailable":"MAYBE"
-          },
-          {
-             "artifact":{
-                "groupId":"does.not.exist",
-                "version":"1.0.0",
-                "artifactId":"missing",
-                "type":"jar"
-             },
-             "updateAvailable":"NOT_FOUND"
-          },   
-          {
-             "artifact":{
-                "groupId":"log4j",
-                "version":"1.2.16",
-                "artifactId":"log4j",
+                "artifactId":"junit-jupiter-api",
                 "type":"jar"
              },
              "currentVersion":{
-                "versionString":"1.2.16",
-                "releaseDate":"201003311112"
+                "versionString":"5.9.0-M1",
+                "releaseDate":"202205151838",
+                "firstSeenByServer":"202205151838"
+             },
+             "secondLatestVersion":{
+                "versionString":"5.11.0-RC1",
+                "releaseDate":"202407311106",
+                "firstSeenByServer":"202407311106"
              },
              "latestVersion":{
-                "versionString":"1.2.17",
-                "releaseDate":"201203261112"
+                "versionString":"5.12.0-M1",
+                "releaseDate":"202501311614",
+                "firstSeenByServer":"202501311614"
              },
              "updateAvailable":"YES"
-          },      
-          {
-             "artifact":{
-                "groupId":"org.assertj",
-                "version":"3.23.1",
-                "artifactId":"assertj-core",
-                "type":"jar"
-             },
-             "currentVersion":{
-                "versionString":"3.23.1",
-                "releaseDate":"202205311722"
-             },
-             "latestVersion":{
-                "versionString":"3.23.1",
-                "releaseDate":"202205311722"
-             },
-             "updateAvailable":"NO"
-          },   
+          },
           {
              "artifact":{
                 "groupId":"org.junit.jupiter",
@@ -291,8 +263,23 @@ While the enforcer rule by default speaks a binary protocol (much faster than ja
                 "artifactId":"junit-jupiter",
                 "type":"jar"
              },
-             "updateAvailable":"MAYBE"
-          },      
+             "currentVersion":{
+                "versionString":"5.9.0-M1",
+                "releaseDate":"202205151838",
+                "firstSeenByServer":"202205151838"
+             },
+             "secondLatestVersion":{
+                "versionString":"5.11.0-RC1",
+                "releaseDate":"202407311106",
+                "firstSeenByServer":"202407311106"
+             },
+             "latestVersion":{
+                "versionString":"5.12.0-M1",
+                "releaseDate":"202501311614",
+                "firstSeenByServer":"202501311614"
+             },
+             "updateAvailable":"YES"
+          }
        ]
     }
 

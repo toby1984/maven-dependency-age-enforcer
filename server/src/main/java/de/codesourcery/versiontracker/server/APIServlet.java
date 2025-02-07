@@ -401,8 +401,22 @@ public class APIServlet extends HttpServlet
             if ( protoId == -1 ) {
                 throw new EOFException("Premature end of input, expected protocol ID");
             }
-            protocol = Protocol.fromByte( (byte) protoId );
-            
+            try
+            {
+                protocol = Protocol.fromByte( (byte) protoId );
+            }
+            catch( IllegalArgumentException e ) {
+                // fallback: check Content-Type header to allow people to use curl etc.
+                //           without having to awkwardly prepend the protocol byte to the request
+                final String contentType = req.getHeader( "Content-Type" );
+                if ( !"application/json".equals( contentType ) )
+                {
+                    throw e;
+                }
+                LOG.info( "Client did not send valid protocol ID byte but uses Content-Type: application/json" );
+                reqData.write( protoId );
+                protocol = Protocol.JSON;
+            }
             final byte[] binaryResponse = processRequest(in, reqData, protocol);
 			resp.getOutputStream().write( binaryResponse );            
             resp.setStatus(200);
