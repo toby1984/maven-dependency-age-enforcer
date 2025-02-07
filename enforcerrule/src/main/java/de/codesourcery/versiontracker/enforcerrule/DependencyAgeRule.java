@@ -246,7 +246,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
         }
     }
 
-    private ThresholdCheckResponse isTooOld(ArtifactResponse response,Age threshold)
+    private ThresholdCheckResponse isTooOld(String thresholdName, ArtifactResponse response,Age threshold)
     {
         if ( response.hasCurrentVersion() && response.hasLatestVersion() )
         {
@@ -257,7 +257,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 ! Version.sameVersionNumber( response.currentVersion, response.latestVersion ) &&
                 currentVersionReleaseDate.get().compareTo( latestVersionReleaseDate.get() ) <= 0 )
             {
-                // => version currently in use is different from the latest one
+                // => current version is not the latst one
 
                 /*
                  * Note that the implementation of getReleaseDate(Version) first tries to
@@ -274,7 +274,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 Duration age = Duration.between( currentVersionReleaseDate.get(), now );
                 if ( threshold.isExceeded( age, now ) )
                 {
-                    getLog().debug( "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold );
+                    getLog().debug( thresholdName + " threshold (I) exceeded for " + response.artifact + ", age is " + formatDuration(age) + " but threshold is " + threshold );
                     return new ThresholdCheckResponse( true, threshold, age );
                 }
 
@@ -287,7 +287,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                     age = Duration.between( currentVersionReleaseDate.get(), latestVersionReleaseDate.get() );
                     if ( threshold.isExceeded( age, now ) )
                     {
-                        getLog().debug( "Age threshold exceeded for " + response.artifact + ", age is " + age + " but threshold is " + threshold );
+                        getLog().debug( thresholdName + " threshold (II) exceeded for " + response.artifact + ", age is " + formatDuration(age) + " but threshold is " + threshold );
                         return new ThresholdCheckResponse( true, threshold, age );
                     }
                 }
@@ -435,15 +435,18 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             Duration largestThresholdViolation = null;
             for ( ArtifactResponse artifact : result )
             {
+                if ( getLog().isDebugEnabled() ) {
+                    getLog().debug("Response from server: "+artifact);
+                }
                 if ( artifact.updateAvailable == UpdateAvailable.NOT_FOUND ) {
                     artifactsNotFound = true;
                     getLog().warn( "Failed to find metadata for artifact "+artifact.artifact);
                     continue;
                 }
                 ThresholdCheckResponse maxAgeExceeded =
-                    parsedMaxAge != null ? isTooOld( artifact, parsedMaxAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
+                    parsedMaxAge != null ? isTooOld( "maxAge", artifact, parsedMaxAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
                 ThresholdCheckResponse warnAgeExceeded =
-                    parsedWarnAge != null ? isTooOld( artifact, parsedWarnAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
+                    parsedWarnAge != null ? isTooOld( "warnAge", artifact, parsedWarnAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
 
                 failBecauseAgeExceeded |= maxAgeExceeded.thresholdExceeded;
                 if ( warnAgeExceeded.thresholdExceeded && ! maxAgeExceeded.thresholdExceeded ) {
@@ -742,5 +745,9 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     @Inject
     public void setProject(MavenProject project) {
         this.project = project;
+    }
+
+    private static String formatDuration(Duration duration) {
+        return DurationFormatUtils.formatDurationWords( duration.toMillis(), true, true );
     }
 }
