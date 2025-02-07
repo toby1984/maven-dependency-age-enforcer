@@ -33,6 +33,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.logging.log4j.LogManager;
 
@@ -166,6 +167,11 @@ public class RemoteApiClient extends AbstractAPIClient
                     byteOut.write( buffer, 0, len );
                 }
             }
+
+            if ( response.getCode() != HttpStatus.SC_OK ) {
+                throw new IOException( "Server returned an error, HTTP " + response.getCode() + " " + response.getReasonPhrase() + "\n\n" + byteOut.toString( StandardCharsets.UTF_8 ) );
+            }
+
             final byte[] resp = byteOut.toByteArray();
             if ( !debugPrinted ) {
                 if ( debugMode ) {

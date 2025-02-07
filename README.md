@@ -137,6 +137,11 @@ The rules XML file as described here: https://www.mojohaus.org/versions-maven-pl
       </rules>
     </ruleset>
 
+# API compatibility
+
+Older clients will always be compatible with more recent server versions. A more recent client trying to talk to 
+an older server will FAIL (as the server does not know about the version number the client will be presenting.)
+
 # JSON API
 
 While the enforcer rule by default speaks a binary protocol (much faster than jackson databind), the servlet also supports JSON queries using HTTP POST requests to
