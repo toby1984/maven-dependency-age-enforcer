@@ -24,7 +24,6 @@ import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
 import de.codesourcery.versiontracker.common.BinarySerializer;
 import de.codesourcery.versiontracker.common.BinarySerializer.IBuffer;
-import de.codesourcery.versiontracker.common.ClientVersion;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.IVersionStorage;
 import de.codesourcery.versiontracker.common.JSONHelper;
@@ -36,7 +35,6 @@ import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.IBackgroundUpdater;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,7 +55,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -517,7 +514,7 @@ public class APIServlet extends HttpServlet
             if ( info != null && info.hasVersions() ) 
             {
                 if ( artifact.hasReleaseVersion() ) {
-                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isReleaseVersion, request.blacklist );
+                    final List<Version> versions = info.getVersionsSortedDescending( Artifact::isReleaseVersion, request.blacklist );
                     if ( ! versions.isEmpty() )
                     {
                         if ( versions.size() > 1 ) {
@@ -535,7 +532,7 @@ public class APIServlet extends HttpServlet
                         }
                     }
                 } else {
-                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isSnapshotVersion, request.blacklist );
+                    final List<Version> versions = info.getVersionsSortedDescending( Artifact::isSnapshotVersion, request.blacklist );
                     if ( ! versions.isEmpty() )
                     {
                         if ( versions.size() > 1 ) {

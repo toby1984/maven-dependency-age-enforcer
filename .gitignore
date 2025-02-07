@@ -1,4 +1,4 @@
-docker/data/artifacts.json.binary
+artifacts.json.binary
 nohup.out
 *.class
 *.iml

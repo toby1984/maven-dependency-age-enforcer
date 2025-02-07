@@ -27,7 +27,6 @@ import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,8 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class APIImpl implements AutoCloseable
 {
@@ -360,7 +357,7 @@ public class APIImpl implements AutoCloseable
                      * In either case, the client should probably perform some kind of rate limiting so we don't
                      * get banned because we're hammering the server.
                      */
-                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isReleaseVersion, request.blacklist );
+                    final List<Version> versions = info.getVersionsSortedDescending( Artifact::isReleaseVersion, request.blacklist );
                     if ( ! versions.isEmpty() )
                     {
                         if ( versions.size() > 1 ) {
@@ -380,7 +377,7 @@ public class APIImpl implements AutoCloseable
                         }
                     }
                 } else {
-                    final List<Version> versions = info.getVersionsSortedDescendingByReleaseDate( Artifact::isSnapshotVersion, request.blacklist );
+                    final List<Version> versions = info.getVersionsSortedDescending( Artifact::isSnapshotVersion, request.blacklist );
                     if ( ! versions.isEmpty() )
                     {
                         if ( versions.size() > 1 ) {

@@ -258,7 +258,11 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 currentVersionReleaseDate.get().compareTo( latestVersionReleaseDate.get() ) <= 0 )
             {
                 // => current version is not the latest one
-
+                if ( getLog().isDebugEnabled() )
+                {
+                    getLog().debug( "Using outdated " + response.currentVersion + " of " + response.artifact + " , latest " +
+                                    "is "+response.latestVersion );
+                }
                 /*
                  * Note that the implementation of getReleaseDate(Version) first tries to
                  * return the 'firstSeenByServer' timestamp and only falls back
@@ -272,7 +276,10 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 {
                     if ( Version.sameVersionNumber( response.currentVersion, response.secondLatestVersion ) )
                     {
-                        getLog().debug( thresholdName + ": We're on the second-latest version.");
+                        if ( getLog().isDebugEnabled() )
+                        {
+                            getLog().debug( thresholdName + ": We're on the second-latest version." );
+                        }
                         // we're one version behind
                         age = Duration.between( latestVersionReleaseDate.get(), now );
                         if ( threshold.isExceeded( age, now ) )

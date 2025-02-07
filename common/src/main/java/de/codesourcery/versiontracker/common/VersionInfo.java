@@ -159,7 +159,7 @@ public class VersionInfo
         return version -> blacklist != null && blacklist.isVersionBlacklisted( artifact.groupId, artifact.artifactId, version.versionString );
     }
 
-    public List<Version> getVersionsSortedDescendingByReleaseDate(Predicate<String> versionPredicate, Blacklist blacklist)
+    public List<Version> getVersionsSortedDescending(Predicate<String> versionPredicate, Blacklist blacklist)
     {
         final Predicate<Version> isBlacklisted = blacklistPredicate(blacklist);
         final List<Version> result = new ArrayList<>();
@@ -169,12 +169,13 @@ public class VersionInfo
                 result.add(v);
             }
         }
-        result.sort( Comparator.comparing( (Version a) -> a.firstSeenByServer ).reversed() );
+        // sort in reverse order so that latest version is element #0
+        result.sort( Comparator.comparing( (Version v) -> v.versionString , Artifact.VERSION_COMPARATOR).reversed() );
         return result;
     }
     
     private Optional<Version> findLatestVersion(Predicate<String> versionPredicate, Blacklist blacklist) {
-        final List<Version> list = getVersionsSortedDescendingByReleaseDate( versionPredicate, blacklist );
+        final List<Version> list = getVersionsSortedDescending( versionPredicate, blacklist );
         if ( list.isEmpty() ) {
             return Optional.empty();
         }
