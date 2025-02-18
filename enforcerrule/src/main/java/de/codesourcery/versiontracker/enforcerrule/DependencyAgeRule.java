@@ -457,9 +457,9 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                     continue;
                 }
                 ThresholdCheckResponse maxAgeExceeded =
-                    parsedMaxAge != null ? isTooOld( "maxAge", artifact, parsedMaxAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
+                    parsedMaxAge != null ? isTooOld( "maxAge", artifact, parsedMaxAge ) : ThresholdCheckResponse.thresholdNotExceeded(null, Duration.ZERO);
                 ThresholdCheckResponse warnAgeExceeded =
-                    parsedWarnAge != null ? isTooOld( "warnAge", artifact, parsedWarnAge ) : ThresholdCheckResponse.thresholdNotExceeded(null);
+                    parsedWarnAge != null ? isTooOld( "warnAge", artifact, parsedWarnAge ) : ThresholdCheckResponse.thresholdNotExceeded(null,Duration.ZERO);
 
                 failBecauseAgeExceeded |= maxAgeExceeded.thresholdExceeded;
                 if ( warnAgeExceeded.thresholdExceeded && ! maxAgeExceeded.thresholdExceeded ) {
