@@ -241,8 +241,8 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             this.actualAge = actualAge;
         }
 
-        public static ThresholdCheckResponse thresholdNotExceeded(Age threshold) {
-            return new ThresholdCheckResponse( false, threshold, null );
+        public static ThresholdCheckResponse thresholdNotExceeded(Age threshold, Duration actualAge) {
+            return new ThresholdCheckResponse( false, threshold, actualAge );
         }
     }
 
@@ -271,7 +271,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                  */
                 final ZonedDateTime now = currentTime();
 
-                Duration age = null;
+                Duration age;
                 if ( response.secondLatestVersion != null )
                 {
                     if ( Version.sameVersionNumber( response.currentVersion, response.secondLatestVersion ) )
@@ -287,7 +287,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                             getLog().debug( thresholdName + " threshold (I) exceeded for " + response.artifact + ", age is " + formatDuration( age ) + " but threshold is " + threshold );
                             return new ThresholdCheckResponse( true, threshold, age );
                         }
-                        return ThresholdCheckResponse.thresholdNotExceeded( threshold );
+                        return ThresholdCheckResponse.thresholdNotExceeded( threshold, age );
                     }
                     // we can't tell how far behind we are, we just know that
                     // we're neither on the latest nor second-latest version
@@ -303,6 +303,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                     getLog().debug( thresholdName + " threshold (II) exceeded for " + response.artifact + ", age is " + formatDuration(age) + " but threshold is " + threshold );
                     return new ThresholdCheckResponse( true, threshold, age );
                 }
+                return ThresholdCheckResponse.thresholdNotExceeded( threshold, age );
             }
             else
             {
@@ -314,7 +315,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 }
             }
         }
-        return ThresholdCheckResponse.thresholdNotExceeded( threshold );
+        return ThresholdCheckResponse.thresholdNotExceeded( threshold, Duration.ZERO );
     }
 
     @Override
@@ -444,7 +445,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
 
-            Duration largestThresholdViolation = null;
+            Duration largestWarningThresholdViolation = null;
             for ( ArtifactResponse artifact : result )
             {
                 if ( getLog().isDebugEnabled() ) {
@@ -463,9 +464,9 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 failBecauseAgeExceeded |= maxAgeExceeded.thresholdExceeded;
                 if ( warnAgeExceeded.thresholdExceeded && ! maxAgeExceeded.thresholdExceeded ) {
                     printMessage(artifact,false); // log warning
-                    final Duration violation = warnAgeExceeded.actualAge;
-                    if ( largestThresholdViolation == null || violation.compareTo( largestThresholdViolation ) > 0 ) {
-                        largestThresholdViolation = violation;
+                    final Duration age = warnAgeExceeded.actualAge;
+                    if ( largestWarningThresholdViolation == null || age.compareTo( largestWarningThresholdViolation ) > 0 ) {
+                        largestWarningThresholdViolation = age;
                     }
                 }
                 if ( maxAgeExceeded.thresholdExceeded )
@@ -479,29 +480,23 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             if ( artifactsNotFound && failOnMissingArtifacts ) {
                 fail("Failed to find metadata for one or more dependencies of this project");
             }
-            if ( largestThresholdViolation != null && parsedMaxAge != null )
+            if ( largestWarningThresholdViolation != null && parsedMaxAge != null )
             {
                 // warnAge has been exceeded but not maxAge,  predict failure time
                 final ZonedDateTime now = ZonedDateTime.now();
 
-                // we cannot calculate the difference between two
-                // Periods so we need to turn those into
-                // timestamps and compare those.
-                // NOTE: This will make things fuzzy when dealing with any unit larger than 'weeks'
-                //       as months & years have varying lengths
-                final Period pWarn = parsedWarnAge.toPeriod();
-                final Period pMax = parsedMaxAge.toPeriod();
-                final Temporal t1 = pWarn.subtractFrom( now );
-                final Temporal t2 = pMax.subtractFrom( now );
-
-                // since pWarn < pMax   =>  t2 < t1
-                final Duration remainingTime = Duration.between( t2, t1 );
+                // convert maxAge threshold from a Period object into a Duration
+                // so we can use it for calculation
+                final Period maxPeriod = parsedMaxAge.toPeriod();
+                final Temporal t2 = maxPeriod.subtractFrom( now );
+                final Duration maxDuration = Duration.between( t2, now );
+                final Duration remainingTime = maxDuration.minus( largestWarningThresholdViolation );
                 final ZonedDateTime failureTime = now.plus( remainingTime );
 
                 final long millis = remainingTime.toMillis();
                 final DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime( FormatStyle.LONG, FormatStyle.LONG  );
                 getLog().warn("===========================================");
-                getLog().warn("= Your build will start FAILING on "+formatter.format( failureTime )+" which is in "+
+                getLog().warn("= Your build will likely start FAILING on "+formatter.format( failureTime )+" which is in "+
                         DurationFormatUtils.formatDurationWords(millis,true,true));
                 getLog().warn("===========================================");
             }
