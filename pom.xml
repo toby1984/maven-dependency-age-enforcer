@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.code-sourcery.versiontracker</groupId>
   <artifactId>versiontracker-parent</artifactId>
-  <version>1.0.31-SNAPSHOT</version>
+  <version>1.0.32-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>${project.groupId}:${project.artifactId}</name>
   <description>Rule for maven-dependency-plugin that enforces dependencies are no more than X weeks/months/years older than their latest release.</description>
