@@ -56,31 +56,15 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-gpg-plugin</artifactId>
           </plugin>
-          <!-- explicitly define maven-deploy-plugin after other to force exec order -->
+          <!-- explicitly define maven-deploy-plugin after others to force exec order -->
           <plugin>
-            <artifactId>maven-deploy-plugin</artifactId>
-            <executions>
-              <execution>
-                <id>deploy</id>
-                <phase>deploy</phase>
-                <goals><goal>deploy</goal></goals>
-              </execution>
-            </executions>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
           </plugin>
         </plugins>
       </build>
     </profile>
   </profiles>
-  <distributionManagement>
-    <snapshotRepository>
-      <id>maven-central-uploads</id>
-      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-    </snapshotRepository>
-    <repository>
-      <id>maven-central-uploads</id>
-      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-    </repository>
-  </distributionManagement>
   <scm>
     <connection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</connection>
     <developerConnection>scm:git:git@github.com:toby1984/maven-dependency-version-enforcer.git</developerConnection>
@@ -282,6 +266,16 @@
               </goals>
             </execution>
           </executions>
+        </plugin>
+
+        <plugin>
+          <groupId>org.sonatype.central</groupId>
+          <artifactId>central-publishing-maven-plugin</artifactId>
+          <version>0.7.0</version>
+          <extensions>true</extensions>
+          <configuration>
+            <publishingServerId>maven-central-uploads</publishingServerId>
+          </configuration>
         </plugin>
 
         <plugin>
