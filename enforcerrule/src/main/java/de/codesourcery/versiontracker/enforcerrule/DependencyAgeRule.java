@@ -222,7 +222,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
 
     private Optional<ZonedDateTime> getReleaseDate(Version  v) {
         // older server versions will not provide the 'firstSeenByServer' field
-        return Optional.ofNullable( v.firstSeenByServer ).or( () -> Optional.ofNullable( v.releaseDate ) );
+        return Optional.ofNullable( v.releaseDate ).or( () -> Optional.ofNullable( v.firstSeenByServer ) );
     }
 
     private static final class ThresholdCheckResponse {
