@@ -416,8 +416,8 @@ public class APIServlet extends HttpServlet
                         color = Integer.toString(httpStatusCode).startsWith( "3" ) ? "orange" : "red";
                     }
                     final String template = """
-                        HTTP <span style="color: %s">%d</span> =&gt; %d""";
-                    return template.formatted(color, httpStatusCode, entry.getValue().requestCount());
+                        HTTP <span style="color: %s">%d</span> =&gt; %d [%s]""";
+                    return template.formatted(color, httpStatusCode, entry.getValue().requestCount(), toString(entry.getValue().latestRequestTimestamp() ));
                 } )
                     .toList();
             keyValue.accept( "Maven Central API calls by HTTP status code", String.join( "<br/>", apiCallsByStatusCode ) );
