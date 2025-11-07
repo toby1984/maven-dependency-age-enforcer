@@ -69,8 +69,8 @@ public class MavenCentralVersionProviderTest {
 
     private void doTest(WireMockRuntimeInfo webServer, boolean scrapeAdditionalReleaseDates) throws IOException {
 
-        final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
         final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
+        final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
 
         final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
         provider.setConfigurationProvider( configProvider );
@@ -105,12 +105,12 @@ public class MavenCentralVersionProviderTest {
         final ZonedDateTime releaseDate2 = date( "2021-07-12 12:13" );
 
         final String jsonResponse = loadJSONResponse();
-        final String expectedRestURL = "/select/?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=300&wt=json";
+        final String expectedRestURL = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=300&wt=json";
         stubFor( get( expectedRestURL ).willReturn( ok( jsonResponse ) ) );
 
         if ( scrapeAdditionalReleaseDates ) {
             final String jsonResponse2 = loadJSONResponse();
-            final String expectedRestURL2 = "/select/?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=300&wt=json";
+            final String expectedRestURL2 = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=300&wt=json";
             stubFor( get( expectedRestURL2 ).willReturn( ok( jsonResponse2 ) ) );
         }
 
