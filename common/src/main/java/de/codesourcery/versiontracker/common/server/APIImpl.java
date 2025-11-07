@@ -299,18 +299,20 @@ public class APIImpl implements AutoCloseable
         if ( StringUtils.isNotBlank( location) ) 
         {
             LOG.info("getArtifactFileLocation(): Storing artifacts file relative to 'user.home' JVM property");
-            final File fallback = new File( location , "artifacts.json");
+            final String fileName = "artifacts.json.binary";
+
+            final File fallback = new File( location , fileName );
             final File m2Dir = new File( location , ".m2");
             if ( m2Dir.exists() ) 
             {
                 if ( ! m2Dir.isDirectory() ) {
                     return fallback;
                 }
-                return new File( m2Dir , "artifacts.json" );
+                return new File( m2Dir , fileName );
             } 
             if ( m2Dir.mkdirs() ) {
                 LOG.info("getArtifactFileLocation(): Created directory "+m2Dir.getAbsolutePath());
-                return new File( m2Dir , "artifacts.json" );
+                return new File( m2Dir , fileName );
             }
             return fallback;
         }
