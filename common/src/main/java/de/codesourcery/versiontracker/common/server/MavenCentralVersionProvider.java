@@ -177,8 +177,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public MavenCentralVersionProvider(String repo1BaseUrl, String sonatypeRestApiBaseUrl)
     {
+        Validate.notBlank( repo1BaseUrl, "repo1BaseUrl must not be null or blank");
+        Validate.notBlank( sonatypeRestApiBaseUrl, "sonatypeRestApiBaseUrl must not be null or blank");
         this.repo1BaseUrl = repo1BaseUrl+(repo1BaseUrl.trim().endsWith("/") ? "" : "/" );
-        this.sonatypeRestApiBaseUrl = sonatypeRestApiBaseUrl+(sonatypeRestApiBaseUrl.trim().endsWith("/") ? "" : "/" );
+        this.sonatypeRestApiBaseUrl = sonatypeRestApiBaseUrl;
     }
 
     @Override
@@ -190,6 +192,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public static void main(String[] args) throws IOException
     {
+        final ConfigurationProvider configProvider = new ConfigurationProvider();
+
         final Artifact test = new Artifact();
         test.groupId = "org.apache.tomcat";
         test.artifactId = "tomcat";
@@ -197,7 +201,9 @@ public class MavenCentralVersionProvider implements IVersionProvider
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
-        final UpdateResult result = new MavenCentralVersionProvider().update( data, false );
+        final MavenCentralVersionProvider provider = new MavenCentralVersionProvider();
+        provider.setConfigurationProvider( configProvider );
+        final UpdateResult result = provider.update( data, false );
         long end = System.currentTimeMillis();
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);
@@ -698,10 +704,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     static String metaDataPath(Artifact artifact) {
         return artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/maven-metadata.xml";
-    }
-
-    static String getPathToFolder(Artifact artifact,String versionNumber) {
-        return  artifact.groupId.replace('.','/')+"/"+artifact.artifactId+"/"+versionNumber+"/";
     }
 
     @Override

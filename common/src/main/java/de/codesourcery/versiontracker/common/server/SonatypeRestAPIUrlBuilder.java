@@ -78,7 +78,6 @@ public final class SonatypeRestAPIUrlBuilder
     {
         Validate.notBlank( baseURL, "baseURL must not be null or blank");
         Validate.isTrue( maxResultCount > 0 );
-
         this.baseURL = baseURL;
         args.put( InternalParameter.PARAM_MAX_RESULT_COUNT, maxResultCount );
     }
@@ -227,7 +226,15 @@ public final class SonatypeRestAPIUrlBuilder
             } )
             .collect( Collectors.joining( "&" ) );
 
-        final String urlString = baseURL + queryString;
+        // strip any trailing slashes as sonatype API server
+        // is picky about this and will send a "403 - Forbidden"
+        // if we don't
+        String strippedBaseUrl = baseURL;
+        while ( strippedBaseUrl.endsWith( "/" ) ) {
+            strippedBaseUrl = strippedBaseUrl.substring( 0, strippedBaseUrl.length() - 1 );
+        }
+
+        final String urlString = strippedBaseUrl + queryString;
         try
         {
             return new URI( urlString ).toURL();
