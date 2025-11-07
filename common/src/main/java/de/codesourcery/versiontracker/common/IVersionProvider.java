@@ -19,8 +19,6 @@ import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import de.codesourcery.versiontracker.common.server.Configuration;
 import de.codesourcery.versiontracker.common.server.ConfigurationProvider;
 
 /**
@@ -50,7 +48,6 @@ public interface IVersionProvider
         UPDATED,
         /**
          * No artifact metadata was fetched because the artifact was completely blacklisted.
-         * @see IBlacklistCheck#isArtifactBlacklisted(Artifact)
          */
         BLACKLISTED,
         /**
@@ -59,12 +56,18 @@ public interface IVersionProvider
         ERROR
     }
 
+    interface IRequestCount {
+        int requestCount();
+        ZonedDateTime latestRequestTimestamp();
+        IRequestCount createCopy();
+    }
+
     final class Statistics
     {
         public volatile ZonedDateTime lastStatisticsReset = ZonedDateTime.now();
         public final RequestsPerHour metaDataRequests;
         public final RequestsPerHour apiRequests;
-        public final Map<Integer,Integer> httpRequestCountByResponseCode = new HashMap<>();
+        public final Map<Integer,IRequestCount> httpRequestCountByResponseCode = new HashMap<>();
 
         public Statistics() {
             metaDataRequests = new RequestsPerHour();
@@ -77,7 +80,9 @@ public interface IVersionProvider
             //noinspection IncompleteCopyConstructor
             this.apiRequests = new RequestsPerHour(other.apiRequests);
             this.lastStatisticsReset = other.lastStatisticsReset;
-            this.httpRequestCountByResponseCode.putAll(other.httpRequestCountByResponseCode);
+            other.httpRequestCountByResponseCode.forEach( (k,v) -> {
+                this.httpRequestCountByResponseCode.put(k,v.createCopy());
+            } );
         }
 
         public void reset() {

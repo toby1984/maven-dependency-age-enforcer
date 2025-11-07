@@ -41,12 +41,10 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPath;
-import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
@@ -62,8 +60,6 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -90,6 +86,48 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     public static final String DEFAULT_REPO1_BASE_URL = "https://repo1.maven.org/maven2/";
     public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://search.maven.org/solrsearch/select";
+
+    private static final class RequestCount implements IRequestCount
+    {
+        public int count;
+        public ZonedDateTime timestamp;
+
+        public RequestCount()
+        {
+            this.count = 1;
+            this.timestamp = ZonedDateTime.now();
+        }
+
+        private RequestCount(RequestCount other)
+        {
+            this.count = other.count;
+            this.timestamp = other.timestamp;
+        }
+
+        public RequestCount incCount() {
+            this.count++;
+            this.timestamp = ZonedDateTime.now();
+            return this;
+        }
+
+        @Override
+        public int requestCount()
+        {
+            return count;
+        }
+
+        @Override
+        public ZonedDateTime latestRequestTimestamp()
+        {
+            return timestamp;
+        }
+
+        @Override
+        public IRequestCount createCopy()
+        {
+            return new RequestCount(this);
+        }
+    }
 
     /**
      * HTTP GET parameters used by Sonatype REST API.
@@ -654,7 +692,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             final int statusCode = response.getCode();
 
             synchronized ( statistics ) {
-                statistics.httpRequestCountByResponseCode.compute( statusCode, (k,v)-> v==null ? 1 : v+1 );
+                statistics.httpRequestCountByResponseCode.compute( statusCode, (k,v)-> v == null ? new RequestCount() : ((RequestCount) v).incCount() );
             }
 
             if ( statusCode != 200 ) {
@@ -687,27 +725,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
             } else {
                 LOG.error("parseXML(): Failed to parse document: "+e.getMessage());
             }
-            throw new IOException("Failed to parse document: "+e.getMessage(),e);
-        }
-    }
-
-    private List<String> readStrings(XPathExpression expression,Document document) throws IOException
-    {
-        try
-        {
-            final NodeList nodeList = (NodeList) expression.evaluate( document ,  XPathConstants.NODESET );
-            final int len = nodeList.getLength();
-            final List<String> result = new ArrayList<>(len);
-            for ( int i = 0 ; i < len ; i++ )
-            {
-                final Node n = nodeList.item( i );
-                final String versionString = n.getTextContent();
-                result.add( versionString );
-            }
-            return result;
-        }
-        catch(Exception e) {
-            LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
             throw new IOException("Failed to parse document: "+e.getMessage(),e);
         }
     }

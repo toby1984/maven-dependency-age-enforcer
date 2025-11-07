@@ -67,6 +67,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -223,10 +224,56 @@ public class APIServlet extends HttpServlet
                 // statistics have been reset in the meantime
                 status = "unknown";
             } else {
-                final Set<Integer> httpStatusCodes = mavenCentralAPIStats.httpRequestCountByResponseCode.keySet();
-                // API will respond with 404 if artifact was not found
-                httpStatusCodes.removeIf( x -> x == 200 || x == 404 );
-                status = httpStatusCodes.isEmpty() ? "operational" : "error";
+                final float totalRequestCount =
+                    mavenCentralAPIStats.httpRequestCountByResponseCode.values()
+                        .stream()
+                        .mapToInt( IVersionProvider.IRequestCount::requestCount ).sum();
+
+                final int totalFailureCount =
+                    mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet().stream()
+                        .filter( entry -> entry.getKey() != 200 )
+                        .mapToInt( entry -> entry.getValue().requestCount() ).sum();
+
+                final float failurePercentage =
+                    totalFailureCount / totalRequestCount;
+
+                final Optional<ZonedDateTime> latestSuccessTimestamp =
+                    mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet()
+                        .stream()
+                        .filter( entry -> entry.getKey() == 200 )
+                        .map( entry -> entry.getValue().latestRequestTimestamp() )
+                        .max( ZonedDateTime::compareTo );
+
+                final Optional<ZonedDateTime> latestErrorTimestamp =
+                    mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet()
+                        .stream()
+                        .filter( entry -> entry.getKey() != 200 )
+                        .map( entry -> entry.getValue().latestRequestTimestamp() )
+                        .max( ZonedDateTime::compareTo );
+
+                if ( failurePercentage != 0 )
+                {
+                    if ( latestSuccessTimestamp.isEmpty() ) {
+                        // all errors, no successes
+                        status = "error";
+                    } else if ( latestErrorTimestamp.get().compareTo( latestSuccessTimestamp.get() ) < 0 ) {
+                        // errors happened but latest result was a success
+                        if ( failurePercentage < 0.1 )
+                        {
+                            status = "degraded"; // less than 10 percent of requests failed
+                        } else {
+                            status = "error"; // >= 10% of requests failed
+                        }
+                    } else if ( failurePercentage < 0.1 ){
+                        // last request failed but still below 10% total failure rate
+                        status = "degraded";
+                    } else {
+                        // last request failed and we're >= 10% failure rate
+                        status = "error";
+                    }
+                } else {
+                    status = "unknown";
+                }
             }
             final String json = JSON_MAPPER.writeValueAsString( Map.of( "apiStatus", status) );
             resp.setContentType( "application/json" );
@@ -362,14 +409,15 @@ public class APIServlet extends HttpServlet
                 .sorted( Comparator.comparingInt( Map.Entry::getKey ) )
                 .map( entry -> {
                     final int httpStatusCode = entry.getKey();
-                    final String color = switch(httpStatusCode) {
-                        case 200 -> "green";
-                        case 404 -> "orange";
-                        default -> "red";
-                    };
+                    final String color;
+                    if ( httpStatusCode == 200 ) {
+                        color = "green";
+                    } else {
+                        color = Integer.toString(httpStatusCode).startsWith( "3" ) ? "orange" : "red";
+                    }
                     final String template = """
                         HTTP <span style="color: %s">%d</span> =&gt; %d""";
-                    return template.formatted(color, httpStatusCode, entry.getValue());
+                    return template.formatted(color, httpStatusCode, entry.getValue().requestCount());
                 } )
                     .toList();
             keyValue.accept( "Maven Central API calls by HTTP status code", String.join( "<br/>", apiCallsByStatusCode ) );
