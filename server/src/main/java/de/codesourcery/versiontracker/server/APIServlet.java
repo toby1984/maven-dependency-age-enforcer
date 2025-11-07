@@ -57,6 +57,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -210,6 +211,27 @@ public class APIServlet extends HttpServlet
             resp.setContentType( "application/json" );
             resp.getWriter().write( json );
             return;
+        }
+
+        if ( uri.endsWith( "/mavencentralstatus") )
+        {
+            final IVersionProvider.Statistics mavenCentralAPIStats = impl.getVersionTracker().getVersionProvider().getStatistics();
+            
+            final String status;
+            if ( mavenCentralAPIStats.httpRequestCountByResponseCode.isEmpty() ) {
+                // either we never queried the API since Tomcat got started OR
+                // statistics have been reset in the meantime
+                status = "unknown";
+            } else {
+                final Set<Integer> httpStatusCodes = mavenCentralAPIStats.httpRequestCountByResponseCode.keySet();
+                // API will respond with 404 if artifact was not found
+                httpStatusCodes.removeIf( x -> x == 200 || x == 404 );
+                status = httpStatusCodes.isEmpty() ? "operational" : "error";
+            }
+            final String json = JSON_MAPPER.writeValueAsString( Map.of( "apiStatus", status) );
+            resp.setContentType( "application/json" );
+            resp.getWriter().write( json );
+            return;            
         }
 
         final boolean triggerRefresh = uri.endsWith( "/triggerRefresh" );
