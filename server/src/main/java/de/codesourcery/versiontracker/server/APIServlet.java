@@ -56,6 +56,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +69,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -328,11 +330,31 @@ public class APIServlet extends HttpServlet
             keyValue.accept( "Storage item writes (current hour)", storageStats.storageStatistics().writes.getCountForCurrentHour()+"\n");
             keyValue.accept( "Storage item writes (last 24h)", storageStats.storageStatistics().writes.getCountForLast24Hours()+"\n");
 
-            final IVersionProvider.Statistics repoStats = impl.getVersionTracker().getVersionProvider().getStatistics();
+            final IVersionProvider.Statistics mavenCentralAPIStats = impl.getVersionTracker().getVersionProvider().getStatistics();
 
-            keyValue.accept( "Repo metadata fetch (most recent)", repoStats.metaDataRequests.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
-            keyValue.accept( "Repo metadata fetches (current hour)", repoStats.metaDataRequests.getCountForCurrentHour()+"\n");
-            keyValue.accept( "Repo metadata fetches (last 24h)", repoStats.metaDataRequests.getCountForLast24Hours()+"\n");
+            keyValue.accept( "Maven Central API calls (most recent)", mavenCentralAPIStats.apiRequests.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Maven Central API calls (current hour)", mavenCentralAPIStats.apiRequests.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Maven Central API calls (last 24h)", mavenCentralAPIStats.apiRequests.getCountForLast24Hours()+"\n");
+
+            final List<String> apiCallsByStatusCode = mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet().stream()
+                .sorted( Comparator.comparingInt( Map.Entry::getKey ) )
+                .map( entry -> {
+                    final int httpStatusCode = entry.getKey();
+                    final String color = switch(httpStatusCode) {
+                        case 200 -> "green";
+                        case 404 -> "orange";
+                        default -> "red";
+                    };
+                    final String template = """
+                        HTTP <span style="color: %s">%d</span> =&gt; %d""";
+                    return template.formatted(color, httpStatusCode, entry.getValue());
+                } )
+                    .toList();
+            keyValue.accept( "Maven Central API calls by HTTP status code", String.join( "<br/>", apiCallsByStatusCode ) );
+
+            keyValue.accept( "Repo metadata fetch (most recent)", mavenCentralAPIStats.metaDataRequests.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));
+            keyValue.accept( "Repo metadata fetches (current hour)", mavenCentralAPIStats.metaDataRequests.getCountForCurrentHour()+"\n");
+            keyValue.accept( "Repo metadata fetches (last 24h)", mavenCentralAPIStats.metaDataRequests.getCountForLast24Hours()+"\n");
 
             final IBackgroundUpdater.Statistics bgStats = impl.getBackgroundUpdater().getStatistics();
             keyValue.accept( "Background update (most recent)", bgStats.scheduledUpdates.getMostRecentAccess().map( APIServlet::toString).orElse("n/a"));

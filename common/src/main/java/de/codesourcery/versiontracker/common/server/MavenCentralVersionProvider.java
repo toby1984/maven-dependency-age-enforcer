@@ -645,8 +645,18 @@ public class MavenCentralVersionProvider implements IVersionProvider
             LOG.debug("performGET(): Should not happen: '"+uri+"'",e1);
             throw new RuntimeException(e1);
         }
+
+        synchronized ( statistics ) {
+            statistics.apiRequests.update();
+        }
+
         try (CloseableHttpResponse response = getClient( uri ).execute( httpget )) {
             final int statusCode = response.getCode();
+
+            synchronized ( statistics ) {
+                statistics.httpRequestCountByResponseCode.compute( statusCode, (k,v)-> v==null ? 1 : v+1 );
+            }
+
             if ( statusCode != 200 ) {
                 LOG.error( "performGET(): HTTP request to " + uri + " returned " + response.getReasonPhrase() );
                 if ( statusCode == 404 ) {

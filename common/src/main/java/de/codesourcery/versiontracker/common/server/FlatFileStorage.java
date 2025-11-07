@@ -181,7 +181,7 @@ public class FlatFileStorage implements IVersionStorage
 							}
 						}
 					} else {
-						throw new IOException("Invalid file magic "+Long.toHexString( magic ) );
+						throw new IOException("File "+file+" contains invalid magic value "+Long.toHexString( magic ) );
 					}
 				}
 			}
