@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<ruleset comparisonMethod="maven">
+<ruleset xmlns="http://mojo.codehaus.org/versions-maven-plugin/rule/2.0.0">
   <ignoreVersions>
     <ignoreVersion type="regex">20.*</ignoreVersion>
     </ignoreVersions>

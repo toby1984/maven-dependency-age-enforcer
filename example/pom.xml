@@ -73,7 +73,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
             <dependency>
               <groupId>de.code-sourcery.versiontracker</groupId>
               <artifactId>versiontracker-enforcerrule</artifactId>
-              <version>1.0.21</version>
+              <version>1.0.35</version>
             </dependency>
           </dependencies>
       </plugin>
