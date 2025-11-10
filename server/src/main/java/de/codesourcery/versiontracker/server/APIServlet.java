@@ -217,65 +217,48 @@ public class APIServlet extends HttpServlet
         if ( uri.endsWith( "/mavencentralstatus") )
         {
             final IVersionProvider.Statistics mavenCentralAPIStats = impl.getVersionTracker().getVersionProvider().getStatistics();
-            
+
+            String successTimestamp = null;
+            String failureTimestamp = null;
             final String status;
             if ( mavenCentralAPIStats.httpRequestCountByResponseCode.isEmpty() ) {
                 // either we never queried the API since Tomcat got started OR
                 // statistics have been reset in the meantime
                 status = "unknown";
             } else {
-                final float totalRequestCount =
-                    mavenCentralAPIStats.httpRequestCountByResponseCode.values()
-                        .stream()
-                        .mapToInt( IVersionProvider.IRequestCount::requestCount ).sum();
-
-                final int totalFailureCount =
-                    mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet().stream()
-                        .filter( entry -> entry.getKey() != 200 )
-                        .mapToInt( entry -> entry.getValue().requestCount() ).sum();
-
-                final float failurePercentage =
-                    totalFailureCount / totalRequestCount;
-
-                final Optional<ZonedDateTime> latestSuccessTimestamp =
+                final Optional<ZonedDateTime> latestSuccess =
                     mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet()
                         .stream()
                         .filter( entry -> entry.getKey() == 200 )
                         .map( entry -> entry.getValue().latestRequestTimestamp() )
                         .max( ZonedDateTime::compareTo );
 
-                final Optional<ZonedDateTime> latestErrorTimestamp =
+                successTimestamp = latestSuccess.map( DateTimeFormatter.ISO_DATE_TIME::format ).orElse( null );
+                final Optional<ZonedDateTime> latestFailure =
                     mavenCentralAPIStats.httpRequestCountByResponseCode.entrySet()
                         .stream()
                         .filter( entry -> entry.getKey() != 200 )
                         .map( entry -> entry.getValue().latestRequestTimestamp() )
                         .max( ZonedDateTime::compareTo );
 
-                if ( failurePercentage != 0 )
+                failureTimestamp = latestFailure.map( DateTimeFormatter.ISO_DATE_TIME::format ).orElse( null );
+                if ( latestSuccess.isPresent() )
                 {
-                    if ( latestSuccessTimestamp.isEmpty() ) {
-                        // all errors, no successes
-                        status = "error";
-                    } else if ( latestErrorTimestamp.get().compareTo( latestSuccessTimestamp.get() ) < 0 ) {
-                        // errors happened but latest result was a success
-                        if ( failurePercentage < 0.1 )
-                        {
-                            status = "degraded"; // less than 10 percent of requests failed
-                        } else {
-                            status = "error"; // >= 10% of requests failed
-                        }
-                    } else if ( failurePercentage < 0.1 ){
-                        // last request failed but still below 10% total failure rate
-                        status = "degraded";
+                    if ( latestFailure.isEmpty() || latestFailure.get().isBefore( latestSuccess.get() ) ) {
+                        status = "success";
                     } else {
-                        // last request failed and we're >= 10% failure rate
                         status = "error";
                     }
                 } else {
-                    status = "unknown";
+                    status = "error";
                 }
             }
-            final String json = JSON_MAPPER.writeValueAsString( Map.of( "apiStatus", status) );
+            final Map<String,Object> responseParams = new HashMap<>();
+            responseParams.put( "apiStatus", status );
+            responseParams.put( "latestSuccess", successTimestamp );
+            responseParams.put( "latestFailure", failureTimestamp );
+
+            final String json = JSON_MAPPER.writeValueAsString( responseParams );
             resp.setContentType( "application/json" );
             resp.getWriter().write( json );
             return;            
