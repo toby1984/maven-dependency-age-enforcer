@@ -14,7 +14,7 @@
     <junit.version>6.1.0</junit.version>
 
     <!-- properties specific to building the enforcer rule -->
-    <enforcer.api.version>3.4.1</enforcer.api.version>
+    <enforcer.api.version>3.6.3</enforcer.api.version>
     <!--
      Used for
      - maven-core
@@ -442,7 +442,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
-          <version>3.0.0-M3</version>
+          <version>3.6.3</version>
           <configuration>
             <rules>
               <requireMavenVersion>
