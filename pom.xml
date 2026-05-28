@@ -23,16 +23,13 @@
     -->
     <enforcerrule.maven.version>3.9.6</enforcerrule.maven.version>
 
-    <!-- JVM compiler and runtime options -->
-    <preview />
     <illegalAccess>--add-opens java.base/java.lang=ALL-UNNAMED</illegalAccess>
     <jdkModules />
-    <javac.compilation.options>${preview}</javac.compilation.options>
-    <java.runtime.options>${preview} ${jdkModules} ${illegalAccess} -Dfile.encoding=${project.build.sourceEncoding}</java.runtime.options>
+    <java.runtime.options>${jdkModules} ${illegalAccess} -Dfile.encoding=${project.build.sourceEncoding}</java.runtime.options>
 
-    <javac.source>17</javac.source>
-    <javac.target>17</javac.target>
-    <javac.release>17</javac.release>
+    <javac.source>21</javac.source>
+    <javac.target>21</javac.target>
+    <javac.release>21</javac.release>
 
   </properties>
   <profiles>
@@ -452,7 +449,7 @@
                 <version>[3.8.4,)</version>
               </requireMavenVersion>
               <requireJavaVersion>
-                <version>(17,18)</version>
+                <version>[21,)</version>
               </requireJavaVersion>
               <requirePluginVersions>
                 <message>You must explicitly set version numbers for all plugins used in your pom.xml !</message>
