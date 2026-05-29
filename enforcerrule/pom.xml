@@ -99,7 +99,8 @@
         <version>1.0.0</version>
         <executions>
           <execution>
-            <phase>package</phase>
+            <id>first</id>
+            <phase>process-classes</phase>
             <goals>
               <goal>main-index</goal>
             </goals>
