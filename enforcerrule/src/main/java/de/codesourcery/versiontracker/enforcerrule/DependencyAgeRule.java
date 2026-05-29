@@ -326,10 +326,18 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     	} 
     	finally 
     	{
-    	    if ( debug ) {
-    	        final long elapsed = System.currentTimeMillis() - start;
-    	        getLog().info("RULE TIME: "+elapsed+" ms");
-    	    }
+            try
+            {
+                closeAllHttpClients();
+            }
+            finally
+            {
+                if ( debug )
+                {
+                    final long elapsed = System.currentTimeMillis() - start;
+                    getLog().info( "RULE TIME: " + elapsed + " ms" );
+                }
+            }
     	}
     }
     
@@ -707,6 +715,34 @@ public class DependencyAgeRule extends AbstractEnforcerRule
         }
     }
 
+    private void closeAllHttpClients() {
+        synchronized(CLIENTS)
+        {
+            try
+            {
+                CLIENTS.forEach( (key, cl) -> {
+                    try
+                    {
+                        if ( debug )
+                        {
+                            getLog().info( "Shutting down HTTP client connecting to " + key );
+                        }
+                        cl.close();
+                    }
+                    catch( Exception e )
+                    {
+                        getLog().error( "Failed to close HTTP client to " + key );
+                    }
+                } );
+            }
+            finally
+            {
+                CLIENTS.clear();
+            }
+        }
+
+    }
+
     // unit-testing hook
     protected IAPIClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug)
     {
@@ -719,26 +755,6 @@ public class DependencyAgeRule extends AbstractEnforcerRule
                 existing = new RemoteApiClient(endpoint,protocol);
                 existing.setDebugMode( debug );
                 CLIENTS.put(key, existing );
-                
-                Runtime.getRuntime().addShutdownHook( new Thread( () -> 
-                {
-                    if ( debug ) {
-                        getLog().info("Shutting down HTTP client acquired by "+callingThreadName+" connecting to "+endpoint+" using "+protocol);
-                    }
-                    synchronized(CLIENTS) 
-                    {
-                        RemoteApiClient client = CLIENTS.get( key );
-                        if ( client != null ) {
-                            try {
-                                client.close();
-                            } catch (Exception e) {
-                                getLog().debug( "Caught exception during close(): "+e.getMessage());
-                            } finally {
-                                CLIENTS.remove( key );
-                            }
-                        }
-                    }
-                }));                
             }
             return existing;
         }
