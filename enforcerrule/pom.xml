@@ -96,7 +96,15 @@
       <plugin>
         <groupId>org.eclipse.sisu</groupId>
         <artifactId>sisu-maven-plugin</artifactId>
-        <version>0.3.5</version>
+        <version>1.0.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>main-index</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       
       <plugin>
