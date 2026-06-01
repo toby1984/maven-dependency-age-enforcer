@@ -78,10 +78,13 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     // from writing to the metadata backing store file concurrently.
     
     private static final Object GLOBAL_LOCK = new Object();
-    
+
     // @GuardedBy(CLIENTS)
     private static final Map<String,RemoteApiClient> CLIENTS = new HashMap<>();
-    
+
+    // @GuardedBy(CLIENTS)
+    private static int executionCounter;
+
     private static final Object LOCAL_API_CLIENT_LOCK = new Object();
     
     // @GuardedBy(LOCAL_API_CLIENT_LOCK)
@@ -322,13 +325,22 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     public void execute() throws EnforcerRuleException {
     	long start = System.currentTimeMillis();
     	try {
+            synchronized( CLIENTS ) {
+                executionCounter++;
+            }
     		executeInternal();
     	} 
     	finally 
     	{
             try
             {
-                closeAllHttpClients();
+                synchronized( CLIENTS ) {
+                    executionCounter--;
+                    if ( executionCounter == 0 )
+                    {
+                        closeAllHttpClients();
+                    }
+                }
             }
             finally
             {
@@ -747,8 +759,7 @@ public class DependencyAgeRule extends AbstractEnforcerRule
     protected IAPIClient getRemoteAPIClient(String endpoint,Protocol protocol,boolean debug)
     {
         final String key = endpoint+protocol.name()+debug;
-        final String callingThreadName = Thread.currentThread().getName();
-        synchronized(CLIENTS) 
+        synchronized(CLIENTS)
         {
             RemoteApiClient existing = CLIENTS.get( key );
             if ( existing == null ) {
