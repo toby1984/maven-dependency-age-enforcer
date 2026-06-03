@@ -1,4 +1,4 @@
-FROM tomcat:9
+FROM tomcat:11-jdk25
 
 ENV CATALINA_OPTS="-Dversiontracker.artifact.file=/data/artifacts.json.binary -Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=*:8889"
 RUN mkdir /data

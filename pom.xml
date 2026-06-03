@@ -9,7 +9,7 @@
   <url>https://github.com/toby1984/maven-dependency-version-enforcer</url>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <apache.tomcat.version>9.0.68</apache.tomcat.version>
+    <apache.tomcat.version>11.0.0</apache.tomcat.version>
     <log4.version>2.26.0</log4.version>
     <junit.version>6.1.0</junit.version>
 
@@ -238,9 +238,9 @@
         <version>5.6.1</version>
       </dependency>
       <dependency>
-        <groupId>javax.servlet</groupId>
-        <artifactId>javax.servlet-api</artifactId>
-        <version>3.1.0</version>
+        <groupId>jakarta.servlet</groupId>
+        <artifactId>jakarta.servlet-api</artifactId>
+        <version>6.1.0</version>
         <scope>provided</scope>
       </dependency>
     </dependencies>

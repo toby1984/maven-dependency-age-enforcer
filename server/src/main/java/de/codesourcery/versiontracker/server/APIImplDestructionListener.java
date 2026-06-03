@@ -18,8 +18,8 @@ package de.codesourcery.versiontracker.server;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
+import jakarta.servlet.ServletContextEvent;
+import jakarta.servlet.ServletContextListener;
 
 public class APIImplDestructionListener implements ServletContextListener
 {
