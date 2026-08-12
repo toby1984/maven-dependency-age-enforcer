@@ -36,8 +36,6 @@ import de.codesourcery.versiontracker.common.server.StorageSerializationFormat;
  */
 public class VersionInfo
 {
-	private static final Logger LOG = LogManager.getLogger(VersionInfo.class);
-
 	/**
 	 * The artifact this metadata is for.
 	 */
@@ -69,8 +67,8 @@ public class VersionInfo
     public ZonedDateTime lastRepositoryUpdate;
 
     /**
-     * Time the next background update is scheduled
-     * for this artifact.
+     * Earliest time the next background update is scheduled
+     * for this artifact, may be <code>null</code>.
      */
     public ZonedDateTime nextBackgroundUpdate;
     
@@ -121,11 +119,17 @@ public class VersionInfo
             v.serialize( serializer, format);
         }
 
-        if ( nextBackgroundUpdate != null ) {
-            serializer.writeBoolean( true );
-            serializer.writeZonedDateTime(  nextBackgroundUpdate );
-        } else {
-            serializer.writeBoolean( false );
+        if ( format.isAtLeast( StorageSerializationFormat.V4 ) )
+        {
+            if ( nextBackgroundUpdate != null )
+            {
+                serializer.writeBoolean( true );
+                serializer.writeZonedDateTime( nextBackgroundUpdate );
+            }
+            else
+            {
+                serializer.writeBoolean( false );
+            }
         }
     }
 
@@ -231,6 +235,7 @@ public class VersionInfo
        this.latestSnapshotVersion = other.latestSnapshotVersion == null ? null : other.latestSnapshotVersion.copy();
        this.lastRepositoryUpdate  = other.lastRepositoryUpdate;
        this.lastRequestDate = other.lastRequestDate;
+       this.nextBackgroundUpdate = other.nextBackgroundUpdate;
     }
 
     public Optional<Boolean> hasReleaseDate(Version versionNumber) {

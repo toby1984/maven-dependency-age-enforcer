@@ -492,8 +492,11 @@ public class APIServlet extends HttpServlet
                 reqData.write( protoId );
                 protocol = Protocol.JSON;
             }
+            final long now = System.nanoTime();
             final byte[] binaryResponse = processRequest(in, reqData, protocol);
-			resp.getOutputStream().write( binaryResponse );            
+            final long elapsedMillis = (System.nanoTime() - now)/1_000_000L;
+            LOG.trace("processRequest() took {} milliseconds", elapsedMillis);
+			resp.getOutputStream().write( binaryResponse );
             resp.setStatus(200);
         }
         catch(Exception e) 
@@ -596,7 +599,10 @@ public class APIServlet extends HttpServlet
         } else {
             requiresUpdate = (optVersionInfo,art) -> false;
         }
-        final Map<Artifact,VersionInfo> results = impl.getVersionTracker().getVersionInfo( request.artifacts, requiresUpdate );        
+        final long now = System.nanoTime();
+        final Map<Artifact,VersionInfo> results = impl.getVersionTracker().getVersionInfo( request.artifacts, requiresUpdate );
+        final long elapsedMillis = (System.nanoTime() - now)/1_000_000L;
+        LOG.trace("Retrieving version info for {} artifacts took {} milliseconds", request.artifacts.size(), elapsedMillis);
         for ( Artifact artifact : request.artifacts ) 
         {
             final VersionInfo info = results.get( artifact );

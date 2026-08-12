@@ -28,6 +28,7 @@ import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.Utils;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -35,6 +36,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 
 import java.io.ByteArrayInputStream;
@@ -71,7 +73,12 @@ public class RemoteApiClient extends AbstractAPIClient
         synchronized (CLIENT_LOCK) 
         {
             if ( client == null ) {
-                client = HttpClients.createDefault();
+                client = HttpClients.custom()
+                    .setDefaultRequestConfig( RequestConfig.custom()
+                        .setResponseTimeout(Timeout.ofSeconds(60))
+                        .setConnectionRequestTimeout(Timeout.ofSeconds(10))
+                        .build())
+                    .build();
             }
             return client;
         }

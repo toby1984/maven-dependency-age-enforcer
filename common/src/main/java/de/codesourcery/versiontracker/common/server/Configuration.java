@@ -34,13 +34,22 @@ import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import de.codesourcery.versiontracker.common.Blacklist;
-import de.codesourcery.versiontracker.common.Version;
 
 public class Configuration
 {
     private static final Logger LOG = LogManager.getLogger( Configuration.class );
     private static final String DEFAULT_CONFIG_FILE_LOCATION = "classpath:/versionTracker.json";
     public static final String CONFIG_FILE_LOCATION_SYS_PROPERTY = "versionTracker.configFile";
+
+    public record DurationRange(Duration min, Duration max)
+    {
+        public DurationRange
+        {
+            Validate.notNull( min, "min must not be null" );
+            Validate.notNull( max, "max must not be null" );
+            Validate.isTrue( min.compareTo( max ) <= 0 , "min > max ?" );
+        }
+    }
 
     private volatile Blacklist blacklist = new Blacklist();
     /**
@@ -62,6 +71,9 @@ public class Configuration
     private volatile Duration bgUpdateCheckInterval = Duration.ofMinutes( 1 );
 
     private volatile File dataStore;
+
+    private volatile DurationRange backgroundUpdateDelayWindowInMinutes =
+        new DurationRange( Duration.ofMinutes( 10 ), Duration.ofHours( 2 ) );
 
     public final ZonedDateTime timestamp = ZonedDateTime.now();
 
@@ -239,6 +251,10 @@ public class Configuration
             this.minUpdateDelayAfterSuccess = getDuration( props, "updateDelayAfterSuccess", minUpdateDelayAfterSuccess );
             this.bgUpdateCheckInterval = getDuration( props, "bgUpdateCheckInterval" , bgUpdateCheckInterval );
 
+            final Duration bgUpdateDelayMin = getDuration( props, "bgUpdateDelayMin" , this.backgroundUpdateDelayWindowInMinutes.min() );
+            final Duration bgUpdateDelayMax = getDuration( props, "bgUpdateDelayMax" , this.backgroundUpdateDelayWindowInMinutes.max() );
+            setBackgroundUpdateDelayWindow( new DurationRange( bgUpdateDelayMin, bgUpdateDelayMax ) );
+
             LOG.info( "data storage= " + dataStore);
             LOG.info( "min. update delay after failure = " + minUpdateDelayAfterFailure );
             LOG.info( "min. update delay after success = " + minUpdateDelayAfterSuccess );
@@ -310,6 +326,12 @@ public class Configuration
         return bgUpdateCheckInterval;
     }
 
+    public void setBgUpdateCheckInterval(Duration bgUpdateCheckInterval)
+    {
+        Validate.notNull( bgUpdateCheckInterval, "bgUpdateCheckInterval must not be null" );
+        this.bgUpdateCheckInterval = bgUpdateCheckInterval;
+    }
+
     public static Duration parseDurationString(String s) {
         Validate.notBlank( s, "s must not be null or blank");
         final Pattern p = Pattern.compile( "^([0-9]+)([smhd])$" , Pattern.CASE_INSENSITIVE);
@@ -340,5 +362,16 @@ public class Configuration
     public Optional<File> getDataStorageFile()
     {
         return Optional.ofNullable( dataStore );
+    }
+
+    public DurationRange getBackgroundUpdateDelayWindowInMinutes()
+    {
+        return backgroundUpdateDelayWindowInMinutes;
+    }
+
+    public void setBackgroundUpdateDelayWindow(DurationRange backgroundUpdateDelayWindowInMinutes)
+    {
+        Validate.notNull( backgroundUpdateDelayWindowInMinutes, "backgroundUpdateDelayWindowInMinutes must not be null" );
+        this.backgroundUpdateDelayWindowInMinutes = backgroundUpdateDelayWindowInMinutes;
     }
 }

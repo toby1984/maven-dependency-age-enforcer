@@ -129,8 +129,9 @@ public class VersionTrackerTest
             }
 
             @Override
-            public UpdateResult update(VersionInfo info, boolean force) throws IOException {
+            public UpdateResult update(VersionInfo info, boolean force) {
                 info.lastFailureDate = ZonedDateTime.now();
+                info.nextBackgroundUpdate = null;
                 return IVersionProvider.UpdateResult.BLACKLISTED;
             }
         };

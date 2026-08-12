@@ -53,26 +53,7 @@ public interface IVersionProvider
         /**
          * Retrieving artifact metadata failed.
          */
-        ERROR;
-
-        /**
-         * Returns whether this outcome is considered to be "ok".
-         * <p>
-         * Note that {@link #BLACKLISTED} is a special case since it
-         * means the {@link IVersionProvider} was not allowed to
-         * check version information for that specific artifact. Since
-         * the blacklist got configured by the user, we consider this to
-         * be "ok" as well.</p>
-         *
-         * @return <code>true</code> if the outcome of some artifact meta-data update
-         *         operation was acceptable.
-         */
-        public boolean isOk() {
-            return switch(this) {
-                case UPDATED, BLACKLISTED, NO_CHANGES_ON_SERVER -> true;
-                case ARTIFACT_UNKNOWN, ARTIFACT_VERSION_NOT_FOUND, ERROR -> false;
-            };
-        }
+        ERROR
     }
 
     interface IRequestCount {
@@ -133,11 +114,14 @@ public interface IVersionProvider
     void setConfigurationProvider(ConfigurationProvider configuration);
 
     /**
-     * Try to update version information.
-     * <p>
-     * This method must be <b>thread-safe</b>.
+     * Update a version information instance.
      *
-     * @param info
+     * <p>This method only updates/mutates the <code>VersionInfo</code> instance passed into this method, it does
+     * <b>not</b> persist any of this to storage or otherwise mutate outside state.
+     *
+     * <p>Implementatin of this method must be <b>thread-safe</b>.
+     *
+     * @param info version info instance to update.
      * @param force whether to fetch version information even if the Maven indexer XML indicates we already have the latest data.
      *              This is mostly useful to work around a bug in previous versions that would not properly retrieve release dates
      *              for all available versions.

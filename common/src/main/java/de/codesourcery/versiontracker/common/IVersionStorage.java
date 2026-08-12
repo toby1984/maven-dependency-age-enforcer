@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 /**
  * Responsible for handling persistence of artifact metadata.
  *
+ * <p>Implementations <b>must</b> be thread-safe.</p>
  * @author tobias.gierke@code-sourcery.de
  */
 public interface IVersionStorage extends AutoCloseable

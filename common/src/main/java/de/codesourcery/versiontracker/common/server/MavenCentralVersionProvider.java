@@ -51,12 +51,15 @@ import javax.xml.xpath.XPathFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
@@ -211,6 +214,16 @@ public class MavenCentralVersionProvider implements IVersionProvider
         this( DEFAULT_REPO1_BASE_URL, DEFAULT_SONATYPE_REST_API_BASE_URL);
         connManager.setDefaultMaxPerRoute(10);
         connManager.setMaxTotal(20);
+
+        final ConnectionConfig connConfig = ConnectionConfig.custom()
+            .setConnectTimeout( Timeout.ofSeconds(30))
+            .setSocketTimeout( Timeout.ofSeconds(60) )
+            .setValidateAfterInactivity( TimeValue.ofSeconds(10) )
+            .setIdleTimeout( Timeout.ofMinutes(1) )
+            .setTimeToLive( TimeValue.ofMinutes(10))
+            .build();
+
+        connManager.setDefaultConnectionConfig( connConfig );
     }
 
     public MavenCentralVersionProvider(String repo1BaseUrl, String sonatypeRestApiBaseUrl)
@@ -267,6 +280,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 LOG.debug( "update(): Not updating blacklisted artifact " + artifact );
             }
             info.lastSuccessDate = ZonedDateTime.now();
+            info.nextBackgroundUpdate = null;
             return UpdateResult.BLACKLISTED;
         }
 
@@ -306,7 +320,9 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 }
 
                 // get all versions
+                LOG.trace("update(): Querying all versions for {}", info.artifact);
                 final List<Version> allVersions = queryAllVersions( info.artifact );
+                LOG.trace("update(): Done querying all versions for {}", info.artifact);
                 info.removeVersionsIf( v -> {
                     final boolean remove = allVersions.stream().noneMatch( x -> x.versionString.equals( v.versionString ) );
                     if ( remove ) {
@@ -335,6 +351,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
                 info.lastRepositoryUpdate = lastChangeDate;
                 info.lastSuccessDate = ZonedDateTime.now();
+                info.nextBackgroundUpdate = null;
 
                 if ( StringUtils.isNotBlank( artifact.version ) && info.getVersion( artifact.version ).isEmpty() )
                 {

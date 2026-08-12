@@ -167,7 +167,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     private void doUpdate() throws Exception
     {
         final Configuration config = configurationProvider.getConfiguration();
-        final ZonedDateTime now = ZonedDateTime.now();
+        final ZonedDateTime now = now();
 
         final List<VersionInfo> infos = storage.getAllStaleVersions( config.getMinUpdateDelayAfterSuccess(),
             config.getMinUpdateDelayAfterFailure(), now );
@@ -197,7 +197,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                 info,
             configuration.getMinUpdateDelayAfterSuccess(),
             configuration.getMinUpdateDelayAfterFailure(),
-                ZonedDateTime.now() );
+                now() );
         if ( LOG.isDebugEnabled() ) {
             LOG.debug( "requiresUpdate(): Stale (" + info.artifact + ") ? " + (isStaleVersion ? "YES" : "NO") );
         }
@@ -231,7 +231,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         if ( updateNeeded ) {
             // note: vi.lastPolledDate() cannot be NULL here as requiresUpdate(Optional<VersionInfo>)
             //       would've returned true in this case and we bail out early above
-            final Duration timeSinceLastUpdate = Duration.between( info.lastPolledDate(), ZonedDateTime.now() );
+            final Duration timeSinceLastUpdate = Duration.between( info.lastPolledDate(), now() );
 
             final Configuration configuration = configurationProvider.getConfiguration();
             Duration duration = configuration.getMinUpdateDelayAfterSuccess();
@@ -265,19 +265,21 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                         // holding artifact locks for too long and more importantly, avoid
                         // holding lots of artifact locks at the same time (because this might
                         // starve the Maven plugin HTTP client and make it fail with a "read timed out error).
-                        final int randomDelayMinutes = 10 + new Random().nextInt(120+1);
-                        final ZonedDateTime nextUpdate = ZonedDateTime.now().plusMinutes(randomDelayMinutes);
+                        final ZonedDateTime nextUpdate = calculateNextUpdateTimestamp( now() );
+
+                        // NOTE: nextBackgroundUpdate will get cleared by
+                        //       MavenCentralVersionProvider.update()
                         info.nextBackgroundUpdate = nextUpdate;
                         storage.saveOrUpdate( info );
-                        LOG.debug("doUpdate(): Background update of "+info.artifact+" scheduled for "+nextUpdate);
+                        LOG.info("doUpdate(): Background update of "+info.artifact+" scheduled for "+nextUpdate);
                         return;
                     }
-                    if ( ZonedDateTime.now().isBefore( info.nextBackgroundUpdate ) ) {
+                    if ( now().isBefore( info.nextBackgroundUpdate ) ) {
                         LOG.debug("doUpdate(): Background update of "+info.artifact+" not due yet, due date "+info.nextBackgroundUpdate);
                         return;
                     }
 
-                    LOG.debug("doUpdate(): Refreshing "+info.artifact);
+                    LOG.info("doUpdate(): Started background update of "+info.artifact);
                     synchronized ( statistics ) {
                         statistics.scheduledUpdates.update();
                     }
@@ -292,13 +294,10 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                         // make sure to store any changes,
                         // lastFailure will be updated if
                         // we failed to retrieve the version info
-                        if ( result != null && result.isOk() ) {
-                            info.nextBackgroundUpdate = null;
-                        }
                         storage.saveOrUpdate(info);
                     }
                 } else {
-                    LOG.debug("doUpdate(): Doing nothing, another concurrent update to "+maybeStaleInfo.artifact+" already updated it");
+                    LOG.info("doUpdate(): Doing nothing, another concurrent update to "+maybeStaleInfo.artifact+" already updated it");
                 }                
             }); 
         });
@@ -371,5 +370,19 @@ public class BackgroundUpdater implements IBackgroundUpdater {
         synchronized ( statistics ) {
             statistics.reset();
         }
+    }
+
+    // hook for unit testing
+    protected ZonedDateTime now() {
+        return ZonedDateTime.now();
+    }
+
+    protected ZonedDateTime calculateNextUpdateTimestamp(ZonedDateTime now)
+    {
+        final Configuration.DurationRange window = configurationProvider.getConfiguration().getBackgroundUpdateDelayWindowInMinutes();
+        final long millis = window.max().minus( window.min() ).toMillis();
+        final float frac = new Random().nextFloat();
+        final long randomDelayMillis = (long) Math.ceil(millis*frac);
+        return now.plusNanos(randomDelayMillis*1_000_000_000L);
     }
 }

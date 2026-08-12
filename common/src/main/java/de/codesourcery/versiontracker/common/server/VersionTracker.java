@@ -104,12 +104,10 @@ public class VersionTracker implements IVersionTracker
         {
             try
             {
+                LOG.trace("getVersionInfo(): Acquiring lock for {}", artifact);
                 lockCache.doWhileLocked( artifact, () ->
                 {
-                    if ( LOG.isDebugEnabled() )
-                    {
-                        LOG.debug( "getVersionInfo(): Looking for " + artifact + " in version storage" );
-                    }
+                    LOG.debug( "getVersionInfo(): Got lock, now looking for {} in version storage", artifact);
                     final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
                     if ( result.isEmpty() || requiresUpdate.test( result.get(), artifact ) )
                     {
