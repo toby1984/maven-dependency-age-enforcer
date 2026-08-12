@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import de.codesourcery.versiontracker.common.server.Configuration;
 import de.codesourcery.versiontracker.common.server.StorageSerializationFormat;
 
 /**
@@ -66,6 +67,12 @@ public class VersionInfo
      * Last repository update as contained in the maven-metadata.xml file.
      */
     public ZonedDateTime lastRepositoryUpdate;
+
+    /**
+     * Time the next background update is scheduled
+     * for this artifact.
+     */
+    public ZonedDateTime nextBackgroundUpdate;
     
     /**
      * Latest release version as contained in the maven-metadata.xml file.
@@ -105,14 +112,20 @@ public class VersionInfo
     	if ( latestSnapshotVersion != null ) {
     		serializer.writeBoolean( true);
     		latestSnapshotVersion.serialize( serializer, format );
-    		
     	} else {
     		serializer.writeBoolean( false );
     	}
-    	serializer.writeInt( versions.size() );
 
+    	serializer.writeInt( versions.size() );
     	for ( Version v : versions ) {
             v.serialize( serializer, format);
+        }
+
+        if ( nextBackgroundUpdate != null ) {
+            serializer.writeBoolean( true );
+            serializer.writeZonedDateTime(  nextBackgroundUpdate );
+        } else {
+            serializer.writeBoolean( false );
         }
     }
 
@@ -135,6 +148,12 @@ public class VersionInfo
     	result.versions = new ArrayList<>(size);
     	for ( int i = 0 ; i < size ; i++) {
             result.versions.add( Version.deserialize( serializer, fileFormatVersion) );
+        }
+        if ( fileFormatVersion.isAtLeast(StorageSerializationFormat.V4) ) {
+            if ( serializer.readBoolean() ) // NULL value is omitted
+            {
+                result.nextBackgroundUpdate = serializer.readZonedDateTime();
+            }
         }
     	return result;
     }

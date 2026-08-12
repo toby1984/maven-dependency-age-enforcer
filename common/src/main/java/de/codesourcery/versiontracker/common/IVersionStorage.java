@@ -171,7 +171,7 @@ public interface IVersionStorage extends AutoCloseable
                 STORAGE_LOG.debug("isStaleVersion(): [stale,never successfully polled at all] "+info.artifact);
             }
         } 
-        else if ( info.lastSuccessDate != null &&  info.lastFailureDate != null ) // both are not NULL
+        else if ( info.lastSuccessDate != null && info.lastFailureDate != null ) // both are not NULL
         {
             if ( info.lastSuccessDate.isAfter( info.lastFailureDate ) ) {
                 isStale = Duration.between( info.lastSuccessDate,now ).compareTo( minUpdateDelayAfterSuccess ) > 0;
@@ -233,7 +233,7 @@ public interface IVersionStorage extends AutoCloseable
             saveOrUpdate( existing.get() );
         }
     }
-    
+
     /**
      * Bulk-storage of new or updated <code>VersionInfo</code> instances.
      * 

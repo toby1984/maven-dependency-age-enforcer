@@ -53,7 +53,26 @@ public interface IVersionProvider
         /**
          * Retrieving artifact metadata failed.
          */
-        ERROR
+        ERROR;
+
+        /**
+         * Returns whether this outcome is considered to be "ok".
+         * <p>
+         * Note that {@link #BLACKLISTED} is a special case since it
+         * means the {@link IVersionProvider} was not allowed to
+         * check version information for that specific artifact. Since
+         * the blacklist got configured by the user, we consider this to
+         * be "ok" as well.</p>
+         *
+         * @return <code>true</code> if the outcome of some artifact meta-data update
+         *         operation was acceptable.
+         */
+        public boolean isOk() {
+            return switch(this) {
+                case UPDATED, BLACKLISTED, NO_CHANGES_ON_SERVER -> true;
+                case ARTIFACT_UNKNOWN, ARTIFACT_VERSION_NOT_FOUND, ERROR -> false;
+            };
+        }
     }
 
     interface IRequestCount {

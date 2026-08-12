@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Serialization format.
+ * Serialization format used by API servlet and Maven plugin.
  *
  * @author tobias.gierke@code-sourcery.de
  */

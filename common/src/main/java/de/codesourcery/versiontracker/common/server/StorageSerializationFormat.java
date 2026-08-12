@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Serialization format.
+ * Serialization format use for on-disk storage.
  *
  * @author tobias.gierke@code-sourcery.de
  */
@@ -39,6 +39,11 @@ public enum StorageSerializationFormat
      * {@link de.codesourcery.versiontracker.common.Version#firstSeenByServer}
      */
     V3( (short) 3 ),
+    /**
+     * New field:
+     * {@link de.codesourcery.versiontracker.common.VersionInfo#nextBackgroundUpdate}
+     */
+    V4( (short) 4 ),
     ;
 
     public final short version;
