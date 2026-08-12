@@ -459,9 +459,10 @@ public class DependencyAgeRule extends AbstractEnforcerRule
             } 
             catch (Exception e) 
             {
-                fail("Failed to query version information from '"+apiEndpoint+"': "+e.getMessage(),e);
-                throw new RuntimeException("Unreachable code reached");
-            } 
+                final String msg = "Failed to query version information from '" + apiEndpoint + "': " + e.getMessage();
+                getLog().error(msg);
+                throw new RuntimeException( msg,e);
+            }
             boolean failBecauseAgeExceeded = false;
             boolean artifactsNotFound = false;
 
