@@ -18,17 +18,17 @@ package de.codesourcery.versiontracker.common;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 public enum ServerVersion
 {
-    V1( "1.0", (short) 1, SerializationFormat.V1 ),
-    V2( "2.0", (short) 2, SerializationFormat.V3 ),
+    V1( "1.0", (short) 1, APISerializationFormat.V1 ),
+    V2( "2.0", (short) 2, APISerializationFormat.V3 ),
     ;
 
     public String versionString;
     public final short version;
-    public final SerializationFormat serializationFormat;
+    public final APISerializationFormat serializationFormat;
 
     // hack to work around JVM rules...
     private static final class Holder
@@ -36,7 +36,7 @@ public enum ServerVersion
         public final static Map<Short, ServerVersion> versionsByNumber = new HashMap<>();
     }
 
-    ServerVersion(String versionString, short version, SerializationFormat serializationFormat)
+    ServerVersion(String versionString, short version, APISerializationFormat serializationFormat)
     {
         this.versionString = versionString;
         this.version = version;

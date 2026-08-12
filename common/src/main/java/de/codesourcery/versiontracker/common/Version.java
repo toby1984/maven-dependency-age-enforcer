@@ -15,12 +15,13 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Objects;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
+import de.codesourcery.versiontracker.common.server.StorageSerializationFormat;
 
 /**
  * A version with the associated upload/release date.
@@ -47,20 +48,39 @@ public class Version
         return new Version( s );
     }
 
-    public void serialize(BinarySerializer serializer, SerializationFormat serializationFormat) throws IOException
+    public void serialize(BinarySerializer serializer, APISerializationFormat serializationFormat) throws IOException
     {
         serializer.writeString( versionString );
         serializer.writeZonedDateTime(releaseDate);
-        if ( serializationFormat.isAtLeast( SerializationFormat.V3 ) ) {
+        if ( serializationFormat.isAtLeast( APISerializationFormat.V3 ) ) {
             serializer.writeZonedDateTime(firstSeenByServer);
         }
     }
 
-    public static Version deserialize(BinarySerializer serializer, SerializationFormat serializationFormat) throws IOException {
+    public void serialize(BinarySerializer serializer, StorageSerializationFormat serializationFormat) throws IOException
+    {
+        serializer.writeString( versionString );
+        serializer.writeZonedDateTime(releaseDate);
+        if ( serializationFormat.isAtLeast( StorageSerializationFormat.V3 ) ) {
+            serializer.writeZonedDateTime(firstSeenByServer);
+        }
+    }
+
+    public static Version deserialize(BinarySerializer serializer, APISerializationFormat serializationFormat) throws IOException {
         final Version result = new Version();
         result.versionString = serializer.readString();
         result.releaseDate = serializer.readZonedDateTime();
-        if ( serializationFormat.isAtLeast( SerializationFormat.V3 ) ) {
+        if ( serializationFormat.isAtLeast( APISerializationFormat.V3 ) ) {
+            result.firstSeenByServer = serializer.readZonedDateTime();
+        }
+        return result;
+    }
+
+    public static Version deserialize(BinarySerializer serializer, StorageSerializationFormat serializationFormat) throws IOException {
+        final Version result = new Version();
+        result.versionString = serializer.readString();
+        result.releaseDate = serializer.readZonedDateTime();
+        if ( serializationFormat.isAtLeast( StorageSerializationFormat.V3 ) ) {
             result.firstSeenByServer = serializer.readZonedDateTime();
         }
         return result;

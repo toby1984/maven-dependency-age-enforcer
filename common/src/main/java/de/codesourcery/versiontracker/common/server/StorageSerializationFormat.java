@@ -13,36 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package de.codesourcery.versiontracker.common;
+package de.codesourcery.versiontracker.common.server;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
-public enum ClientVersion
+/**
+ * Serialization format.
+ *
+ * @author tobias.gierke@code-sourcery.de
+ */
+public enum StorageSerializationFormat
 {
-    V1( "1.0", (short) 1, APISerializationFormat.V1 ),
-    V2( "2.0", (short) 2, APISerializationFormat.V3 ),
+    /*
+     * Initial format.
+     */
+    V1( (short) 1 ),
+    /**
+     * New field:
+     * {@link de.codesourcery.versiontracker.common.Version#releaseDate}
+     */
+    V2( (short) 2 ),
+    /**
+     * New field:
+     * {@link de.codesourcery.versiontracker.common.Version#firstSeenByServer}
+     */
+    V3( (short) 3 ),
     ;
 
-    public String versionString;
     public final short version;
-
-    public final APISerializationFormat serializationFormat;
 
     // hack to work around JVM rules...
     private static final class Holder
     {
-        public final static Map<Short, ClientVersion> versionsByNumber = new HashMap<>();
+        public final static Map<Short, StorageSerializationFormat> versionsByNumber = new HashMap<>();
     }
 
-    ClientVersion(String versionString, short version, APISerializationFormat serializationFormat)
+    StorageSerializationFormat(short version)
     {
-        this.versionString = versionString;
         this.version = version;
-        this.serializationFormat = serializationFormat;
-        if ( ClientVersion.Holder.versionsByNumber.put( version, this ) != null )
+        if ( Holder.versionsByNumber.put( version, this ) != null )
         {
             throw new IllegalStateException( "Duplicate version number: " + version );
         }
@@ -51,10 +61,10 @@ public enum ClientVersion
     @Override
     public String toString()
     {
-        return "client V" + version;
+        return "serialization format V" + version;
     }
 
-    public boolean isBefore(ClientVersion other)
+    public boolean isBefore(StorageSerializationFormat other)
     {
         return this.version < other.version;
     }
@@ -65,21 +75,25 @@ public enum ClientVersion
      * @param other
      * @return
      */
-    public boolean isAtLeast(ClientVersion other)
+    public boolean isAtLeast(StorageSerializationFormat other)
     {
         return this.version >= other.version;
     }
 
-    public static ClientVersion fromVersionNumber(String versionString) {
-        return Arrays.stream( ClientVersion.values() ).filter( x -> x.versionString.equals( versionString ) )
-            .findFirst()
-            .orElseThrow( () -> new IllegalArgumentException("Unknown client version: '"+versionString+"'") );
+    public static StorageSerializationFormat fromVersionNumber(short number)
+    {
+        final StorageSerializationFormat result = Holder.versionsByNumber.get( number );
+        if ( result == null )
+        {
+            throw new IllegalArgumentException( "Unknown serialization format version number: " + number );
+        }
+        return result;
     }
 
-    public static ClientVersion latest()
+    public static StorageSerializationFormat latest()
     {
-        ClientVersion latest = null;
-        for ( final ClientVersion v : values() )
+        StorageSerializationFormat latest = null;
+        for ( final StorageSerializationFormat v : values() )
         {
             if ( latest == null || v.version > latest.version )
             {

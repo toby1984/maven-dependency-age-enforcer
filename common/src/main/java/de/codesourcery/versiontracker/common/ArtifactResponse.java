@@ -15,10 +15,9 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
-
 import java.io.IOException;
 import java.util.Objects;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 /**
  * Response for a single artifact from a {@link QueryRequest}.
@@ -107,7 +106,7 @@ public class ArtifactResponse
 		return false;
 	}
 	
-    public void serialize(BinarySerializer serializer, SerializationFormat fileFormat) throws IOException
+    public void serialize(BinarySerializer serializer, APISerializationFormat fileFormat) throws IOException
     {
         artifact.serialize( serializer );
         
@@ -125,7 +124,7 @@ public class ArtifactResponse
             serializer.writeBoolean( false );
         }
 
-		if ( fileFormat.isAtLeast(SerializationFormat.V3) ) {
+		if ( fileFormat.isAtLeast(APISerializationFormat.V3) ) {
 			if ( secondLatestVersion != null ) {
 				serializer.writeBoolean( true );
 				secondLatestVersion.serialize( serializer, fileFormat );
@@ -136,7 +135,7 @@ public class ArtifactResponse
         serializer.writeString( updateAvailable == null ? null : updateAvailable.text );
     }
     
-    public static ArtifactResponse deserialize(BinarySerializer serializer, SerializationFormat fileFormat) throws IOException
+    public static ArtifactResponse deserialize(BinarySerializer serializer, APISerializationFormat fileFormat) throws IOException
 	{
         final ArtifactResponse response = new ArtifactResponse();
         response.artifact = Artifact.deserialize(serializer);
@@ -149,7 +148,7 @@ public class ArtifactResponse
         if ( isPresent ) {
             response.latestVersion = Version.deserialize(serializer, fileFormat);
         }
-		if ( fileFormat.isAtLeast(SerializationFormat.V3) ) {
+		if ( fileFormat.isAtLeast(APISerializationFormat.V3) ) {
 			isPresent = serializer.readBoolean();
 			if ( isPresent ) {
 				response.secondLatestVersion = Version.deserialize(serializer, fileFormat);

@@ -20,9 +20,10 @@ import java.util.Map;
 
 /**
  * Serialization format.
+ *
  * @author tobias.gierke@code-sourcery.de
  */
-public enum SerializationFormat
+public enum APISerializationFormat
 {
     /*
      * Initial format.
@@ -35,7 +36,7 @@ public enum SerializationFormat
     V2( (short) 2 ),
     /**
      * New field:
-     *  {@link de.codesourcery.versiontracker.common.Version#firstSeenByServer}
+     * {@link de.codesourcery.versiontracker.common.Version#firstSeenByServer}
      */
     V3( (short) 3 ),
     ;
@@ -43,24 +44,28 @@ public enum SerializationFormat
     public final short version;
 
     // hack to work around JVM rules...
-    private static final class Holder {
-        public final static Map<Short,SerializationFormat> versionsByNumber = new HashMap<>();
+    private static final class Holder
+    {
+        public final static Map<Short, APISerializationFormat> versionsByNumber = new HashMap<>();
     }
 
-    SerializationFormat(short version) {
+    APISerializationFormat(short version)
+    {
         this.version = version;
-        if ( Holder.versionsByNumber.put(version, this) != null ) {
-            throw new IllegalStateException("Duplicate version number: " + version);
+        if ( Holder.versionsByNumber.put( version, this ) != null )
+        {
+            throw new IllegalStateException( "Duplicate version number: " + version );
         }
     }
 
     @Override
     public String toString()
     {
-        return "serialization format V"+version;
+        return "serialization format V" + version;
     }
 
-    public boolean isBefore(SerializationFormat other) {
+    public boolean isBefore(APISerializationFormat other)
+    {
         return this.version < other.version;
     }
 
@@ -70,25 +75,28 @@ public enum SerializationFormat
      * @param other
      * @return
      */
-    public boolean isAtLeast(SerializationFormat other)
+    public boolean isAtLeast(APISerializationFormat other)
     {
         return this.version >= other.version;
     }
 
-    public static SerializationFormat fromVersionNumber(short number) {
-        final SerializationFormat result = Holder.versionsByNumber.get(number);
-        if ( result == null ) {
-            throw new IllegalArgumentException("Unknown serialization format version number: "+number);
+    public static APISerializationFormat fromVersionNumber(short number)
+    {
+        final APISerializationFormat result = Holder.versionsByNumber.get( number );
+        if ( result == null )
+        {
+            throw new IllegalArgumentException( "Unknown serialization format version number: " + number );
         }
         return result;
     }
 
-    public static SerializationFormat latest()
+    public static APISerializationFormat latest()
     {
-        SerializationFormat latest = null;
-        for ( final SerializationFormat v : values() )
+        APISerializationFormat latest = null;
+        for ( final APISerializationFormat v : values() )
         {
-            if ( latest == null || v.version > latest.version ) {
+            if ( latest == null || v.version > latest.version )
+            {
                 latest = v;
             }
         }

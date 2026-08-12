@@ -16,13 +16,10 @@
 package de.codesourcery.versiontracker.common;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import de.codesourcery.versiontracker.client.api.IAPIClient;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Optional;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 /**
  * Abstract base-class for all API requests.
@@ -80,7 +77,7 @@ public abstract class APIRequest
 	    doSerialize( serializer, clientVersion.serializationFormat );
 	}
 	
-	protected abstract void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException;
+	protected abstract void doSerialize(BinarySerializer serializer, APISerializationFormat format) throws IOException;
 	
 	public static APIRequest deserialize(BinarySerializer serializer) throws IOException 
 	{

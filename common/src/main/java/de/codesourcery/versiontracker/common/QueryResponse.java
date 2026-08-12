@@ -16,7 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import de.codesourcery.versiontracker.common.APIRequest.Command;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ public class QueryResponse extends APIResponse
 	}
 	
     @Override
-    protected void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException
+    protected void doSerialize(BinarySerializer serializer, APISerializationFormat format) throws IOException
     {
         serializer.writeInt( artifacts.size() );
         for ( ArtifactResponse resp : artifacts ) {
@@ -63,7 +63,7 @@ public class QueryResponse extends APIResponse
         }
     }
 
-    public static APIResponse doDeserialize(BinarySerializer serializer, SerializationFormat format) throws IOException {
+    public static APIResponse doDeserialize(BinarySerializer serializer, APISerializationFormat format) throws IOException {
         final QueryResponse result = new QueryResponse();
         for ( int count = serializer.readInt() ; count > 0 ; count-- ) 
         {

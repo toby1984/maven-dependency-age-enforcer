@@ -90,10 +90,10 @@ public class FlatFileStorage implements IVersionStorage
 		}
 	}
 
-	private final SerializationFormat serializationFormatToWrite;
+	private final StorageSerializationFormat serializationFormatToWrite;
 	// serialization format we've detected the last time we've
 	// read the data file
-	public SerializationFormat lastFileReadSerializationVersion;
+	public StorageSerializationFormat lastFileReadSerializationVersion;
 	private final Protocol protocol;
 	private final File file;
 
@@ -106,10 +106,10 @@ public class FlatFileStorage implements IVersionStorage
 	}
 
 	public FlatFileStorage(File file, Protocol protocol) {
-		this( file, protocol, SerializationFormat.latest() );
+		this( file, protocol, StorageSerializationFormat.latest() );
 	}
 
-	public FlatFileStorage(File file, Protocol protocol, SerializationFormat serializationFormatToWrite) {
+	public FlatFileStorage(File file, Protocol protocol, StorageSerializationFormat serializationFormatToWrite) {
 		this.file = file;
 		this.protocol = protocol;
 		this.serializationFormatToWrite = serializationFormatToWrite;
@@ -154,10 +154,10 @@ public class FlatFileStorage implements IVersionStorage
 						final int count = serializer.readInt();
 						result = new ArrayList<>(count);
 						for ( int i = 0 ; i < count ; i++ ) {
-							result.add( VersionInfo.deserialize( serializer, SerializationFormat.V1 ) );
+							result.add( VersionInfo.deserialize( serializer, StorageSerializationFormat.V1 ) );
 						}
 					} else if ( magic == MAGIC_V2 ) {
-						lastFileReadSerializationVersion = SerializationFormat.fromVersionNumber( serializer.readShort() );
+						lastFileReadSerializationVersion = StorageSerializationFormat.fromVersionNumber( serializer.readShort() );
                         if ( LOG.isDebugEnabled() )
                         {
                             LOG.debug( "getAllVersions(): File {} uses {}", file.getAbsolutePath(), lastFileReadSerializationVersion );
@@ -187,7 +187,7 @@ public class FlatFileStorage implements IVersionStorage
 			}
 			// field 'firstSeenByServer' got added with SerializationFormatVersion.V3.
 			// populate with current date when reading such a database
-			assignMissingFirstSeenDate = lastFileReadSerializationVersion.isBefore( SerializationFormat.V3 );
+			assignMissingFirstSeenDate = lastFileReadSerializationVersion.isBefore( StorageSerializationFormat.V3 );
 		} else if ( protocol == Protocol.JSON ) {
 			result = mapper.readValue(file,new TypeReference<>() {});
 			// field 'firstSeenByServer' got added with SerializationFormatVersion.V3.

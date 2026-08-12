@@ -18,9 +18,8 @@ package de.codesourcery.versiontracker.common;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 /**
  * API request that looks for updates for a given set of artifacts.
@@ -61,7 +60,7 @@ public class QueryRequest extends APIRequest
 	}
 
     @Override
-    protected void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException
+    protected void doSerialize(BinarySerializer serializer, APISerializationFormat format) throws IOException
     {
         serializer.writeInt( artifacts.size() );
         for ( Artifact a : artifacts ) {

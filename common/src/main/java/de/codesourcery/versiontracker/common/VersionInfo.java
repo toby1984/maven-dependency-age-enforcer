@@ -15,7 +15,6 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -27,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import de.codesourcery.versiontracker.common.server.StorageSerializationFormat;
 
 /**
  * Artifact metadata.
@@ -87,7 +87,7 @@ public class VersionInfo
     public VersionInfo() {
     }
     
-    public void serialize(BinarySerializer serializer, SerializationFormat format) throws IOException
+    public void serialize(BinarySerializer serializer, StorageSerializationFormat format) throws IOException
     {
     	artifact.serialize( serializer );
     	serializer.writeZonedDateTime( lastRequestDate );
@@ -116,7 +116,7 @@ public class VersionInfo
         }
     }
 
-    public static VersionInfo deserialize(BinarySerializer serializer, SerializationFormat fileFormatVersion) throws IOException {
+    public static VersionInfo deserialize(BinarySerializer serializer, StorageSerializationFormat fileFormatVersion) throws IOException {
 
     	final VersionInfo  result = new VersionInfo();
     	result.artifact = Artifact.deserialize( serializer );

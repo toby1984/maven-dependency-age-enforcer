@@ -37,7 +37,7 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import de.codesourcery.versiontracker.common.server.FlatFileStorage;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
+import de.codesourcery.versiontracker.common.server.StorageSerializationFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -78,7 +78,7 @@ public class FlatFileStorageTest
 
 		List<VersionInfo> loaded = storage.getAllVersions();
 		assertEquals(0,loaded.size());
-		assertEquals( SerializationFormat.latest(), storage.lastFileReadSerializationVersion );
+		assertEquals( StorageSerializationFormat.latest(), storage.lastFileReadSerializationVersion );
 	}
 
 	@Test
@@ -124,12 +124,12 @@ public class FlatFileStorageTest
 		final VersionInfo info = createData();
 		final VersionInfo copy = info.copy();
 
-		FlatFileStorage storage = new FlatFileStorage(file, Protocol.BINARY, SerializationFormat.V2);
+		FlatFileStorage storage = new FlatFileStorage(file, Protocol.BINARY, StorageSerializationFormat.V2);
 		storage.saveOrUpdate(info);
 
 		storage = new FlatFileStorage(file, IAPIClient.Protocol.BINARY);
 		final List<VersionInfo> loaded = storage.getAllVersions();
-		assertEquals( SerializationFormat.V2, storage.lastFileReadSerializationVersion );
+		assertEquals( StorageSerializationFormat.V2, storage.lastFileReadSerializationVersion );
 
 		for ( final VersionInfo v : loaded )
 		{

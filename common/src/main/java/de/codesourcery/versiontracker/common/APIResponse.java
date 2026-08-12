@@ -16,7 +16,7 @@
 package de.codesourcery.versiontracker.common;
 
 import java.io.IOException;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 /**
  * Abstract base-class for all API responses.
@@ -42,13 +42,13 @@ public abstract class APIResponse
        this.serverVersion = serverVersion;
     }
 	
-    public final void serialize(BinarySerializer serializer, SerializationFormat format) throws IOException {
+    public final void serialize(BinarySerializer serializer, APISerializationFormat format) throws IOException {
         serializer.writeString( serverVersion.versionString );
         serializer.writeString( command.text );
         doSerialize(serializer, format);
     }	
     
-    protected abstract void doSerialize(BinarySerializer serializer, SerializationFormat format) throws IOException;
+    protected abstract void doSerialize(BinarySerializer serializer, APISerializationFormat format) throws IOException;
     
     public static APIResponse deserialize(BinarySerializer serializer) throws IOException {
         final String serverVersion = serializer.readString();

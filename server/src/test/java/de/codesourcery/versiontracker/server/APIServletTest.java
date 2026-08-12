@@ -38,7 +38,7 @@ import de.codesourcery.versiontracker.common.QueryRequest;
 import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
-import de.codesourcery.versiontracker.common.server.SerializationFormat;
+import de.codesourcery.versiontracker.common.server.APISerializationFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -226,7 +226,7 @@ public class APIServletTest {
 
 			final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 			final IBuffer dataOut = IBuffer.wrap( byteOut );
-			expected.serialize( new BinarySerializer( dataOut ) , SerializationFormat.V1 );
+			expected.serialize( new BinarySerializer( dataOut ) , APISerializationFormat.V1 );
 			QueryResponse actual = (QueryResponse) APIResponse.deserialize( new BinarySerializer( IBuffer.wrap( byteOut.toByteArray() ) ) );
 
 			if ( !Objects.equals( expected, actual ) ) {

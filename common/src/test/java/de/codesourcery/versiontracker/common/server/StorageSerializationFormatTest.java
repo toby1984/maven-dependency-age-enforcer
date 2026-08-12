@@ -17,21 +17,22 @@ package de.codesourcery.versiontracker.common.server;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class SerializationFormatTest
+class StorageSerializationFormatTest
 {
     @Test
     void testLessThan() {
-        assertTrue(  SerializationFormat.V1.isBefore( SerializationFormat.V2 ) );
-        assertFalse( SerializationFormat.V1.isBefore( SerializationFormat.V1 ) );
-        assertFalse( SerializationFormat.V2.isBefore( SerializationFormat.V1 ) );
+        assertTrue(  StorageSerializationFormat.V1.isBefore( StorageSerializationFormat.V2 ) );
+        assertFalse( StorageSerializationFormat.V1.isBefore( StorageSerializationFormat.V1 ) );
+        assertFalse( StorageSerializationFormat.V2.isBefore( StorageSerializationFormat.V1 ) );
     }
 
     @Test
     void testGreaterThan() {
-        assertTrue(  SerializationFormat.V2.isAtLeast( SerializationFormat.V1 ) );
-        assertTrue(  SerializationFormat.V2.isAtLeast( SerializationFormat.V2 ) );
-        assertFalse( SerializationFormat.V2.isAtLeast( SerializationFormat.V3 ) );
+        assertTrue(  StorageSerializationFormat.V2.isAtLeast( StorageSerializationFormat.V1 ) );
+        assertTrue(  StorageSerializationFormat.V2.isAtLeast( StorageSerializationFormat.V2 ) );
+        assertFalse( StorageSerializationFormat.V2.isAtLeast( StorageSerializationFormat.V3 ) );
     }
 }
