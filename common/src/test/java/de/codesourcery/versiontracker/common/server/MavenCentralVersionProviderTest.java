@@ -58,16 +58,7 @@ public class MavenCentralVersionProviderTest {
     }
 
     @Test
-    public void testScrapingOnlyLatestVersions(WireMockRuntimeInfo webServer) throws IOException {
-        doTest(webServer, false );
-    }
-
-    @Test
-    public void testScrapeAdditional(WireMockRuntimeInfo webServer) throws IOException {
-        doTest(webServer, true );
-    }
-
-    private void doTest(WireMockRuntimeInfo webServer, boolean scrapeAdditionalReleaseDates) throws IOException {
+    public void testScrapingVersions(WireMockRuntimeInfo webServer) throws IOException {
 
         final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
         final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
@@ -101,18 +92,11 @@ public class MavenCentralVersionProviderTest {
         final String metaDataURL = "/"+MavenCentralVersionProvider.metaDataPath( info.artifact );
         stubFor(get( metaDataURL ).willReturn( ok( metadata ) ) );
 
-        final ZonedDateTime releaseDate1 = date( "2021-07-11 11:12" );
         final ZonedDateTime releaseDate2 = date( "2021-07-12 12:13" );
 
         final String jsonResponse = loadJSONResponse();
-        final String expectedRestURL = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=300&wt=json";
+        final String expectedRestURL = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=20&wt=json";
         stubFor( get( expectedRestURL ).willReturn( ok( jsonResponse ) ) );
-
-        if ( scrapeAdditionalReleaseDates ) {
-            final String jsonResponse2 = loadJSONResponse();
-            final String expectedRestURL2 = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=300&wt=json";
-            stubFor( get( expectedRestURL2 ).willReturn( ok( jsonResponse2 ) ) );
-        }
 
         final IVersionProvider.UpdateResult result = provider.update( info, false );
         assertThat(result).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
@@ -120,11 +104,7 @@ public class MavenCentralVersionProviderTest {
         Assertions.assertTrue(info.versions.stream().anyMatch( x -> x.versionString.equals("3.11") ) );
         Assertions.assertTrue(info.versions.stream().anyMatch( x -> x.versionString.equals("3.12.0") ) );
 
-        if ( scrapeAdditionalReleaseDates ) {
-            assertThat( info.getVersion( "3.11" ) ).map( x -> x.releaseDate ).hasValueSatisfying( v -> v.toInstant().equals( releaseDate1.toInstant() ) );
-        } else {
-            assertThat( info.getVersion( "3.11" ) ).isPresent();
-        }
+        assertThat( info.getVersion( "3.11" ) ).isPresent();
         assertThat( info.getVersion( "3.12.0" ) ).map( x -> x.releaseDate ).hasValueSatisfying( v -> v.toInstant().equals( releaseDate2.toInstant() ) );
 
         verify( getRequestedFor( urlEqualTo( metaDataURL ) ) );

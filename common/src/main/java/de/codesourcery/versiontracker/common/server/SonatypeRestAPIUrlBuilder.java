@@ -39,7 +39,7 @@ public final class SonatypeRestAPIUrlBuilder
 {
     private static final Logger LOG = LogManager.getLogger( SonatypeRestAPIUrlBuilder.class );
 
-    private static final int DEFAULT_MAX_RESULT_COUNT = 300;
+    private static final int DEFAULT_MAX_RESULT_COUNT = 20;
 
     // internal parameter names
     private enum InternalParameter {
@@ -64,7 +64,8 @@ public final class SonatypeRestAPIUrlBuilder
     /**
      * Create instance.
      *
-     * @param rowCount how many results the REST API should return at most. Most be greater than zero.
+     * @param rowCount how many results the REST API should return at most. Most be greater than zero less than 50.
+     *                 The Sonatype API is heavily rate-limited and will hang/time-out if requesting too much at once.
      */
     public SonatypeRestAPIUrlBuilder(int rowCount) {
         this( MavenCentralVersionProvider.DEFAULT_SONATYPE_REST_API_BASE_URL, rowCount );

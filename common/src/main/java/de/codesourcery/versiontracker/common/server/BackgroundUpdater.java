@@ -380,9 +380,10 @@ public class BackgroundUpdater implements IBackgroundUpdater {
     protected ZonedDateTime calculateNextUpdateTimestamp(ZonedDateTime now)
     {
         final Configuration.DurationRange window = configurationProvider.getConfiguration().getBackgroundUpdateDelayWindowInMinutes();
-        final long millis = window.max().minus( window.min() ).toMillis();
+        final Duration windowDuration = window.max().minus( window.min() );
         final float frac = new Random().nextFloat();
-        final long randomDelayMillis = (long) Math.ceil(millis*frac);
-        return now.plusNanos(randomDelayMillis*1_000_000_000L);
+        final long randomDelayMillis = (long) Math.ceil( windowDuration.toMillis() * frac);
+        final Duration totalDelay = window.min().plusMillis( randomDelayMillis );
+        return now.plusNanos( totalDelay.toNanos() );
     }
 }

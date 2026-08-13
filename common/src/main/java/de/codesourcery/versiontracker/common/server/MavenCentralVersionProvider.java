@@ -20,6 +20,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.InterruptedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -33,14 +34,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -87,8 +83,37 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneId.of("UTC"));
 
-    public static final String DEFAULT_REPO1_BASE_URL = "https://repo1.maven.org/maven2/";
+    private static final String REPO1_HOST = "repo1.maven.org";
+    public static final String DEFAULT_REPO1_BASE_URL = "https://"+REPO1_HOST+"/maven2/";
     public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://search.maven.org/solrsearch/select";
+
+    private static final class FifoRateLimiter
+    {
+        private final ReentrantLock lock = new ReentrantLock(true);
+        private final long minIntervalMillis;
+        private long lastExecutionTimestamp = 0;
+
+        public FifoRateLimiter(double requestsPerSecond) {
+            this.minIntervalMillis = (long) (1000.0 / requestsPerSecond);
+        }
+
+        public void acquire() throws InterruptedException {
+            lock.lock(); // Queues incoming threads fairly
+            try {
+                final long now = System.currentTimeMillis();
+                final long elapsed = now - lastExecutionTimestamp;
+                final long waitTime = minIntervalMillis - elapsed;
+
+                if (waitTime > 0) {
+                    Thread.sleep(waitTime);
+                }
+                // Update timestamp after the delay
+                lastExecutionTimestamp = System.currentTimeMillis();
+            } finally {
+                lock.unlock(); // Hands control to the next thread in queue
+            }
+        }
+    }
 
     private static final class RequestCount implements IRequestCount
     {
@@ -197,15 +222,15 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private final String repo1BaseUrl;
     private final String sonatypeRestApiBaseUrl;
     private final ThreadLocal<MyExpressions> expressions = ThreadLocal.withInitial( MyExpressions::new );
-    private final Map<URI,CloseableHttpClient> clients = new HashMap<>();
 
-    private int maxConcurrentThreads = 10;
+    private final Map<String,CloseableHttpClient> clients = new HashMap<>();
+    private final Map<String,FifoRateLimiter> rateLimiters = new HashMap<>();
+
+    // be gentle, Sonatype has aggressive rate limiting
+    private float maxSolrApiRequestsPerSecond = 2.0f;
 
     // @GuardedBy( statistics )
     private final Statistics statistics = new Statistics();
-
-    private final Object THREAD_POOL_LOCK=new Object();
-    private ThreadPoolExecutor threadPool;
 
     private ConfigurationProvider configurationProvider;
 
@@ -388,73 +413,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     };
     
-    private void submit(Runnable r) 
-    {
-        synchronized( THREAD_POOL_LOCK ) 
-        {
-            if ( threadPool == null ) 
-            {
-                LOG.info("setMaxConcurrentThreads(): Using "+maxConcurrentThreads+" threads to retrieve artifact metadata.");                
-                final BlockingQueue<Runnable> workingQueue = new ArrayBlockingQueue<>(200);
-                threadPool = new ThreadPoolExecutor( maxConcurrentThreads, maxConcurrentThreads, 60 , TimeUnit.SECONDS,
-                        workingQueue,threadFactory, new ThreadPoolExecutor.CallerRunsPolicy() );
-            }
-            threadPool.submit( r );
-        }
-    }
-    
-    private Map<String,Version> queryReleaseDates(Artifact artifact, Set<String> versionNumbers)
-    {
-        final Map<String,Version> result = new HashMap<>();
-        if ( versionNumbers.isEmpty() ) {
-            return result;
-        }
-        final CountDownLatch latch = new CountDownLatch( versionNumbers.size() );
-        for ( String versionNumber : versionNumbers )
-        {
-            // to stuff
-            final Runnable r = () -> 
-            {
-                try {
-                    final Optional<ZonedDateTime> v = queryReleaseDate(artifact,versionNumber);
-                    if ( v.isPresent() ) {
-                        synchronized(result) {
-                            result.put(versionNumber,new Version(versionNumber,v.get()) );
-                        }
-                    }
-                } catch(Exception e) {
-                    LOG.error("readVersion(): Failed to retrieve version '"+versionNumber+"' for "+artifact,e);
-                } finally {
-                    latch.countDown();
-                }
-            };
-            submit(r);
-        }
-        
-        while ( true ) 
-        {
-            try {
-                if ( latch.await(10,TimeUnit.SECONDS) ) {
-                    return result;
-                }
-            } catch(InterruptedException e) { /* can't help it */ }
-            LOG.debug("readVersions(): Still waiting for "+latch.getCount()+" outstanding requests of artifact "+artifact);
-        }
-    }
-
-    private Optional<ZonedDateTime> queryReleaseDate(Artifact artifact, String versionString) throws IOException {
-
-        final URL url = newRESTUrlBuilder()
-            .groupId( artifact.groupId )
-            .artifactId( artifact.artifactId )
-            .version( versionString )
-            .classifier( artifact.classifier ).build();
-        return performGET( url, stream -> {
-            final PartialResult result = parseSonatypeResponse( stream );
-            return result.getFirstResult().filter( Version::hasReleaseDate ).map( x -> x.releaseDate );
-        } );
-    }
-
     /** Sonatype API seems to refuse returning more than 20 results ... we'll have to page through them to get all ... */
     private record PartialResult(List<Version> data, int totalResultSize) {
         private PartialResult
@@ -666,17 +624,28 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private CloseableHttpClient getClient(URI uri)
     {
         synchronized(clients) {
-            CloseableHttpClient client = clients.get(uri);
+            final String key = uri.getScheme()+"_"+uri.getHost()+"_"+uri.getPort();
+            CloseableHttpClient client = clients.get(key);
             if ( client==null )
             {
-                final DefaultConnectionKeepAliveStrategy defaultKeepAlive = new  DefaultConnectionKeepAliveStrategy();
+                final DefaultConnectionKeepAliveStrategy defaultKeepAlive =
+                    new DefaultConnectionKeepAliveStrategy();
                 client = HttpClients.custom()
                     .setKeepAliveStrategy(defaultKeepAlive)
+                    .setUserAgent( "MavenCentralVersionProvider/1.0.0 (tobias.gierke@voipfuture.com)" )
                     .setConnectionManager(connManager)
                     .setConnectionManagerShared(true).build();
-                    clients.put(uri, client);
+                    clients.put(key, client);
             }
             return client;
+        }
+    }
+
+    private FifoRateLimiter getRateLimiter(URI uri)
+    {
+        synchronized(rateLimiters) {
+            final String key = uri.getScheme()+"_"+uri.getHost()+"_"+uri.getPort();
+            return rateLimiters.computeIfAbsent(key, u -> new FifoRateLimiter( maxSolrApiRequestsPerSecond ));
         }
     }
 
@@ -690,6 +659,19 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
         catch ( URISyntaxException e ) {
             throw new IOException( "URL is not RFC2396-compliant and cannot be converted into an URI", e);
+        }
+
+        // make sure we don't hit Solr too hard
+        try
+        {
+            if ( ! REPO1_HOST.equals( uri.getHost() ) )
+            {
+                getRateLimiter( uri ).acquire();
+            }
+        }
+        catch( InterruptedException e )
+        {
+            throw new InterruptedIOException( "rate-limiter caught InterruptedException" );
         }
 
         final long start = System.currentTimeMillis();
@@ -763,5 +745,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
         synchronized( statistics ) {
             statistics.reset();
         }
+    }
+
+    public void setMaxSolrApiRequestsPerSecond(float maxSolrApiRequestsPerSecond)
+    {
+        this.maxSolrApiRequestsPerSecond = maxSolrApiRequestsPerSecond;
     }
 }

@@ -39,6 +39,7 @@ import de.codesourcery.versiontracker.common.QueryResponse;
 import de.codesourcery.versiontracker.common.server.APIImpl;
 import de.codesourcery.versiontracker.common.server.APIImpl.Mode;
 import de.codesourcery.versiontracker.common.server.APISerializationFormat;
+import de.codesourcery.versiontracker.common.server.Configuration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -155,7 +156,6 @@ public class APIServletTest {
 				
 				final String query = SOURCE_QUERIES[i];
 				jsonQueries[i] = query.getBytes( StandardCharsets.UTF_8 );
-//				System.out.println("JSON: ("+query.length()+") "+query);
 			    final QueryRequest request = (QueryRequest) APIServlet.parse( query, JSONHelper.newObjectMapper() );
 			    
 			    final ByteArrayOutputStream outStream = new ByteArrayOutputStream(); 
@@ -163,9 +163,7 @@ public class APIServletTest {
 			    final BinarySerializer binOut = new BinarySerializer( out );
 			    request.serialize( binOut );
 			    
-			    // final byte[] dataOut = IAPIClient.toWireFormat( outStream.toByteArray() , Protocol.BINARY );
 			    final byte[] dataOut = outStream.toByteArray();
-//			    System.out.println( "BINARY: ("+dataOut.length+") "+Utils.toHex( dataOut ));
 			    binaryQueries[i] = dataOut;
 			}
 		} catch (Exception e) {
@@ -194,7 +192,8 @@ public class APIServletTest {
     {
         // copy artifacts to temp location
         final File tmpOut = File.createTempFile("unittest", "suffix");
-        tmpOut.deleteOnExit();
+        // tmpOut.deleteOnExit();
+		System.out.println( "---> WRITING ARTIFACT STORAGE TO " + tmpOut.getAbsolutePath() );
         try ( InputStream in= getClass().getResourceAsStream("/artifacts.json" ) ) 
         {
             Files.copy( in , tmpOut.toPath(),StandardCopyOption.REPLACE_EXISTING); 
@@ -205,8 +204,9 @@ public class APIServletTest {
         APIImplHolder.mode = Mode.CLIENT; // disable background update thread
         
         // force initialization
-        APIImplHolder.getInstance().getImpl();
-        servlet = new APIServlet();
+		final APIImpl impl = APIImplHolder.getInstance().getImpl();
+		// impl.getAppConfig().setClientArtifactUpdateMode( Configuration.ClientRequestArtifactUpdateMode.ASYNC );
+		servlet = new APIServlet();
         servlet.setBackgroundUpdaterDisabled();
     }
 
@@ -280,7 +280,7 @@ public class APIServletTest {
             {
                 final byte[] binaryQuery = binaryQueries[j];
                 final ByteArrayOutputStream out = new ByteArrayOutputStream();
-				System.out.println("Processing #"+j);
+				System.out.println("Processing binaryQueries[ "+j+" ] -> "+SOURCE_QUERIES[j]);
                 servlet.processRequest( new ByteArrayInputStream( binaryQuery ), out, Protocol.BINARY );
             }
             

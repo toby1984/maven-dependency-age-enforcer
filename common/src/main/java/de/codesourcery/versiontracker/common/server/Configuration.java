@@ -77,14 +77,16 @@ public class Configuration
     /**
      * Controls behaviour when a client
      * requests information about a stale artifact.
-     *
+     * <p>
      * Requesting information about a new/missing artifact
      * will always yield a synchronous call to the
      * current {@link de.codesourcery.versiontracker.common.IVersionProvider}
      * as obviously the client cannot check the age without ANY information.
      */
-    public enum ClientRequestArtifactUpdateMode {
-        /** Update stale artifacts while handling the client request.
+    public enum ClientRequestArtifactUpdateMode
+    {
+        /**
+         * Update stale artifacts while handling the client request.
          * This may lead to TCP read() timeouts on the client if the
          * {@link de.codesourcery.versiontracker.common.IVersionProvider} is slow
          * to respond or the client request refers to a lot of stale/unknown artifacts.
@@ -110,10 +112,12 @@ public class Configuration
             this.configLiteral = configLiteral;
         }
 
-        public static Optional<ClientRequestArtifactUpdateMode> fromString(String s) {
+        public static Optional<ClientRequestArtifactUpdateMode> fromString(String s)
+        {
             for ( final ClientRequestArtifactUpdateMode value : values() )
             {
-                if ( s.equalsIgnoreCase( value.configLiteral ) ) {
+                if ( s.equalsIgnoreCase( value.configLiteral ) )
+                {
                     return Optional.of( value );
                 }
             }
@@ -324,7 +328,10 @@ public class Configuration
                                        .collect( Collectors.joining(", "));
                 LOG.error( msg );
                 throw new RuntimeException(msg);
+            } else {
+                this.clientArtifactUpdateMode = clientRequestArtifactUpdateMode.get();
             }
+
             final Duration bgUpdateDelayMin = getDuration( props, "bgUpdateDelayMin" , this.backgroundUpdateDelayWindowInMinutes.min() );
             final Duration bgUpdateDelayMax = getDuration( props, "bgUpdateDelayMax" , this.backgroundUpdateDelayWindowInMinutes.max() );
             setBackgroundUpdateDelayWindow( new DurationRange( bgUpdateDelayMin, bgUpdateDelayMax ) );

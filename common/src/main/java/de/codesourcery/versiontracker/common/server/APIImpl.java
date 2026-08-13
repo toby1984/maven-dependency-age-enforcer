@@ -55,6 +55,7 @@ public class APIImpl implements AutoCloseable
 
     private IVersionTracker versionTracker;
     private IVersionStorage versionStorage;
+    private de.codesourcery.versiontracker.common.server.Configuration appConfig;
     private IVersionProvider versionProvider;
 
     private IBackgroundUpdater updater;
@@ -208,8 +209,7 @@ public class APIImpl implements AutoCloseable
         }
 
         // force configuration load so we know it's sane
-        final de.codesourcery.versiontracker.common.server.Configuration appConfig = configurationProvider.getConfiguration();
-
+        appConfig = configurationProvider.getConfiguration();
         versionStorage  = createVersionStorage();
         versionProvider = createVersionProvider();
         final SharedLockCache lockCache = new SharedLockCache();
@@ -472,4 +472,8 @@ public class APIImpl implements AutoCloseable
         this.registerShutdownHook = registerShutdownHook;
     }
 
+    public de.codesourcery.versiontracker.common.server.Configuration getAppConfig()
+    {
+        return appConfig;
+    }
 }
