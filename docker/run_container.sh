@@ -52,5 +52,5 @@ if [ "$REBUILD" != "0" ] ; then
   build_image.sh ${FORCE}
 fi
 
-# docker run -itd --rm -p 8888:8080 $IMAGE_NAME
-docker run -it ${DOCKER_OPTS} --rm --mount source=versiontracker_data,target=/data -p 8888:8080 -p 8889:8889 $IMAGE_NAME
+# docker run -it ${DOCKER_OPTS} --rm --mount source=versiontracker_data,target=/data -p 8888:8080 -p 8889:8889 $IMAGE_NAME
+docker run -it ${DOCKER_OPTS} -v $(pwd)/artifacts.json.binary:/data/seed.artifacts.json.binary:ro -v "$(pwd)/versionTracker.properties:/data/versionTracker.properties" -v "$(pwd)/log4j2.xml:/usr/local/tomcat/lib/log4j2.xml" --mount source=versiontracker_data,target=/data -p 8888:8080 -p 8889:8889 $IMAGE_NAME
