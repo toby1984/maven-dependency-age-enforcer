@@ -136,8 +136,9 @@ public class VersionTrackerTest
             }
         };
 
+        Configuration config = new Configuration();
         final SharedLockCache locks = new SharedLockCache();
-        tracker = new VersionTracker(storage,provider,locks);
+        tracker = new VersionTracker(storage,provider,locks, config );
         
         final Artifact artifact = new Artifact();
         artifact.groupId="de.codesourcery";

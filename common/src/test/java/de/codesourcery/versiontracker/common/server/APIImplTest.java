@@ -127,8 +127,8 @@ class APIImplTest
             }
 
             @Override
-            protected IVersionTracker createVersionTracker(SharedLockCache lockCache) {
-                return new VersionTracker( versionStorage, createVersionProvider(), lockCache );
+            protected IVersionTracker createVersionTracker(SharedLockCache lockCache, de.codesourcery.versiontracker.common.server.Configuration appConfig) {
+                return new VersionTracker( versionStorage, createVersionProvider(), lockCache, appConfig);
             }
         } ) {
             api.setRegisterShutdownHook( false );
@@ -228,8 +228,8 @@ class APIImplTest
             }
 
             @Override
-            protected IVersionTracker createVersionTracker(SharedLockCache lockCache) {
-                return new VersionTracker( versionStorage, createVersionProvider(), lockCache );
+            protected IVersionTracker createVersionTracker(SharedLockCache lockCache, de.codesourcery.versiontracker.common.server.Configuration appConfig) {
+                return new VersionTracker( versionStorage, createVersionProvider(), lockCache, appConfig );
             }
         } ) {
             api.setRegisterShutdownHook( false );

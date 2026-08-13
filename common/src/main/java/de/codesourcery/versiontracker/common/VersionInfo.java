@@ -15,9 +15,6 @@
  */
 package de.codesourcery.versiontracker.common;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -26,7 +23,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import de.codesourcery.versiontracker.common.server.Configuration;
 import de.codesourcery.versiontracker.common.server.StorageSerializationFormat;
 
 /**
@@ -298,5 +294,10 @@ public class VersionInfo
                 + lastSuccessDate + ", lastFailureDate=" + lastFailureDate + ", latestReleaseVersion="
                 + latestReleaseVersion + ", latestSnapshotVersion=" + latestSnapshotVersion + ", lastRepositoryUpdate="
                 + lastRepositoryUpdate + ", versions=" + versions + "]";
+    }
+
+    public boolean latestUpdateSucceeded() {
+        return ( lastSuccessDate != null && lastFailureDate == null ) |
+               ( lastSuccessDate != null && lastFailureDate != null && lastSuccessDate.isAfter( lastFailureDate ) );
     }
 }

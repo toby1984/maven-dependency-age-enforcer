@@ -18,7 +18,6 @@ package de.codesourcery.versiontracker.server;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.codesourcery.versiontracker.client.api.IAPIClient.Protocol;
 import de.codesourcery.versiontracker.common.APIRequest;
-import de.codesourcery.versiontracker.common.APIResponse;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.ArtifactResponse;
 import de.codesourcery.versiontracker.common.ArtifactResponse.UpdateAvailable;
@@ -67,11 +66,9 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -93,7 +90,7 @@ public class APIServlet extends HttpServlet
 
     private record StatusInformation(RequestsPerHour httpStats, String applicationVersion, String gitCommit, IVersionStorage.StorageStatistics storageStatistics) {}
 
-    private boolean artifactUpdatesEnabled = true;
+    private boolean isBackgroundUpdaterEnabled = true;
 
     public APIServlet() {
         LOG.info("APIServlet(): Instance created");
@@ -287,7 +284,7 @@ public class APIServlet extends HttpServlet
             if ( triggerRefresh ) {
                 a.version = req.getParameter( "version" );
                 final BiPredicate<VersionInfo,Artifact> requiresUpdate;
-                if ( artifactUpdatesEnabled ) {
+                if ( isBackgroundUpdaterEnabled ) {
                     final IBackgroundUpdater updater = impl.getBackgroundUpdater();
                     requiresUpdate = updater::requiresUpdate;
                 } else {
@@ -593,7 +590,7 @@ public class APIServlet extends HttpServlet
         final APIImpl impl = APIImplHolder.getInstance().getImpl();
         
         final BiPredicate<VersionInfo,Artifact> requiresUpdate;
-        if ( artifactUpdatesEnabled ) {
+        if ( isBackgroundUpdaterEnabled ) {
             final IBackgroundUpdater updater = impl.getBackgroundUpdater();
             requiresUpdate = updater::requiresUpdate;
         } else {
@@ -675,9 +672,13 @@ public class APIServlet extends HttpServlet
         }
         return result;
     }
- 
-    public void setArtifactUpdatesEnabled(boolean artifactUpdatesEnabled) {
-        this.artifactUpdatesEnabled = artifactUpdatesEnabled;
+
+    /**
+     * (unit-testing only) Tell servlet that {@link de.codesourcery.versiontracker.common.server.BackgroundUpdater} is not to be used,
+     * always query Maven central.
+     */
+    public void setBackgroundUpdaterDisabled() {
+        this.isBackgroundUpdaterEnabled = false;
     }
 
     private Optional<String> getApplicationVersion() {

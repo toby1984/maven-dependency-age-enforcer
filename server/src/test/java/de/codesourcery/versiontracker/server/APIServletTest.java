@@ -207,7 +207,7 @@ public class APIServletTest {
         // force initialization
         APIImplHolder.getInstance().getImpl();
         servlet = new APIServlet();
-        servlet.setArtifactUpdatesEnabled( false );
+        servlet.setBackgroundUpdaterDisabled();
     }
 
 	@AfterEach

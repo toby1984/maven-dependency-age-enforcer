@@ -197,8 +197,8 @@ public class APIImpl implements AutoCloseable
     }
 
     // unit-testing hook
-    protected IVersionTracker createVersionTracker(SharedLockCache lockCache) {
-        return new VersionTracker( versionStorage, versionProvider, lockCache );
+    protected IVersionTracker createVersionTracker(SharedLockCache lockCache, de.codesourcery.versiontracker.common.server.Configuration appConfig) {
+        return new VersionTracker( versionStorage, versionProvider, lockCache, appConfig );
     }
 
     public synchronized void init(boolean debugMode,boolean verboseMode)
@@ -208,7 +208,7 @@ public class APIImpl implements AutoCloseable
         }
 
         // force configuration load so we know it's sane
-        configurationProvider.getConfiguration();
+        final de.codesourcery.versiontracker.common.server.Configuration appConfig = configurationProvider.getConfiguration();
 
         versionStorage  = createVersionStorage();
         versionProvider = createVersionProvider();
@@ -251,7 +251,7 @@ public class APIImpl implements AutoCloseable
         try 
         {
             final int threadCount = Runtime.getRuntime().availableProcessors()*2;
-            versionTracker = createVersionTracker( lockCache );
+            versionTracker = createVersionTracker( lockCache, appConfig );
             versionTracker.setMaxConcurrentThreads( threadCount );
 
             LOG.info("init(): Initialization done.");

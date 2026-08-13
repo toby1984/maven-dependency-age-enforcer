@@ -25,10 +25,12 @@ import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.logging.log4j.LogManager;
@@ -71,6 +73,64 @@ public class Configuration
     private volatile Duration bgUpdateCheckInterval = Duration.ofMinutes( 1 );
 
     private volatile File dataStore;
+
+    /**
+     * Controls behaviour when a client
+     * requests information about a stale artifact.
+     *
+     * Requesting information about a new/missing artifact
+     * will always yield a synchronous call to the
+     * current {@link de.codesourcery.versiontracker.common.IVersionProvider}
+     * as obviously the client cannot check the age without ANY information.
+     */
+    public enum ClientRequestArtifactUpdateMode {
+        /** Update stale artifacts while handling the client request.
+         * This may lead to TCP read() timeouts on the client if the
+         * {@link de.codesourcery.versiontracker.common.IVersionProvider} is slow
+         * to respond or the client request refers to a lot of stale/unknown artifacts.
+         */
+        SYNC( "sync" ),
+        /**
+         * If the previous artifact update finished successfully but the artifact is
+         * currently considered to be stale, let the client use that stale information and hope the
+         * next background update succeeds as well.
+         */
+        ASYNC_ONLY_WHEN_SUCCESSFUL( "async-only-when-successful" ),
+        /**
+         * Always only rely on the background update to fix things when a stale artifact is
+         * encountered, never block the client if we have ANY information
+         * about that artifact already. Instead, that stale information gets returned.
+         */
+        ASYNC( "async" ),
+        ;
+        private final String configLiteral;
+
+        ClientRequestArtifactUpdateMode(String configLiteral)
+        {
+            this.configLiteral = configLiteral;
+        }
+
+        public static Optional<ClientRequestArtifactUpdateMode> fromString(String s) {
+            for ( final ClientRequestArtifactUpdateMode value : values() )
+            {
+                if ( s.equalsIgnoreCase( value.configLiteral ) ) {
+                    return Optional.of( value );
+                }
+            }
+            return Optional.empty();
+        }
+    }
+    /**
+     * Whether artifacts whose last fetch was successful but
+     * are stale should be updated synchronously when
+     * a client requests them or should only ever be updated in the background.
+     *
+     * Synchronous updates carry a high risk of making the client run
+     * into a read() timeout so it's best to only perform the absolutely
+     * necessary updates synchronously.
+     */
+    private volatile ClientRequestArtifactUpdateMode clientArtifactUpdateMode =
+        ClientRequestArtifactUpdateMode.ASYNC_ONLY_WHEN_SUCCESSFUL;
 
     private volatile DurationRange backgroundUpdateDelayWindowInMinutes =
         new DurationRange( Duration.ofMinutes( 10 ), Duration.ofHours( 2 ) );
@@ -183,8 +243,9 @@ public class Configuration
             LOG.info( "Using built-in configuration.");
             return;
         }
-        LOG.info( "Loading configuration from " + resource );
+        LOG.info( "Loading configuration from {}", resource );
         load( resource.get() );
+        LOG.info( "Client artifact update mode: {}", getClientArtifactUpdateMode() );
     }
 
     public static Optional<IResource> getResource(boolean verbose) throws IOException
@@ -251,6 +312,19 @@ public class Configuration
             this.minUpdateDelayAfterSuccess = getDuration( props, "updateDelayAfterSuccess", minUpdateDelayAfterSuccess );
             this.bgUpdateCheckInterval = getDuration( props, "bgUpdateCheckInterval" , bgUpdateCheckInterval );
 
+            final String configKey = "clientRequestArtifactUpdateMode";
+            final String propValue = props.getProperty( configKey,
+                ClientRequestArtifactUpdateMode.ASYNC_ONLY_WHEN_SUCCESSFUL.configLiteral );
+            final Optional<ClientRequestArtifactUpdateMode>
+                clientRequestArtifactUpdateMode =
+                ClientRequestArtifactUpdateMode.fromString( propValue );
+            if ( clientRequestArtifactUpdateMode.isEmpty() ) {
+                final String msg = "Unrecognized value '" + propValue + "' for '" + configKey + "' configuration property - valid values are "
+                                   + Arrays.stream( ClientRequestArtifactUpdateMode.values() ).map(x->"'"+x.configLiteral+"'")
+                                       .collect( Collectors.joining(", "));
+                LOG.error( msg );
+                throw new RuntimeException(msg);
+            }
             final Duration bgUpdateDelayMin = getDuration( props, "bgUpdateDelayMin" , this.backgroundUpdateDelayWindowInMinutes.min() );
             final Duration bgUpdateDelayMax = getDuration( props, "bgUpdateDelayMax" , this.backgroundUpdateDelayWindowInMinutes.max() );
             setBackgroundUpdateDelayWindow( new DurationRange( bgUpdateDelayMin, bgUpdateDelayMax ) );
@@ -373,5 +447,15 @@ public class Configuration
     {
         Validate.notNull( backgroundUpdateDelayWindowInMinutes, "backgroundUpdateDelayWindowInMinutes must not be null" );
         this.backgroundUpdateDelayWindowInMinutes = backgroundUpdateDelayWindowInMinutes;
+    }
+
+    public void setClientArtifactUpdateMode(ClientRequestArtifactUpdateMode clientArtifactUpdateMode)
+    {
+        this.clientArtifactUpdateMode = clientArtifactUpdateMode;
+    }
+
+    public ClientRequestArtifactUpdateMode getClientArtifactUpdateMode()
+    {
+        return clientArtifactUpdateMode;
     }
 }

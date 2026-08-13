@@ -52,6 +52,7 @@ public class VersionTracker implements IVersionTracker
     private final IVersionProvider versionProvider;
 
     private final Object THREAD_POOL_LOCK = new Object();
+    private final Configuration appConfig;
 
     // @GuardedBy( THREAD_POOL_LOCK )
     private int maxConcurrentThreads = 1;
@@ -74,14 +75,16 @@ public class VersionTracker implements IVersionTracker
         }
     };
 
-    public VersionTracker(IVersionStorage versionStorage,IVersionProvider versionProvider,SharedLockCache lockCache) {
+    public VersionTracker(IVersionStorage versionStorage,IVersionProvider versionProvider,SharedLockCache lockCache, Configuration appConfig) {
         Validate.notNull(versionProvider,"versionProvider must not be NULL");
         Validate.notNull(versionStorage,"versionStorage must not be NULL");
         Validate.notNull(lockCache,"lockCache must not be NULL");
+        Validate.notNull( appConfig, "appConfig must not be null" );
 
         this.versionProvider = versionProvider;
         this.versionStorage = versionStorage;
         this.lockCache = lockCache;
+        this.appConfig = appConfig;
     }    
 
     /**
@@ -109,14 +112,33 @@ public class VersionTracker implements IVersionTracker
                 {
                     LOG.debug( "getVersionInfo(): Got lock, now looking for {} in version storage", artifact);
                     final Optional<VersionInfo> result = versionStorage.getVersionInfo( artifact );
-                    if ( result.isEmpty() || requiresUpdate.test( result.get(), artifact ) )
+
+                    final boolean performArtifactUpdate;
+                    if ( result.isEmpty() ) {
+                        // unknown artifact, always needs an update
+                        performArtifactUpdate = true;
+                    } else {
+                        performArtifactUpdate = switch(appConfig.getClientArtifactUpdateMode()) {
+                            case SYNC -> requiresUpdate.test( result.get(), artifact );
+                            case ASYNC_ONLY_WHEN_SUCCESSFUL ->
+                            {
+                                if ( result.get().latestUpdateSucceeded() ) {
+                                    yield false;
+                                }
+                                yield requiresUpdate.test( result.get(), artifact );
+                            }
+                            case ASYNC -> false;
+                        };
+                    }
+
+                    if ( performArtifactUpdate )
                     {
-                        LOG.debug( "getVersionInfo(): Got " + (result.isPresent() ? "outdated" : "no") + " metadata for " + artifact + " yet,fetching it" );
+                        LOG.debug( "getVersionInfo("+appConfig.getClientArtifactUpdateMode()+"): Got " + (result.isPresent() ? "outdated" : "no") + " metadata for " + artifact + " yet,fetching it" );
                         updateArtifactFromServer( artifact, result.orElse( null ), resultMap, stopLatch, now );
                     }
                     else
                     {
-                        LOG.debug( "getVersionInfo(): [from storage] " + result.get() );
+                        LOG.debug( "getVersionInfo("+appConfig.getClientArtifactUpdateMode()+"): [from storage] {}", result.get() );
 
                         synchronized( resultMap )
                         {
