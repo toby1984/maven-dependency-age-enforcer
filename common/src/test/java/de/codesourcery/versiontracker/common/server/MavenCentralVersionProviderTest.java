@@ -95,7 +95,7 @@ public class MavenCentralVersionProviderTest {
         final ZonedDateTime releaseDate2 = date( "2021-07-12 12:13" );
 
         final String jsonResponse = loadJSONResponse();
-        final String expectedRestURL = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=20&wt=json";
+        final String expectedRestURL = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=30&wt=json";
         stubFor( get( expectedRestURL ).willReturn( ok( jsonResponse ) ) );
 
         final IVersionProvider.UpdateResult result = provider.update( info, false );
