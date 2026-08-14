@@ -171,7 +171,7 @@ public final class SonatypeRestAPIUrlBuilder
         final String classifier = getString( InternalParameter.PARAM_CLASSIFIER );
         if ( StringUtils.isNotBlank( classifier ) )
         {
-            query += "AND l:" + classifier;
+            query += " AND l:" + classifier;
         }
 
         final String version = getString( InternalParameter.PARAM_VERSION );
@@ -184,7 +184,7 @@ public final class SonatypeRestAPIUrlBuilder
         else
         {
             Validate.notBlank( version, "version must not be null or blank when returnAllVersions == false" );
-            query += " AND v: " + version;
+            query += " AND v:" + version;
         }
         params.put( MavenCentralVersionProvider.HttpParam.QUERY, query );
 

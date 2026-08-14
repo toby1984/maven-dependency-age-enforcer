@@ -19,9 +19,9 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
+import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -29,9 +29,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.util.List;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
@@ -43,6 +42,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @WireMockTest
 public class MavenCentralVersionProviderTest {
+
+    // release timestamps as found in /response.json
+    private static final long TIMESTAMP_3_9 = 1554946239000L;
+    private static final long TIMESTAMP_3_10 = 1584970776000L;
+    private static final long TIMESTAMP_3_11 = 1594560722000L;
+    private static final long TIMESTAMP_3_12_0 = 1614372052000L;
+
+    private static final String BULK_REST_URL =
+        "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=30&wt=json";
 
     private ConfigurationProvider configProvider;
 
@@ -57,62 +65,119 @@ public class MavenCentralVersionProviderTest {
         configProvider.close();
     }
 
+    /**
+     * More than three versions without a release date => one bulk Solr query for all versions.
+     */
     @Test
-    public void testScrapingVersions(WireMockRuntimeInfo webServer) throws IOException {
+    public void testScrapingVersionsUsingBulkQuery(WireMockRuntimeInfo webServer) throws IOException {
 
+        final VersionInfo info = newVersionInfo();
+        final String metaDataURL = stubMetaData( info.artifact, "3.9", "3.10", "3.11", "3.12.0" );
+
+        stubFor( get( BULK_REST_URL ).willReturn( ok( loadJSONResponse() ) ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
+        assertThat( info.versions ).extracting( x -> x.versionString )
+            .containsExactlyInAnyOrder( "3.9", "3.10", "3.11", "3.12.0" );
+        assertReleaseDate( info, "3.9", TIMESTAMP_3_9 );
+        assertReleaseDate( info, "3.10", TIMESTAMP_3_10 );
+        assertReleaseDate( info, "3.11", TIMESTAMP_3_11 );
+        assertReleaseDate( info, "3.12.0", TIMESTAMP_3_12_0 );
+
+        verify( getRequestedFor( urlEqualTo( metaDataURL ) ) );
+        verify( getRequestedFor( urlEqualTo( BULK_REST_URL ) ) );
+    }
+
+    /**
+     * Three versions or less without a release date => one Solr query per version.
+     */
+    @Test
+    public void testScrapingVersionsUsingIndividualQueries(WireMockRuntimeInfo webServer) throws IOException {
+
+        final VersionInfo info = newVersionInfo();
+        final String metaDataURL = stubMetaData( info.artifact, "3.11", "3.12.0" );
+
+        final String url311 = singleVersionRestURL( "3.11" );
+        final String url3120 = singleVersionRestURL( "3.12.0" );
+        stubFor( get( url311 ).willReturn( ok( singleVersionJSONResponse( "3.11", TIMESTAMP_3_11 ) ) ) );
+        stubFor( get( url3120 ).willReturn( ok( singleVersionJSONResponse( "3.12.0", TIMESTAMP_3_12_0 ) ) ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
+        assertThat( info.versions ).extracting( x -> x.versionString )
+            .containsExactlyInAnyOrder( "3.11", "3.12.0" );
+        assertReleaseDate( info, "3.11", TIMESTAMP_3_11 );
+        assertReleaseDate( info, "3.12.0", TIMESTAMP_3_12_0 );
+
+        verify( getRequestedFor( urlEqualTo( metaDataURL ) ) );
+        verify( getRequestedFor( urlEqualTo( url311 ) ) );
+        verify( getRequestedFor( urlEqualTo( url3120 ) ) );
+    }
+
+    private MavenCentralVersionProvider newProvider(WireMockRuntimeInfo webServer) {
         final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
         final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
 
         final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
         provider.setConfigurationProvider( configProvider );
+        return provider;
+    }
 
+    // TODO: Also write unit test for artifact with classifier
+    private static VersionInfo newVersionInfo() {
         final VersionInfo info = new VersionInfo();
         info.artifact = new Artifact();
-        info.artifact.groupId="org.apache.commons";
-        info.artifact.artifactId="commons-lang3";
-        info.artifact.version="3.11";
+        info.artifact.groupId = "org.apache.commons";
+        info.artifact.artifactId = "commons-lang3";
+        info.artifact.version = "3.11";
+        return info;
+    }
 
-        // TODO: Also write unit test for artifact with classifier
+    /**
+     * @return the stubbed maven-metadata.xml URL
+     */
+    private static String stubMetaData(Artifact artifact, String... versions) {
+        final String versionTags = String.join( "\n      ",
+            List.of( versions ).stream().map( v -> "<version>" + v + "</version>" ).toList() );
 
         final String metadata = """
 <metadata>
-  <groupId>org.apache.commons</groupId>
-  <artifactId>commons-lang3</artifactId>
+  <groupId>%s</groupId>
+  <artifactId>%s</artifactId>
   <versioning>
-    <latest>3.12.0</latest>
-    <release>3.12.0</release>
+    <latest>%s</latest>
+    <release>%s</release>
     <versions>
-      <version>3.11</version>
-      <version>3.12.0</version>
+      %s
     </versions>
     <lastUpdated>20210301214036</lastUpdated>
   </versioning>
-</metadata>""";
+</metadata>""".formatted( artifact.groupId, artifact.artifactId,
+            versions[versions.length - 1], versions[versions.length - 1], versionTags );
 
-        final String metaDataURL = "/"+MavenCentralVersionProvider.metaDataPath( info.artifact );
-        stubFor(get( metaDataURL ).willReturn( ok( metadata ) ) );
-
-        final ZonedDateTime releaseDate2 = date( "2021-07-12 12:13" );
-
-        final String jsonResponse = loadJSONResponse();
-        final String expectedRestURL = "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=30&wt=json";
-        stubFor( get( expectedRestURL ).willReturn( ok( jsonResponse ) ) );
-
-        final IVersionProvider.UpdateResult result = provider.update( info, false );
-        assertThat(result).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
-        assertThat(info.versions).isNotEmpty();
-        Assertions.assertTrue(info.versions.stream().anyMatch( x -> x.versionString.equals("3.11") ) );
-        Assertions.assertTrue(info.versions.stream().anyMatch( x -> x.versionString.equals("3.12.0") ) );
-
-        assertThat( info.getVersion( "3.11" ) ).isPresent();
-        assertThat( info.getVersion( "3.12.0" ) ).map( x -> x.releaseDate ).hasValueSatisfying( v -> v.toInstant().equals( releaseDate2.toInstant() ) );
-
-        verify( getRequestedFor( urlEqualTo( metaDataURL ) ) );
+        final String metaDataURL = "/" + MavenCentralVersionProvider.metaDataPath( artifact );
+        stubFor( get( metaDataURL ).willReturn( ok( metadata ) ) );
+        return metaDataURL;
     }
 
-    private static ZonedDateTime date(String s) {
-        final DateTimeFormatter format = DateTimeFormatter.ofPattern( "yyyy-MM-dd HH:mm" );
-        return ZonedDateTime.parse( s, format.withZone( ZoneId.of("UTC") ) );
+    private static String singleVersionRestURL(String version) {
+        return "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3+AND+v%3A" + version + "&rows=30&wt=json";
+    }
+
+    private static String singleVersionJSONResponse(String version, long timestamp) {
+        return """
+{"responseHeader":{"status":0},"response":{"numFound":1,"start":0,"docs":[\
+{"id":"org.apache.commons:commons-lang3:%s","g":"org.apache.commons","a":"commons-lang3",\
+"v":"%s","p":"jar","timestamp":%d,"ec":[".pom",".jar"]}]}}""".formatted( version, version, timestamp );
+    }
+
+    private static void assertReleaseDate(VersionInfo info, String version, long expectedTimestamp) {
+        assertThat( info.getVersion( version ) ).isPresent()
+            .get().extracting( x -> ((Version) x).releaseDate.toInstant() )
+            .isEqualTo( Instant.ofEpochMilli( expectedTimestamp ) );
     }
 
     private static String loadJSONResponse() throws IOException

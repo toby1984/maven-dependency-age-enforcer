@@ -28,10 +28,22 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testQuerySingleVersion() throws IOException
     {
-        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3A+version&rows=30&wt=json" ),
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3Aversion&rows=30&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )
+            .version( "version" )
+            .build() );
+    }
+
+    @Test
+    void testQuerySingleVersionWithClassifier() throws IOException
+    {
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+l%3Aclassifier+AND+v%3Aversion&rows=30&wt=json" ),
+            new SonatypeRestAPIUrlBuilder()
+            .artifactId( "artifact" )
+            .groupId( "group" )
+            .classifier( "classifier" )
             .version( "version" )
             .build() );
     }
@@ -45,6 +57,34 @@ class SonatypeRestAPIUrlBuilderTest
             .groupId( "group" )
             .returnAllResults()
             .build() );
+    }
+
+    @Test
+    void testQueryAllVersionsWithClassifier() throws IOException
+    {
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+l%3Aclassifier&core=gav&rows=30&wt=json" ),
+            new SonatypeRestAPIUrlBuilder()
+            .artifactId( "artifact" )
+            .groupId( "group" )
+            .classifier( "classifier" )
+            .returnAllResults()
+            .build() );
+    }
+
+    @Test
+    void testBlankClassifierIsIgnored() throws IOException
+    {
+        final URL expected = url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3Aversion&rows=30&wt=json" );
+        for ( final String classifier : new String[] { null, "", "   " } )
+        {
+            assertEquals( expected,
+                new SonatypeRestAPIUrlBuilder()
+                .artifactId( "artifact" )
+                .groupId( "group" )
+                .classifier( classifier )
+                .version( "version" )
+                .build(), "classifier '" + classifier + "' should have been ignored" );
+        }
     }
 
     private static URL url(String s) {
