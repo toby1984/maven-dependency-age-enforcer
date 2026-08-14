@@ -644,8 +644,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         if ( partialResultFailureException == null && result.size() != first.totalResultCount() ) {
             final String msg = "Tried to retrieve " + first.totalResultCount() + " versions for " + artifact + " " +
                                "but only got " + result.size();
-            LOG.error( "queryAllReleaseDates(): " + msg );
-            throw new IOException( msg );
+            LOG.warn( "queryAllReleaseDates(): " + msg );
         }
         return new PossiblyIncompleteResult( result, partialResultFailureException );
     }
