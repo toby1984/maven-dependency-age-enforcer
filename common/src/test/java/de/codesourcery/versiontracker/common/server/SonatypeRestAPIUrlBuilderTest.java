@@ -25,10 +25,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SonatypeRestAPIUrlBuilderTest
 {
+    /** row count the no-arg builder constructor requests */
+    private static final int ROWS = SonatypeRestAPIUrlBuilder.DEFAULT_MAX_RESULTS_PER_REQUEST;
+
     @Test
     void testQuerySingleVersion() throws IOException
     {
-        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3Aversion&rows=30&wt=json" ),
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3Aversion&rows=" + ROWS + "&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )
@@ -39,7 +42,7 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testQuerySingleVersionWithClassifier() throws IOException
     {
-        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+l%3Aclassifier+AND+v%3Aversion&rows=30&wt=json" ),
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+l%3Aclassifier+AND+v%3Aversion&rows=" + ROWS + "&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )
@@ -51,7 +54,7 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testQueryAllVersions() throws IOException
     {
-        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact&core=gav&rows=30&wt=json" ),
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact&core=gav&rows=" + ROWS + "&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )
@@ -62,7 +65,7 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testQueryAllVersionsWithClassifier() throws IOException
     {
-        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+l%3Aclassifier&core=gav&rows=30&wt=json" ),
+        assertEquals( url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+l%3Aclassifier&core=gav&rows=" + ROWS + "&wt=json" ),
             new SonatypeRestAPIUrlBuilder()
             .artifactId( "artifact" )
             .groupId( "group" )
@@ -74,7 +77,7 @@ class SonatypeRestAPIUrlBuilderTest
     @Test
     void testBlankClassifierIsIgnored() throws IOException
     {
-        final URL expected = url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3Aversion&rows=30&wt=json" );
+        final URL expected = url( "https://central.sonatype.com/solrsearch/select?q=g%3Agroup+AND+a%3Aartifact+AND+v%3Aversion&rows=" + ROWS + "&wt=json" );
         for ( final String classifier : new String[] { null, "", "   " } )
         {
             assertEquals( expected,

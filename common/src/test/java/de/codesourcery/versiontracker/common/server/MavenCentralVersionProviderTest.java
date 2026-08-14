@@ -58,8 +58,17 @@ public class MavenCentralVersionProviderTest {
     private static final long TIMESTAMP_3_11 = 1594560722000L;
     private static final long TIMESTAMP_3_12_0 = 1614372052000L;
 
+    /** row count {@link #newProvider(WireMockRuntimeInfo)} requests */
+    private static final int ROWS = SonatypeRestAPIUrlBuilder.DEFAULT_MAX_RESULTS_PER_REQUEST;
+
+    /**
+     * Row count used by the paging tests - deliberately small and independent of
+     * {@link #ROWS} so those tests do not have to generate hundreds of versions per result page.
+     */
+    private static final int PAGING_TEST_ROWS = 5;
+
     private static final String BULK_REST_URL =
-        "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=30&wt=json";
+        "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav&rows=" + ROWS + "&wt=json";
 
     private ConfigurationProvider configProvider;
 
@@ -250,16 +259,16 @@ public class MavenCentralVersionProviderTest {
 
         final VersionInfo info = newVersionInfo();
         info.artifact.version = "1.0.1";
-        stubMetaData( info.artifact, generatedVersions( 45 ) );
+        stubMetaData( info.artifact, generatedVersions( 8 ) );
 
-        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 45, 1, 30 ) ) ) );
-        stubFor( get( bulkRestURL( 1 ) ).willReturn( ok( bulkJSONResponse( 45, 31, 45 ) ) ) );
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 8, 1, 5 ) ) ) );
+        stubFor( get( bulkRestURL( 1 ) ).willReturn( ok( bulkJSONResponse( 8, 6, 8 ) ) ) );
 
-        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+        final IVersionProvider.UpdateResult result = newProvider( webServer, PAGING_TEST_ROWS ).update( info, false );
 
         assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
-        assertThat( info.versions ).hasSize( 45 );
-        for ( int i = 1 ; i <= 45 ; i++ ) {
+        assertThat( info.versions ).hasSize( 8 );
+        for ( int i = 1 ; i <= 8 ; i++ ) {
             assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
         }
     }
@@ -272,17 +281,17 @@ public class MavenCentralVersionProviderTest {
 
         final VersionInfo info = newVersionInfo();
         info.artifact.version = "1.0.1";
-        stubMetaData( info.artifact, generatedVersions( 75 ) );
+        stubMetaData( info.artifact, generatedVersions( 13 ) );
 
-        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 75, 1, 30 ) ) ) );
-        stubFor( get( bulkRestURL( 1 ) ).willReturn( ok( bulkJSONResponse( 75, 31, 60 ) ) ) );
-        stubFor( get( bulkRestURL( 2 ) ).willReturn( ok( bulkJSONResponse( 75, 61, 75 ) ) ) );
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 13, 1, 5 ) ) ) );
+        stubFor( get( bulkRestURL( 1 ) ).willReturn( ok( bulkJSONResponse( 13, 6, 10 ) ) ) );
+        stubFor( get( bulkRestURL( 2 ) ).willReturn( ok( bulkJSONResponse( 13, 11, 13 ) ) ) );
 
-        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+        final IVersionProvider.UpdateResult result = newProvider( webServer, PAGING_TEST_ROWS ).update( info, false );
 
         assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
-        assertThat( info.versions ).hasSize( 75 );
-        for ( int i = 1 ; i <= 75 ; i++ ) {
+        assertThat( info.versions ).hasSize( 13 );
+        for ( int i = 1 ; i <= 13 ; i++ ) {
             assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
         }
     }
@@ -296,26 +305,38 @@ public class MavenCentralVersionProviderTest {
 
         final VersionInfo info = newVersionInfo();
         info.artifact.version = "1.0.1";
-        stubMetaData( info.artifact, generatedVersions( 45 ) );
+        stubMetaData( info.artifact, generatedVersions( 8 ) );
 
-        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 45, 1, 30 ) ) ) );
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 8, 1, 5 ) ) ) );
         stubFor( get( bulkRestURL( 1 ) ).willReturn( serverError() ) );
 
-        assertThatThrownBy( () -> newProvider( webServer ).update( info, false ) ).isInstanceOf( IOException.class );
+        assertThatThrownBy( () -> newProvider( webServer, PAGING_TEST_ROWS ).update( info, false ) ).isInstanceOf( IOException.class );
 
         assertThat( info.lastFailureDate ).isNotNull();
         assertThat( info.lastSuccessDate ).isNull();
-        assertThat( info.versions ).hasSize( 30 );
-        for ( int i = 1 ; i <= 30 ; i++ ) {
+        assertThat( info.versions ).hasSize( 5 );
+        for ( int i = 1 ; i <= 5 ; i++ ) {
             assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
         }
     }
 
     private MavenCentralVersionProvider newProvider(WireMockRuntimeInfo webServer) {
+        return newProvider( webServer, ROWS );
+    }
+
+    /**
+     * @param rowCount how many results per request the provider should ask the REST API for
+     */
+    private MavenCentralVersionProvider newProvider(WireMockRuntimeInfo webServer, int rowCount) {
         final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
         final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
 
-        final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
+        final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl ) {
+            @Override
+            SonatypeRestAPIUrlBuilder newRESTUrlBuilder() {
+                return new SonatypeRestAPIUrlBuilder( restApiBaseUrl, rowCount );
+            }
+        };
         provider.setConfigurationProvider( configProvider );
         // tests talk to a local WireMock server, no need to rate-limit anything
         provider.setSolrApiRateLimit( new RateLimit( 1000, TimeUnit.SECONDS ) );
@@ -373,7 +394,7 @@ public class MavenCentralVersionProviderTest {
     private static String bulkRestURL(Integer pageNumber) {
         return "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav"
                + (pageNumber == null ? "" : "&start=" + pageNumber)
-               + "&rows=30&wt=json";
+               + "&rows=" + PAGING_TEST_ROWS + "&wt=json";
     }
 
     /**
@@ -391,7 +412,7 @@ public class MavenCentralVersionProviderTest {
     }
 
     private static String singleVersionRestURL(String version) {
-        return "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3+AND+v%3A" + version + "&rows=30&wt=json";
+        return "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3+AND+v%3A" + version + "&rows=" + ROWS + "&wt=json";
     }
 
     private static String singleVersionJSONResponse(String version, long timestamp) {

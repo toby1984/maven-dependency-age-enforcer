@@ -64,7 +64,8 @@ public final class SonatypeRestAPIUrlBuilder
     /**
      * Create instance.
      *
-     * @param rowCount how many results the REST API should return at most. Most be greater than zero less than 50.
+     * @param rowCount how many results the REST API should return at most. Must be greater than zero and
+     *                 not more than 300.
      *                 The Sonatype API is heavily rate-limited and will hang/time-out if requesting too much at once.
      */
     public SonatypeRestAPIUrlBuilder(int rowCount) {
