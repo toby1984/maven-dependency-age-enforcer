@@ -21,6 +21,7 @@ import de.codesourcery.versiontracker.common.Artifact;
 import de.codesourcery.versiontracker.common.IVersionProvider;
 import de.codesourcery.versiontracker.common.Version;
 import de.codesourcery.versiontracker.common.VersionInfo;
+import de.codesourcery.versiontracker.common.server.MavenCentralVersionProvider.RateLimit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,15 +31,23 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.ok;
+import static com.github.tomakehurst.wiremock.client.WireMock.serverError;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @WireMockTest
 public class MavenCentralVersionProviderTest {
@@ -117,12 +126,199 @@ public class MavenCentralVersionProviderTest {
         verify( getRequestedFor( urlEqualTo( url3120 ) ) );
     }
 
+    @Test
+    public void rateLimitPerSecondConvertsToMillis() {
+        assertThat( new RateLimit( 2, TimeUnit.SECONDS ).getMinMillisBetweenRequests() ).isEqualTo( 500L );
+    }
+
+    @Test
+    public void rateLimitPerMinuteConvertsToMillis() {
+        assertThat( new RateLimit( 60, TimeUnit.MINUTES ).getMinMillisBetweenRequests() ).isEqualTo( 1000L );
+    }
+
+    @Test
+    public void rateLimitPerHourConvertsToMillis() {
+        assertThat( new RateLimit( 1, TimeUnit.HOURS ).getMinMillisBetweenRequests() ).isEqualTo( 60 * 60 * 1000L );
+    }
+
+    @Test
+    public void rateLimitPerDayConvertsToMillis() {
+        assertThat( new RateLimit( 1, TimeUnit.DAYS ).getMinMillisBetweenRequests() ).isEqualTo( 24 * 60 * 60 * 1000L );
+    }
+
+    /**
+     * If the maven-metadata.xml did not change since the last update,
+     * no release dates must be queried at all.
+     */
+    @Test
+    public void testNoChangesOnServerSkipsReleaseDateQueries(WireMockRuntimeInfo webServer) throws IOException {
+
+        final VersionInfo info = newVersionInfo();
+        stubMetaData( info.artifact, "3.9", "3.10", "3.11", "3.12.0" );
+        // matches the <lastUpdated>20210301214036</lastUpdated> value written by stubMetaData()
+        info.lastRepositoryUpdate = ZonedDateTime.of( 2021, 3, 1, 21, 40, 36, 0, ZoneId.of( "UTC" ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.NO_CHANGES_ON_SERVER );
+        assertThat( info.lastSuccessDate ).isNotNull();
+        verify( 0, getRequestedFor( urlPathEqualTo( "/select" ) ) );
+    }
+
+    @Test
+    public void testMissingArtifactYieldsArtifactUnknown(WireMockRuntimeInfo webServer) throws IOException {
+
+        final VersionInfo info = newVersionInfo();
+        // no maven-metadata.xml stubbed => server responds with HTTP 404
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.ARTIFACT_UNKNOWN );
+        assertThat( info.lastFailureDate ).isNotNull();
+        assertThat( info.lastSuccessDate ).isNull();
+    }
+
+    @Test
+    public void testRequestedVersionNotInMetaData(WireMockRuntimeInfo webServer) throws IOException {
+
+        final VersionInfo info = newVersionInfo();
+        info.artifact.version = "9.9.9";
+        stubMetaData( info.artifact, "3.9", "3.10", "3.11", "3.12.0" );
+        stubFor( get( BULK_REST_URL ).willReturn( ok( loadJSONResponse() ) ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.ARTIFACT_VERSION_NOT_FOUND );
+        assertThat( info.lastSuccessDate ).isNotNull();
+    }
+
+    /**
+     * Versions that already have a release date must not be queried again
+     * and their known release date must be retained.
+     */
+    @Test
+    public void testKnownReleaseDatesAreNotQueriedAgain(WireMockRuntimeInfo webServer) throws IOException {
+
+        final long sentinel39 = 1234567890000L;
+        final long sentinel310 = 1234567891000L;
+
+        final VersionInfo info = newVersionInfo();
+        info.versions.add( new Version( "3.9", Instant.ofEpochMilli( sentinel39 ).atZone( ZoneId.systemDefault() ) ) );
+        info.versions.add( new Version( "3.10", Instant.ofEpochMilli( sentinel310 ).atZone( ZoneId.systemDefault() ) ) );
+
+        stubMetaData( info.artifact, "3.9", "3.10", "3.11", "3.12.0" );
+        final String url311 = singleVersionRestURL( "3.11" );
+        final String url3120 = singleVersionRestURL( "3.12.0" );
+        stubFor( get( url311 ).willReturn( ok( singleVersionJSONResponse( "3.11", TIMESTAMP_3_11 ) ) ) );
+        stubFor( get( url3120 ).willReturn( ok( singleVersionJSONResponse( "3.12.0", TIMESTAMP_3_12_0 ) ) ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
+        assertReleaseDate( info, "3.9", sentinel39 );
+        assertReleaseDate( info, "3.10", sentinel310 );
+        assertReleaseDate( info, "3.11", TIMESTAMP_3_11 );
+        assertReleaseDate( info, "3.12.0", TIMESTAMP_3_12_0 );
+        // only the two versions lacking a release date may be queried
+        verify( 2, getRequestedFor( urlPathEqualTo( "/select" ) ) );
+    }
+
+    /**
+     * If one of several Solr queries fails, the update must be reported as failed.
+     */
+    @Test
+    public void testPartialFailureOfIndividualQueriesFailsTheUpdate(WireMockRuntimeInfo webServer) {
+
+        final VersionInfo info = newVersionInfo();
+        stubMetaData( info.artifact, "3.11", "3.12.0" );
+        stubFor( get( singleVersionRestURL( "3.11" ) ).willReturn( ok( singleVersionJSONResponse( "3.11", TIMESTAMP_3_11 ) ) ) );
+        stubFor( get( singleVersionRestURL( "3.12.0" ) ).willReturn( serverError() ) );
+
+        assertThatThrownBy( () -> newProvider( webServer ).update( info, false ) ).isInstanceOf( IOException.class );
+
+        assertThat( info.lastFailureDate ).isNotNull();
+        assertThat( info.lastSuccessDate ).isNull();
+        assertThat( info.lastRepositoryUpdate ).isNull();
+    }
+
+    /**
+     * The Sonatype API returns at most 20 results per request, a bulk query
+     * has to page through the results to get all of them.
+     */
+    @Test
+    public void testBulkQueryPagesThroughResults(WireMockRuntimeInfo webServer) throws IOException {
+
+        final VersionInfo info = newVersionInfo();
+        info.artifact.version = "1.0.1";
+        stubMetaData( info.artifact, generatedVersions( 25 ) );
+
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 25, 1, 20 ) ) ) );
+        stubFor( get( bulkRestURL( 20 ) ).willReturn( ok( bulkJSONResponse( 25, 21, 25 ) ) ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
+        assertThat( info.versions ).hasSize( 25 );
+        for ( int i = 1 ; i <= 25 ; i++ ) {
+            assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
+        }
+    }
+
+    /**
+     * Paging must also work when the result set spans more than two pages.
+     */
+    @Test
+    public void testBulkQueryPagesThroughMoreThanTwoPages(WireMockRuntimeInfo webServer) throws IOException {
+
+        final VersionInfo info = newVersionInfo();
+        info.artifact.version = "1.0.1";
+        stubMetaData( info.artifact, generatedVersions( 45 ) );
+
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 45, 1, 20 ) ) ) );
+        stubFor( get( bulkRestURL( 20 ) ).willReturn( ok( bulkJSONResponse( 45, 21, 40 ) ) ) );
+        stubFor( get( bulkRestURL( 40 ) ).willReturn( ok( bulkJSONResponse( 45, 41, 45 ) ) ) );
+
+        final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
+
+        assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
+        assertThat( info.versions ).hasSize( 45 );
+        for ( int i = 1 ; i <= 45 ; i++ ) {
+            assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
+        }
+    }
+
+    /**
+     * If fetching one of the result pages fails, the versions retrieved so far
+     * are kept but the update must be reported as failed.
+     */
+    @Test
+    public void testBulkQueryPartialFailureKeepsPartialResult(WireMockRuntimeInfo webServer) {
+
+        final VersionInfo info = newVersionInfo();
+        info.artifact.version = "1.0.1";
+        stubMetaData( info.artifact, generatedVersions( 25 ) );
+
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 25, 1, 20 ) ) ) );
+        stubFor( get( bulkRestURL( 20 ) ).willReturn( serverError() ) );
+
+        assertThatThrownBy( () -> newProvider( webServer ).update( info, false ) ).isInstanceOf( IOException.class );
+
+        assertThat( info.lastFailureDate ).isNotNull();
+        assertThat( info.lastSuccessDate ).isNull();
+        assertThat( info.versions ).hasSize( 20 );
+        for ( int i = 1 ; i <= 20 ; i++ ) {
+            assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
+        }
+    }
+
     private MavenCentralVersionProvider newProvider(WireMockRuntimeInfo webServer) {
         final String repo1BaseUrl = "http://localhost:" + webServer.getHttpPort();
         final String restApiBaseUrl = "http://localhost:" + webServer.getHttpPort() + "/select";
 
         final MavenCentralVersionProvider provider = new MavenCentralVersionProvider( repo1BaseUrl, restApiBaseUrl );
         provider.setConfigurationProvider( configProvider );
+        // tests talk to a local WireMock server, no need to rate-limit anything
+        provider.setSolrApiRateLimit( new RateLimit( 1000, TimeUnit.SECONDS ) );
         return provider;
     }
 
@@ -161,6 +357,34 @@ public class MavenCentralVersionProviderTest {
         final String metaDataURL = "/" + MavenCentralVersionProvider.metaDataPath( artifact );
         stubFor( get( metaDataURL ).willReturn( ok( metadata ) ) );
         return metaDataURL;
+    }
+
+    private static String[] generatedVersions(int count) {
+        return IntStream.rangeClosed( 1, count ).mapToObj( i -> "1.0." + i ).toArray( String[]::new );
+    }
+
+    private static long timestampOf(int versionIndex) {
+        return 1600000000000L + versionIndex * 1000L;
+    }
+
+    private static String bulkRestURL(Integer startOffset) {
+        return "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav"
+               + (startOffset == null ? "" : "&start=" + startOffset)
+               + "&rows=30&wt=json";
+    }
+
+    /**
+     * @return Solr response containing one doc for each of the versions <code>1.0.&lt;firstVersion&gt;</code>
+     *         up to (and including) <code>1.0.&lt;lastVersion&gt;</code>
+     */
+    private static String bulkJSONResponse(int numFound, int firstVersion, int lastVersion) {
+        final String docs = IntStream.rangeClosed( firstVersion, lastVersion )
+            .mapToObj( i -> """
+{"id":"org.apache.commons:commons-lang3:1.0.%d","g":"org.apache.commons","a":"commons-lang3",\
+"v":"1.0.%d","p":"jar","timestamp":%d,"ec":[".pom",".jar"]}""".formatted( i, i, timestampOf( i ) ) )
+            .collect( Collectors.joining( "," ) );
+        return """
+{"responseHeader":{"status":0},"response":{"numFound":%d,"start":0,"docs":[%s]}}""".formatted( numFound, docs );
     }
 
     private static String singleVersionRestURL(String version) {

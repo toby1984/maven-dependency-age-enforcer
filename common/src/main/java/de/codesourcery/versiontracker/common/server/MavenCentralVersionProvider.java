@@ -113,7 +113,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             final long intervalInMillis = switch( intervalUnit ) {
                 case SECONDS -> 1000;
                 case MINUTES -> 1000*60;
-                case HOURS -> 60*60*24;
+                case HOURS -> 1000*60*60;
                 case DAYS -> 1000*60*60*24;
                 default -> throw new RuntimeException("Unrechable code reached");
             };
@@ -496,14 +496,16 @@ public class MavenCentralVersionProvider implements IVersionProvider
      * Sonatype API seems to refuse returning more than 20 results ... we'll have to page through them to get all.
      *
      * @param data {@link Version} instances with an assigned release date
-     * @param numArtifactsInResponse the total number of responses the API sent, may be larger than <code>data.size()</code>
+     * @param totalResultCount total number of results the query matched ('numFound'), across all result pages
+     * @param numDocumentsInResponse number of documents in this response, may be larger than <code>data.size()</code>
      *                               if not every artifact had a 'timestamp' attribute
      */
-    private record PartialResult(List<Version> data, int numArtifactsInResponse) {
+    private record PartialResult(List<Version> data, int totalResultCount, int numDocumentsInResponse) {
         private PartialResult
         {
             Validate.notNull( data, "data must not be null" );
-            Validate.isTrue( numArtifactsInResponse >= 0 );
+            Validate.isTrue( totalResultCount >= 0 );
+            Validate.isTrue( numDocumentsInResponse >= 0 );
         }
     }
 
@@ -614,13 +616,13 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
         // need to query in a loop here as the REST API seems to refuse returning more than 20 results at once
         final PartialResult first = performGET( restApiURL, this::parseSonatypeResponse );
-        int remaining = first.numArtifactsInResponse() - first.data().size();
+        int remaining = first.totalResultCount() - first.numDocumentsInResponse();
         final List<Version> result = new ArrayList<>( first.data() );
         IOException partialResultFailureException = null;
         if ( remaining > 0 ) {
 
-            LOG.debug( "queryAllReleaseDates(): Artifact " + artifact + " has " + first.numArtifactsInResponse() + " releases.");
-            int currentPageOffset = first.data().size();
+            LOG.debug( "queryAllReleaseDates(): Artifact " + artifact + " has " + first.totalResultCount() + " releases.");
+            int currentPageOffset = first.numDocumentsInResponse();
             PartialResult tmp;
             do
             {
@@ -635,13 +637,12 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     break;
                 }
                 result.addAll( tmp.data() );
-                final int resultCount = tmp.data().size();
-                currentPageOffset += tmp.numArtifactsInResponse();
-                remaining -= resultCount;
-            } while (! tmp.data().isEmpty() && remaining > 0 );
+                currentPageOffset += tmp.numDocumentsInResponse();
+                remaining -= tmp.numDocumentsInResponse();
+            } while ( tmp.numDocumentsInResponse() > 0 && remaining > 0 );
         }
-        if ( partialResultFailureException == null && result.size() != first.numArtifactsInResponse() ) {
-            final String msg = "Tried to retrieve " + first.numArtifactsInResponse() + " versions for " + artifact + " " +
+        if ( partialResultFailureException == null && result.size() != first.totalResultCount() ) {
+            final String msg = "Tried to retrieve " + first.totalResultCount() + " versions for " + artifact + " " +
                                "but only got " + result.size();
             LOG.error( "queryAllReleaseDates(): " + msg );
             throw new IOException( msg );
@@ -738,7 +739,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
         final List<Version> sortedList = result.values().stream().sorted( Comparator.comparing( a -> a.versionString ) )
             .collect( Collectors.toCollection( ArrayList::new ) );
-        return new PartialResult( sortedList, numFound );
+        return new PartialResult( sortedList, numFound, docs.size() );
     }
 
     public static Document parseXML(InputStream inputStream) throws IOException
