@@ -10,7 +10,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <apache.tomcat.version>11.0.0</apache.tomcat.version>
-    <log4.version>2.26.0</log4.version>
+    <log4.version>2.26.1</log4.version>
     <junit.version>6.1.0</junit.version>
 
     <!-- properties specific to building the enforcer rule -->
