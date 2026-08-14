@@ -242,24 +242,24 @@ public class MavenCentralVersionProviderTest {
     }
 
     /**
-     * The Sonatype API returns at most 20 results per request, a bulk query
-     * has to page through the results to get all of them.
+     * The Sonatype API returns at most {@link SonatypeRestAPIUrlBuilder#DEFAULT_MAX_RESULTS_PER_REQUEST}
+     * results per request, a bulk query has to page through the results to get all of them.
      */
     @Test
     public void testBulkQueryPagesThroughResults(WireMockRuntimeInfo webServer) throws IOException {
 
         final VersionInfo info = newVersionInfo();
         info.artifact.version = "1.0.1";
-        stubMetaData( info.artifact, generatedVersions( 25 ) );
+        stubMetaData( info.artifact, generatedVersions( 45 ) );
 
-        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 25, 1, 20 ) ) ) );
-        stubFor( get( bulkRestURL( 20 ) ).willReturn( ok( bulkJSONResponse( 25, 21, 25 ) ) ) );
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 45, 1, 30 ) ) ) );
+        stubFor( get( bulkRestURL( 1 ) ).willReturn( ok( bulkJSONResponse( 45, 31, 45 ) ) ) );
 
         final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
 
         assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
-        assertThat( info.versions ).hasSize( 25 );
-        for ( int i = 1 ; i <= 25 ; i++ ) {
+        assertThat( info.versions ).hasSize( 45 );
+        for ( int i = 1 ; i <= 45 ; i++ ) {
             assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
         }
     }
@@ -272,17 +272,17 @@ public class MavenCentralVersionProviderTest {
 
         final VersionInfo info = newVersionInfo();
         info.artifact.version = "1.0.1";
-        stubMetaData( info.artifact, generatedVersions( 45 ) );
+        stubMetaData( info.artifact, generatedVersions( 75 ) );
 
-        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 45, 1, 20 ) ) ) );
-        stubFor( get( bulkRestURL( 20 ) ).willReturn( ok( bulkJSONResponse( 45, 21, 40 ) ) ) );
-        stubFor( get( bulkRestURL( 40 ) ).willReturn( ok( bulkJSONResponse( 45, 41, 45 ) ) ) );
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 75, 1, 30 ) ) ) );
+        stubFor( get( bulkRestURL( 1 ) ).willReturn( ok( bulkJSONResponse( 75, 31, 60 ) ) ) );
+        stubFor( get( bulkRestURL( 2 ) ).willReturn( ok( bulkJSONResponse( 75, 61, 75 ) ) ) );
 
         final IVersionProvider.UpdateResult result = newProvider( webServer ).update( info, false );
 
         assertThat( result ).isEqualTo( IVersionProvider.UpdateResult.UPDATED );
-        assertThat( info.versions ).hasSize( 45 );
-        for ( int i = 1 ; i <= 45 ; i++ ) {
+        assertThat( info.versions ).hasSize( 75 );
+        for ( int i = 1 ; i <= 75 ; i++ ) {
             assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
         }
     }
@@ -296,17 +296,17 @@ public class MavenCentralVersionProviderTest {
 
         final VersionInfo info = newVersionInfo();
         info.artifact.version = "1.0.1";
-        stubMetaData( info.artifact, generatedVersions( 25 ) );
+        stubMetaData( info.artifact, generatedVersions( 45 ) );
 
-        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 25, 1, 20 ) ) ) );
-        stubFor( get( bulkRestURL( 20 ) ).willReturn( serverError() ) );
+        stubFor( get( bulkRestURL( null ) ).willReturn( ok( bulkJSONResponse( 45, 1, 30 ) ) ) );
+        stubFor( get( bulkRestURL( 1 ) ).willReturn( serverError() ) );
 
         assertThatThrownBy( () -> newProvider( webServer ).update( info, false ) ).isInstanceOf( IOException.class );
 
         assertThat( info.lastFailureDate ).isNotNull();
         assertThat( info.lastSuccessDate ).isNull();
-        assertThat( info.versions ).hasSize( 20 );
-        for ( int i = 1 ; i <= 20 ; i++ ) {
+        assertThat( info.versions ).hasSize( 30 );
+        for ( int i = 1 ; i <= 30 ; i++ ) {
             assertReleaseDate( info, "1.0." + i, timestampOf( i ) );
         }
     }
@@ -367,9 +367,12 @@ public class MavenCentralVersionProviderTest {
         return 1600000000000L + versionIndex * 1000L;
     }
 
-    private static String bulkRestURL(Integer startOffset) {
+    /**
+     * @param pageNumber zero-based result page, <code>null</code> to omit the parameter (=&gt; first page)
+     */
+    private static String bulkRestURL(Integer pageNumber) {
         return "/select?q=g%3Aorg.apache.commons+AND+a%3Acommons-lang3&core=gav"
-               + (startOffset == null ? "" : "&start=" + startOffset)
+               + (pageNumber == null ? "" : "&start=" + pageNumber)
                + "&rows=30&wt=json";
     }
 

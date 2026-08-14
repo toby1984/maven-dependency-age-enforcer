@@ -93,7 +93,6 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     private static final String REPO1_HOST = "repo1.maven.org";
     public static final String DEFAULT_REPO1_BASE_URL = "https://"+REPO1_HOST+"/maven2/";
-    // public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://search.maven.org/solrsearch/select";
     public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://central.sonatype.com/solrsearch/select";
 
     public record RateLimit(double requestsPerInterval, TimeUnit intervalUnit) {
@@ -203,7 +202,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
         QUERY("q",1),
         /** return all versions of an artifact */
         OPT_RETURN_ALL_VERSION("core","gav", 2 ),
-        START_OFFSET("start",3),
+        /** result page to return; the server multiplies this with {@link #MAX_RESULT_COUNT} to get the document offset */
+        PAGE_NUMBER("start",3),
         MAX_RESULT_COUNT("rows",4),
         RESULT_TYPE("wt", "json", 5 )
         ;
@@ -493,7 +493,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
     }
 
     /**
-     * Sonatype API seems to refuse returning more than 20 results ... we'll have to page through them to get all.
+     * The Sonatype API returns at most {@link SonatypeRestAPIUrlBuilder#DEFAULT_MAX_RESULTS_PER_REQUEST} results
+     * per request ... we'll have to page through them to get all.
      *
      * @param data {@link Version} instances with an assigned release date
      * @param totalResultCount total number of results the query matched ('numFound'), across all result pages
@@ -614,7 +615,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
         LOG.debug("queryAllReleaseDates(): Initial Solr query => {}", restApiURL);
 
-        // need to query in a loop here as the REST API seems to refuse returning more than 20 results at once
+        // need to query in a loop here as the REST API refuses returning more than a limited number of results at once
         final PartialResult first = performGET( restApiURL, this::parseSonatypeResponse );
         int remaining = first.totalResultCount() - first.numDocumentsInResponse();
         final List<Version> result = new ArrayList<>( first.data() );
@@ -622,11 +623,12 @@ public class MavenCentralVersionProvider implements IVersionProvider
         if ( remaining > 0 ) {
 
             LOG.debug( "queryAllReleaseDates(): Artifact " + artifact + " has " + first.totalResultCount() + " releases.");
-            int currentPageOffset = first.numDocumentsInResponse();
+            // the API pages by page number and not by document offset, see SonatypeRestAPIUrlBuilder#pageNumber(int)
+            int currentPageNumber = 1;
             PartialResult tmp;
             do
             {
-                restApiURL = urlBuilder.startOffset( currentPageOffset ).build();
+                restApiURL = urlBuilder.pageNumber( currentPageNumber ).build();
 
                 LOG.debug( "queryAllReleaseDates(): querying next batch from Solr using {}", restApiURL );
                 try
@@ -637,7 +639,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     break;
                 }
                 result.addAll( tmp.data() );
-                currentPageOffset += tmp.numDocumentsInResponse();
+                currentPageNumber++;
                 remaining -= tmp.numDocumentsInResponse();
             } while ( tmp.numDocumentsInResponse() > 0 && remaining > 0 );
         }

@@ -43,7 +43,7 @@ public final class SonatypeRestAPIUrlBuilder
 
     // internal parameter names
     private enum InternalParameter {
-       PARAM_START_OFFSET,
+       PARAM_PAGE_NUMBER,
        PARAM_MAX_RESULT_COUNT,
        PARAM_RETURN_ALL_RESULTS,
        PARAM_VERSION,
@@ -90,10 +90,20 @@ public final class SonatypeRestAPIUrlBuilder
         return set( InternalParameter.PARAM_ARTIFACT_ID, id );
     }
 
-    public SonatypeRestAPIUrlBuilder startOffset(int offset)
+    /**
+     * Select which page of the result set to return.
+     *
+     * <p>Note that despite being named 'start', the Sonatype API expects a <b>page number</b> here and
+     * <b>not</b> a document offset - the server multiplies this value with the requested row count.
+     * The (now defunct) https://search.maven.org/solrsearch/select endpoint was a real Solr instance
+     * and did expect a document offset instead.</p>
+     *
+     * @param pageNumber zero-based page number, page 0 being the first page
+     */
+    public SonatypeRestAPIUrlBuilder pageNumber(int pageNumber)
     {
-        Validate.isTrue( offset >= 0 );
-        return set( InternalParameter.PARAM_START_OFFSET, offset, false );
+        Validate.isTrue( pageNumber >= 0 );
+        return set( InternalParameter.PARAM_PAGE_NUMBER, pageNumber, false );
     }
 
     public SonatypeRestAPIUrlBuilder groupId(String id)
@@ -188,10 +198,10 @@ public final class SonatypeRestAPIUrlBuilder
         }
         params.put( MavenCentralVersionProvider.HttpParam.QUERY, query );
 
-        final Integer startOffset = getInteger( InternalParameter.PARAM_START_OFFSET );
-        if ( startOffset != null )
+        final Integer pageNumber = getInteger( InternalParameter.PARAM_PAGE_NUMBER );
+        if ( pageNumber != null )
         {
-            params.put( MavenCentralVersionProvider.HttpParam.START_OFFSET, Integer.toString( startOffset ) );
+            params.put( MavenCentralVersionProvider.HttpParam.PAGE_NUMBER, Integer.toString( pageNumber ) );
         }
 
         final int rowCount = getInteger( InternalParameter.PARAM_MAX_RESULT_COUNT );
