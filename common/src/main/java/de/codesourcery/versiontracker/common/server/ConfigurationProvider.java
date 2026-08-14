@@ -82,7 +82,7 @@ public class ConfigurationProvider implements AutoCloseable
                             }
                             try
                             {
-                                LOG.debug( "Checking whether configuration has changed..." );
+                                LOG.trace( "Checking whether configuration has changed..." );
                                 final Optional<Configuration.IResource> resource = Configuration.getResource( false );
                                 if ( resource.isPresent() ) {
                                     final Optional<ZonedDateTime> lastChangeDate = resource.get().lastChangeDate();

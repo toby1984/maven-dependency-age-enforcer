@@ -39,7 +39,7 @@ public final class SonatypeRestAPIUrlBuilder
 {
     private static final Logger LOG = LogManager.getLogger( SonatypeRestAPIUrlBuilder.class );
 
-    private static final int DEFAULT_MAX_RESULT_COUNT = 20;
+    public static final int DEFAULT_MAX_RESULTS_PER_REQUEST = 30;
 
     // internal parameter names
     private enum InternalParameter {
@@ -58,7 +58,7 @@ public final class SonatypeRestAPIUrlBuilder
 
     public SonatypeRestAPIUrlBuilder()
     {
-        this( DEFAULT_MAX_RESULT_COUNT );
+        this( DEFAULT_MAX_RESULTS_PER_REQUEST );
     }
 
     /**
@@ -72,7 +72,7 @@ public final class SonatypeRestAPIUrlBuilder
     }
 
     public SonatypeRestAPIUrlBuilder(String baseURL) {
-        this( baseURL, DEFAULT_MAX_RESULT_COUNT );
+        this( baseURL, DEFAULT_MAX_RESULTS_PER_REQUEST );
     }
 
     public SonatypeRestAPIUrlBuilder(String baseURL, int maxResultCount)
@@ -110,7 +110,7 @@ public final class SonatypeRestAPIUrlBuilder
 
     public SonatypeRestAPIUrlBuilder classifier(String id)
     {
-        if ( id != null )
+        if ( StringUtils.isNotBlank(id) )
         {
             set( InternalParameter.PARAM_CLASSIFIER, id );
         }

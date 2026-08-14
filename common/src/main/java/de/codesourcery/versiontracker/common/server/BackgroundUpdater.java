@@ -283,7 +283,7 @@ public class BackgroundUpdater implements IBackgroundUpdater {
                     synchronized ( statistics ) {
                         statistics.scheduledUpdates.update();
                     }
-                    IVersionProvider.UpdateResult result = null;
+                    IVersionProvider.UpdateResult result;
                     try
                     {
                         result = provider.update( info, info.versions.stream().anyMatch( x -> ! x.hasReleaseDate() ) );

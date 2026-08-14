@@ -30,35 +30,43 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
+import org.apache.commons.io.input.TeeInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -85,7 +93,33 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
     private static final String REPO1_HOST = "repo1.maven.org";
     public static final String DEFAULT_REPO1_BASE_URL = "https://"+REPO1_HOST+"/maven2/";
-    public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://search.maven.org/solrsearch/select";
+    // public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://search.maven.org/solrsearch/select";
+    public static final String DEFAULT_SONATYPE_REST_API_BASE_URL = "https://central.sonatype.com/solrsearch/select";
+
+    public record RateLimit(double requestsPerInterval, TimeUnit intervalUnit) {
+        public RateLimit
+        {
+            Validate.isTrue( requestsPerInterval > 0 );
+            Validate.notNull( intervalUnit, "unit must not be null" );
+        }
+
+        @Override
+        public String toString()
+        {
+            return requestsPerInterval + " requests/" + intervalUnit.name().toLowerCase();
+        }
+
+        public long getMinMillisBetweenRequests() {
+            final long intervalInMillis = switch( intervalUnit ) {
+                case SECONDS -> 1000;
+                case MINUTES -> 1000*60;
+                case HOURS -> 60*60*24;
+                case DAYS -> 1000*60*60*24;
+                default -> throw new RuntimeException("Unrechable code reached");
+            };
+            return (long) (intervalInMillis / requestsPerInterval);
+        }
+    }
 
     private static final class FifoRateLimiter
     {
@@ -93,8 +127,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
         private final long minIntervalMillis;
         private long lastExecutionTimestamp = 0;
 
-        public FifoRateLimiter(double requestsPerSecond) {
-            this.minIntervalMillis = (long) (1000.0 / requestsPerSecond);
+        public FifoRateLimiter(RateLimit rateLimit) {
+            this.minIntervalMillis = rateLimit.getMinMillisBetweenRequests();
         }
 
         public void acquire() throws InterruptedException {
@@ -196,6 +230,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
         private final XPathExpression latestSnapshot;
         private final XPathExpression latestRelease;
         private final XPathExpression lastUpdateDate;
+        private final XPathExpression allVersions;
 
         public MyExpressions()
         {
@@ -206,6 +241,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 latestSnapshot = xpath.compile("/metadata/versioning/latest[text()]");
                 latestRelease = xpath.compile("/metadata/versioning/release[text()]");
                 lastUpdateDate = xpath.compile("/metadata/versioning/lastUpdated");
+                allVersions = xpath.compile("/metadata/versioning/versions/version/text()");
             } catch (XPathExpressionException e) {
                 throw new RuntimeException(e);
             }
@@ -227,7 +263,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
     private final Map<String,FifoRateLimiter> rateLimiters = new HashMap<>();
 
     // be gentle, Sonatype has aggressive rate limiting
-    private float maxSolrApiRequestsPerSecond = 2.0f;
+    private RateLimit solrApiRateLimit = new RateLimit(60,TimeUnit.MINUTES); // 60 requests/minute
 
     // @GuardedBy( statistics )
     private final Statistics statistics = new Statistics();
@@ -241,8 +277,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
         connManager.setMaxTotal(20);
 
         final ConnectionConfig connConfig = ConnectionConfig.custom()
-            .setConnectTimeout( Timeout.ofSeconds(30))
-            .setSocketTimeout( Timeout.ofSeconds(60) )
+            .setConnectTimeout( Timeout.ofSeconds(15))
+            .setSocketTimeout( Timeout.ofSeconds(30) )
             .setValidateAfterInactivity( TimeValue.ofSeconds(10) )
             .setIdleTimeout( Timeout.ofMinutes(1) )
             .setTimeToLive( TimeValue.ofMinutes(10))
@@ -266,20 +302,30 @@ public class MavenCentralVersionProvider implements IVersionProvider
         this.configurationProvider = configurationProvider;
     }
 
-    public static void main(String[] args) throws IOException
+    public static void main(String[] args)
     {
+        System.out.println(" ================= NOW: "+ZonedDateTime.now());
+
         final ConfigurationProvider configProvider = new ConfigurationProvider();
 
         final Artifact test = new Artifact();
-        test.groupId = "org.apache.tomcat";
-        test.artifactId = "tomcat";
+
+        // https://repo1.maven.org/maven2/de/code-sourcery/versiontracker/versiontracker-common/
+        test.groupId = "de.code-sourcery.versiontracker";
+        test.artifactId = "versiontracker-common";
 
         VersionInfo data = new VersionInfo();
         data.artifact = test;
         long start = System.currentTimeMillis();
         final MavenCentralVersionProvider provider = new MavenCentralVersionProvider();
         provider.setConfigurationProvider( configProvider );
-        final UpdateResult result = provider.update( data, false );
+        UpdateResult result = null;
+        try
+        {
+            result = provider.update( data, false );
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
         long end = System.currentTimeMillis();
         System.out.println("TIME: "+(end-start)+" ms");
         System.out.println("RESULT: "+result);
@@ -344,18 +390,60 @@ public class MavenCentralVersionProvider implements IVersionProvider
                     LOG.debug( "update(): Artifact index XML changed on server" );
                 }
 
-                // get all versions
-                LOG.trace("update(): Querying all versions for {}", info.artifact);
-                final List<Version> allVersions = queryAllVersions( info.artifact );
-                LOG.trace("update(): Done querying all versions for {}", info.artifact);
-                info.removeVersionsIf( v -> {
-                    final boolean remove = allVersions.stream().noneMatch( x -> x.versionString.equals( v.versionString ) );
-                    if ( remove ) {
-                        LOG.warn("update(): Version "+v+" is gone from metadata.xml of "+info.artifact+" ?");
+                // get all version numbers from maven-metadata.xml
+                // Since we're talking to Maven Central and Sonatype does not allow uploading
+                // SNAPSHOT versions of artifacts, that list is
+                // going to contain only release versions.
+                final List<String> allVersions = readStrings( expr.allVersions, document );
+
+                // we only need to query release dates for new versions
+                // or versions where we did not get a release date yet
+
+                final Set<String> versionsWithoutReleaseDate = new HashSet<>();
+                final Map<String,Version> knownVersions = new HashMap<>();
+                info.versions.forEach( v -> knownVersions.put( v.versionString, v ) );
+
+                for ( final String version : allVersions )
+                {
+                    final Version knownVersion = knownVersions.get( version );
+                    if ( knownVersion == null || ! knownVersion.hasReleaseDate() ) {
+                        versionsWithoutReleaseDate.add( version );
                     }
-                    return remove;
-                } );
-                allVersions.forEach( info::addVersion );
+                }
+
+                // get all versions
+                LOG.trace("update(): Querying release dates of {} versions for {}", versionsWithoutReleaseDate.size(), info.artifact);
+
+//              Querying using HTTP HEAD 'last-modified' header MIGHT be faster, but
+//              we have to construct the URL ourselves (currently hard-coded for .pom files) which might end up not always
+//              being the right one ... better to use the Solr search and weed-out duplicates we may encounter instead of missing some results
+//                final PossiblyIncompleteResult versionsWithReleaseDate =
+//                    queryReleaseDatesUsingHttpHead( info.artifact, versionsWithoutReleaseDate);
+
+                final PossiblyIncompleteResult versionsWithReleaseDate =
+                    queryReleaseDatesUsingSolr( info.artifact, versionsWithoutReleaseDate);
+
+                LOG.debug("update(): [{}] Asked for info about {} versions, got {} (result complete: {})",
+                    info.artifact,
+                    versionsWithoutReleaseDate.size(),
+                    versionsWithReleaseDate.result.size(),
+                    versionsWithReleaseDate.isCompleteResult());
+
+                for ( final Version versionFromServer : versionsWithReleaseDate.result )
+                {
+                    final Version knownVersion = knownVersions.get( versionFromServer.versionString );
+                    if ( versionFromServer.hasReleaseDate() ) {
+                        if ( knownVersion != null )
+                        {
+                            knownVersion.releaseDate = versionFromServer.releaseDate;
+                        } else {
+                            // we discovered a new version
+                            info.addVersion( versionFromServer );
+                        }
+                    } else {
+                        info.addVersion(versionFromServer);
+                    }
+                }
 
                 final String latestSnapshotVersion = readString(expr.latestSnapshot, document );
                 if ( StringUtils.isNotBlank( latestSnapshotVersion ) ) {
@@ -373,6 +461,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
                 LOG.debug("update(): latest snapshot (metadata) = "+latestSnapshotVersion);
                 LOG.debug("update(): latest release  (metadata) = "+latestReleaseVersion);
+
+                if ( ! versionsWithReleaseDate.isCompleteResult() ) {
+                    throw versionsWithReleaseDate.partialResultFailureException();
+                }
 
                 info.lastRepositoryUpdate = lastChangeDate;
                 info.lastSuccessDate = ZonedDateTime.now();
@@ -400,30 +492,18 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    private final ThreadFactory threadFactory = new ThreadFactory() {
-        
-        private final ThreadGroup threadGroup = new ThreadGroup(Thread.currentThread().getThreadGroup(),"releasedate-request-threads" );
-        private final AtomicInteger threadId = new AtomicInteger(0); 
-        public Thread newThread(Runnable r) 
-        {
-            final Thread t = new Thread(threadGroup,r);
-            t.setDaemon( true );
-            t.setName("releasedate-request-thread-"+threadId.incrementAndGet());
-            return t;
-        }
-    };
-    
-    /** Sonatype API seems to refuse returning more than 20 results ... we'll have to page through them to get all ... */
-    private record PartialResult(List<Version> data, int totalResultSize) {
+    /**
+     * Sonatype API seems to refuse returning more than 20 results ... we'll have to page through them to get all.
+     *
+     * @param data {@link Version} instances with an assigned release date
+     * @param numArtifactsInResponse the total number of responses the API sent, may be larger than <code>data.size()</code>
+     *                               if not every artifact had a 'timestamp' attribute
+     */
+    private record PartialResult(List<Version> data, int numArtifactsInResponse) {
         private PartialResult
         {
             Validate.notNull( data, "data must not be null" );
-            Validate.isTrue( totalResultSize >= 0 );
-        }
-
-        public Optional<Version> getFirstResult()
-        {
-            return data.isEmpty() ? Optional.empty() : Optional.of( data.get(0) );
+            Validate.isTrue( numArtifactsInResponse >= 0 );
         }
     }
 
@@ -431,7 +511,96 @@ public class MavenCentralVersionProvider implements IVersionProvider
         return new SonatypeRestAPIUrlBuilder( sonatypeRestApiBaseUrl );
     }
 
-    private List<Version> queryAllVersions(Artifact artifact) throws IOException
+    private PossiblyIncompleteResult queryReleaseDatesUsingHttpHead(Artifact artifact, Set<String> versionNumbers) throws IOException {
+        final List<Version> result = new ArrayList<>();
+        IOException partialFailureException = null;
+        int requestCount = 0;
+        for ( final String versionNumber : versionNumbers )
+        {
+            try
+            {
+                final Optional<ZonedDateTime> timestamp =
+                    getLastModified( artifact.groupId, artifact.artifactId, versionNumber, artifact.classifier, artifact.type );
+                requestCount++;
+                if ( timestamp.isPresent() ) {
+                    result.add( new Version( versionNumber, timestamp.get() ) );
+                }
+            } catch(IOException e) {
+                if ( requestCount == 0 ) {
+                    throw e;
+                }
+                partialFailureException = e;
+                break;
+            }
+        }
+        return new PossiblyIncompleteResult( result, partialFailureException );
+    }
+
+    private PossiblyIncompleteResult queryReleaseDatesUsingSolr(Artifact artifact, Set<String> versionNumbers) throws IOException {
+
+        if ( versionNumbers.isEmpty() ) {
+            return new PossiblyIncompleteResult( new ArrayList<>(0), null );
+        }
+
+        final PossiblyIncompleteResult result;
+        if ( versionNumbers.size() > 3 ) {
+            LOG.trace( "[bulk fetch] Querying release date for {} versions of {}:{}:{}",
+                versionNumbers.size(), artifact.groupId, artifact.artifactId, artifact.classifier);
+            // too many , do one bulk SOLR query instead of multiple individual queries
+            result = queryAllReleaseDates( artifact );
+            result.result.removeIf( x -> !versionNumbers.contains( x.versionString ) );
+        }
+        else
+        {
+            // perform individual SOLR queries
+            LOG.trace( "Querying release date for {} versions of {}:{}:{}",
+                versionNumbers.size(), artifact.groupId, artifact.artifactId, artifact.classifier);
+            final List<Version> list = new ArrayList<>(versionNumbers.size());
+            IOException partialResultFailureException = null;
+            for ( final String version : versionNumbers )
+            {
+                final SonatypeRestAPIUrlBuilder urlBuilder = newRESTUrlBuilder()
+                    .groupId( artifact.groupId )
+                    .artifactId( artifact.artifactId )
+                    .classifier( artifact.classifier )
+                    .version( version );
+                final URL restApiURL = urlBuilder.build();
+                try
+                {
+                    final PartialResult res = performGET( restApiURL, this::parseSonatypeResponse );
+                    list.addAll( res.data() );
+                } catch(IOException e) {
+                    partialResultFailureException = e;
+                    break;
+                }
+            }
+            result = new PossiblyIncompleteResult( list, partialResultFailureException );
+        }
+        // intentionally assigning all 'Version' instances generated by a single queryAllVersions() call
+        // the same 'firstSeenByServer' date (to aid in debugging).
+        final ZonedDateTime now = ZonedDateTime.now();
+        for ( final Version v : result.result )
+        {
+            v.firstSeenByServer = now;
+        }
+        return result;
+    }
+
+    /**
+     *
+     * @param result REST API call results, possibly incomplete
+     * @param partialResultFailureException <code>null</code> if no errors happened or the
+     *                                      <code>IOException</code> that happened after the first API call
+     *                                      succeeded but a subsequent one failed and thus the result is incomplete.
+     */
+    private record PossiblyIncompleteResult(List<Version> result, IOException partialResultFailureException) {
+
+        public boolean isCompleteResult() {
+            return partialResultFailureException == null;
+        }
+    }
+
+    private PossiblyIncompleteResult queryAllReleaseDates(Artifact artifact) throws IOException
     {
         final SonatypeRestAPIUrlBuilder urlBuilder = newRESTUrlBuilder()
             .groupId( artifact.groupId )
@@ -441,40 +610,43 @@ public class MavenCentralVersionProvider implements IVersionProvider
 
         URL restApiURL = urlBuilder.build();
 
+        LOG.debug("queryAllReleaseDates(): Initial Solr query => {}", restApiURL);
+
         // need to query in a loop here as the REST API seems to refuse returning more than 20 results at once
         final PartialResult first = performGET( restApiURL, this::parseSonatypeResponse );
-        int remaining = first.totalResultSize() - first.data().size();
+        int remaining = first.numArtifactsInResponse() - first.data().size();
         final List<Version> result = new ArrayList<>( first.data() );
+        IOException partialResultFailureException = null;
         if ( remaining > 0 ) {
 
-            LOG.debug("queryAllVersions(): Artifact "+artifact+" has "+first.totalResultSize()+" releases.");
-            int offset = first.data().size();
+            LOG.debug( "queryAllReleaseDates(): Artifact " + artifact + " has " + first.numArtifactsInResponse() + " releases.");
+            int currentPageOffset = first.data().size();
             PartialResult tmp;
             do
             {
-                restApiURL = urlBuilder.startOffset( offset ).build();
+                restApiURL = urlBuilder.startOffset( currentPageOffset ).build();
 
-                tmp = performGET( restApiURL, this::parseSonatypeResponse );
+                LOG.debug( "queryAllReleaseDates(): querying next batch from Solr using {}", restApiURL );
+                try
+                {
+                    tmp = performGET( restApiURL, this::parseSonatypeResponse );
+                } catch(IOException ex) {
+                    partialResultFailureException = ex;
+                    break;
+                }
                 result.addAll( tmp.data() );
                 final int resultCount = tmp.data().size();
-                offset += resultCount;
+                currentPageOffset += tmp.numArtifactsInResponse();
                 remaining -= resultCount;
             } while (! tmp.data().isEmpty() && remaining > 0 );
         }
-        if ( result.size() != first.totalResultSize() ) {
-            final String msg = "Tried to retrieve " + first.totalResultSize() + " versions for " + artifact + " " +
-                "but only got " + result.size();
-            LOG.error( "queryAllVersions(): " + msg );
+        if ( partialResultFailureException == null && result.size() != first.numArtifactsInResponse() ) {
+            final String msg = "Tried to retrieve " + first.numArtifactsInResponse() + " versions for " + artifact + " " +
+                               "but only got " + result.size();
+            LOG.error( "queryAllReleaseDates(): " + msg );
             throw new IOException( msg );
         }
-        // intentionally assigning all 'Version' instances generated by a single queryAllVersions() call
-        // the same 'firstSeenByServer' date (to aid in debugging).
-        final ZonedDateTime now = ZonedDateTime.now();
-        for ( final Version v : result )
-        {
-            v.firstSeenByServer = now;
-        }
-        return result;
+        return new PossiblyIncompleteResult( result, partialResultFailureException );
     }
 
     private PartialResult parseSonatypeResponse(InputStream stream) throws IOException
@@ -526,7 +698,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 }
              */
 
-        final List<Version> result = new ArrayList<>();
+        final Map<String,Version> result = new HashMap<>();
         final Map<String, Object> response = (Map<String, Object>) map.get( "response" );
         if ( response == null )
         {
@@ -549,14 +721,24 @@ public class MavenCentralVersionProvider implements IVersionProvider
                 final long ts = ((Number) (artifactDetails.get( "timestamp" ))).longValue();
                 final String version = (String) (artifactDetails.get( "v" ));
                 final ZonedDateTime releaseDate = Instant.ofEpochMilli( ts ).atZone( ZoneId.systemDefault() );
-                result.add( new Version( version, releaseDate ) );
+                final Version newVersion = new Version( version, releaseDate );
+
+                // we're doing a sloppy Solr search without considering the artifact type so we MIGHT
+                // get duplicates in the response...
+                final Version existing = result.get( version );
+                if ( existing == null || existing.releaseDate.isAfter(  releaseDate ) )
+                {
+                    result.put( version, newVersion );
+                }
             }
         }
         if ( numFound > 0 && result.isEmpty() )
         {
             LOG.warn( "getReleaseDateNew(): JSON response contained " + docs.size() + " artifacts but none had a 'timestamp' attribute?" );
         }
-        return new PartialResult( result, numFound );
+        final List<Version> sortedList = result.values().stream().sorted( Comparator.comparing( a -> a.versionString ) )
+            .collect( Collectors.toCollection( ArrayList::new ) );
+        return new PartialResult( sortedList, numFound );
     }
 
     public static Document parseXML(InputStream inputStream) throws IOException
@@ -645,7 +827,81 @@ public class MavenCentralVersionProvider implements IVersionProvider
     {
         synchronized(rateLimiters) {
             final String key = uri.getScheme()+"_"+uri.getHost()+"_"+uri.getPort();
-            return rateLimiters.computeIfAbsent(key, u -> new FifoRateLimiter( maxSolrApiRequestsPerSecond ));
+            return rateLimiters.computeIfAbsent(key, u -> new FifoRateLimiter( solrApiRateLimit ));
+        }
+    }
+
+    private Optional<ZonedDateTime> getLastModified(String groupId, String artifactId, String version, String classifier, String type) throws IOException
+    {
+        final StringBuilder repo1Url = new StringBuilder(DEFAULT_REPO1_BASE_URL);
+        repo1Url.append( groupId.replace('.', '/') );
+        repo1Url.append("/").append( artifactId.replace('.', '/') );
+        repo1Url.append("/").append( version );
+
+        // versiontracker-common-1.0.23.pom
+        repo1Url.append("/").append( artifactId);
+        repo1Url.append("-").append( version );
+        if ( StringUtils.isNotBlank( classifier ) ) {
+            repo1Url.append("-").append( classifier);
+        }
+        repo1Url.append(".pom");
+
+        final URI uri;
+        try {
+            uri = new URI(repo1Url.toString());
+        }
+        catch ( URISyntaxException e ) {
+            throw new IOException( "URL is not RFC2396-compliant and cannot be converted into an URI", e);
+        }
+
+        // make sure we don't hit Maven central too hard
+        try
+        {
+            if ( ! REPO1_HOST.equals( uri.getHost() ) )
+            {
+                getRateLimiter( uri ).acquire();
+            }
+        }
+        catch( InterruptedException e )
+        {
+            throw new InterruptedIOException( "rate-limiter caught InterruptedException" );
+        }
+
+        final long start = System.currentTimeMillis();
+        final HttpHead httpHead;
+        try {
+            httpHead = new HttpHead( uri );
+        } catch (Exception e1) {
+            LOG.debug("getLastModified(): Should not happen: '"+uri+"'",e1);
+            throw new RuntimeException(e1);
+        }
+
+        synchronized ( statistics ) {
+            statistics.apiRequests.update();
+        }
+
+        try (CloseableHttpResponse response = getClient( uri ).execute( httpHead ))
+        {
+            final long elapsedMillis = System.currentTimeMillis() - start;
+            final int statusCode = response.getCode();
+
+            synchronized ( statistics ) {
+                statistics.httpRequestCountByResponseCode.compute( statusCode, (k,v)-> v == null ? new RequestCount() : ((RequestCount) v).incCount() );
+            }
+            LOG.debug("getLastModified(): [{} millis] {}",elapsedMillis, repo1Url);
+            if ( statusCode != 200 ) {
+                LOG.error( "getLastModified(): HTTP request to {} returned {}", uri, response.getReasonPhrase() );
+                if ( statusCode == 404 ) {
+                    return Optional.empty();
+                }
+                throw new IOException( "HTTP request to " + uri + " returned " + response.getReasonPhrase() );
+            }
+            final Header header = response.getFirstHeader("Last-Modified");
+            if (header != null && header.getValue() != null) {
+                // Parse HTTP date string (RFC 1123 format) into ZonedDateTime
+                return Optional.of( ZonedDateTime.parse( header.getValue(), DateTimeFormatter.RFC_1123_DATE_TIME ) );
+            }
+            throw new IOException("HEAD response without 'Last-Modified' header?");
         }
     }
 
@@ -704,7 +960,7 @@ public class MavenCentralVersionProvider implements IVersionProvider
             try ( final HttpEntity entity = response.getEntity() ) {
                 try ( InputStream instream = entity.getContent() ) {
                     LOG.debug( "performGET(): Got Input Stream after " + (System.currentTimeMillis() - start) + " ms" );
-                    return handler.process( instream );
+                    return handler.process( new TeeInputStream(instream, System.out) );
                 }
                 finally {
                     LOG.debug( "performGET(): Finished processing after " + (System.currentTimeMillis() - start) + " ms" );
@@ -717,6 +973,26 @@ public class MavenCentralVersionProvider implements IVersionProvider
     {
         try {
             return expression.evaluate( document );
+        }
+        catch(Exception e) {
+            if ( LOG.isDebugEnabled() ) {
+                LOG.error("parseXML(): Failed to parse document: "+e.getMessage(),e);
+            } else {
+                LOG.error("parseXML(): Failed to parse document: "+e.getMessage());
+            }
+            throw new IOException("Failed to parse document: "+e.getMessage(),e);
+        }
+    }
+
+    private List<String> readStrings(XPathExpression expr,Document doc) throws IOException
+    {
+        try {
+            final NodeList nodes = (NodeList) expr.evaluate(doc, XPathConstants.NODESET);
+            final List<String> versions = new ArrayList<>(nodes.getLength());
+            for (int i = 0, l = nodes.getLength(); i < l ; i++) {
+                versions.add(nodes.item(i).getNodeValue());
+            }
+            return versions;
         }
         catch(Exception e) {
             if ( LOG.isDebugEnabled() ) {
@@ -747,8 +1023,10 @@ public class MavenCentralVersionProvider implements IVersionProvider
         }
     }
 
-    public void setMaxSolrApiRequestsPerSecond(float maxSolrApiRequestsPerSecond)
+    public void setSolrApiRateLimit(RateLimit rateLimit)
     {
-        this.maxSolrApiRequestsPerSecond = maxSolrApiRequestsPerSecond;
+        Validate.notNull( rateLimit, "rateLimit must not be null" );
+        LOG.info("setSolrApiRateLimit(): Using Solr API rate limit "+rateLimit);
+        this.solrApiRateLimit = rateLimit;
     }
 }
