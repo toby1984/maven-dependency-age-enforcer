@@ -311,8 +311,8 @@ public class MavenCentralVersionProvider implements IVersionProvider
         final Artifact test = new Artifact();
 
         // https://repo1.maven.org/maven2/de/code-sourcery/versiontracker/versiontracker-common/
-        test.groupId = "de.code-sourcery.versiontracker";
-        test.artifactId = "versiontracker-common";
+        test.groupId = "org.springframework";
+        test.artifactId = "spring-core";
 
         VersionInfo data = new VersionInfo();
         data.artifact = test;
