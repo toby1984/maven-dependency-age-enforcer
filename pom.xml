@@ -21,7 +21,7 @@
      - maven-artifact
      - maven-plugin-api
     -->
-    <enforcerrule.maven.version>3.9.6</enforcerrule.maven.version>
+    <enforcerrule.maven.version>3.9.16</enforcerrule.maven.version>
 
     <illegalAccess>--add-opens java.base/java.lang=ALL-UNNAMED</illegalAccess>
     <jdkModules />
